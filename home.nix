@@ -39,6 +39,7 @@
     ncdu
     strace
     # binutils
+    # binutils
     tokei
     xh
     jc
@@ -56,8 +57,8 @@
 
     gitAndTools.gh
 
-    # nvm installed manually via curl
-    nodePackages.npm
+    nodejs-18_x
+    nodePackages.pnpm
     cargo
     rustc
     pre-commit
@@ -85,6 +86,7 @@
     zsh = (import ./zsh.nix { inherit pkgs; });
     starship = (import ./starship.nix { inherit pkgs; });
     direnv = (import ./direnv.nix { inherit pkgs; });
+    eza = (import ./eza.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
     nushell = (import ./nushell.nix { inherit pkgs; });
     zoxide = (import ./zoxide.nix { inherit pkgs; });
