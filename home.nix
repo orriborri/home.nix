@@ -86,7 +86,7 @@
     zsh = (import ./zsh.nix { inherit pkgs; });
     starship = (import ./starship.nix { inherit pkgs; });
     direnv = (import ./direnv.nix { inherit pkgs; });
-    eza = (import ./eza.nix { inherit pkgs; });
+    lsd = (import ./lsd.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
     nushell = (import ./nushell.nix { inherit pkgs; });
     zoxide = (import ./zoxide.nix { inherit pkgs; });

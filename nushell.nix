@@ -30,11 +30,15 @@
 
     alias da = direnv allow
     alias g = git
-    # Define a custom command for `gui`
-    def gui [] {
-      bash -c 'eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa && gitui && eval $(ssh-agent -k)'
-    }
-    alias c = code-insiders
+    alias gui = gitui
+    alias c = code
+
+    # Maybe these won't be needed one day
+    alias ls = lsd
+    alias l = ls -l
+    alias la = ls -a
+    alias lla = ls -la
+    alias lt = ls --tree
 
     $env.EDITOR = nvim
   '';
