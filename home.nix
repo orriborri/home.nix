@@ -57,7 +57,7 @@
 
     gitAndTools.gh
 
-    nodejs-18_x
+    nodejs
     nodePackages.pnpm
     cargo
     rustc
