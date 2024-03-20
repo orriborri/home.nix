@@ -57,7 +57,7 @@
 
     gitAndTools.gh
 
-    nodejs
+    nodejs_21
     nodePackages.pnpm
     cargo
     rustc
