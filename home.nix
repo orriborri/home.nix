@@ -20,28 +20,43 @@
   home.stateVersion = "21.05";
 
   home.packages = with pkgs; [
-    coreutils
+        (uutils-coreutils.override { prefix = ""; })
     less # Non busybox version of less needed by delta
+
     ripgrep
+    igrep
+
+    fd
+    skim
+
     jq
     unzip
     ncdu
     strace
-    binutils
+    # binutils
     tokei
     xh
     jc
-    zoxide
     xclip
-    eza
-    carapace
-    gitAndTools.gh
-    nodejs_20
+    bottom
+    jless
+    navi
+    tealdeer
+    fend
 
+    zellij
+
+    dust
+    dua
+
+    gitAndTools.gh
+
+    nodejs_22
+    nodePackages.pnpm
     cargo
-    rustc
     pre-commit
-    pinentry
+    lsd
+    zoxide
   ];
 
   programs = {
@@ -53,9 +68,9 @@
     direnv = (import ./direnv.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
     nushell = (import ./nushell.nix { inherit pkgs; });
-    gpg = (import ./gpg.nix { inherit pkgs; });
+    zoxide = (import ./zoxide.nix { inherit pkgs; });
+    carapace = (import ./carapace.nix { inherit pkgs; });
+    atuin = (import ./atuin.nix { inherit pkgs; });
+    gitui = (import ./gitui.nix { inherit pkgs; }); 
   };
-  programs.gpg-agent.extraConfig = ''
-        pinentry-program ${pkgs.pinentry.gnome3}/bin/pinentry-gnome3
-      '';
 }

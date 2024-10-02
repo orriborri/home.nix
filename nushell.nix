@@ -4,43 +4,33 @@
 {
   enable = true;
 
-  # extraEnv = ''
-  #   zoxide init nushell | save -f ~/.zoxide.nu
-  # '';
-
   extraConfig = ''
-    let carapace_completer = {|spans|
-      carapace $spans.0 nushell $spans | from json
-    }
-
-    $env.config = {
-      show_banner: false,
-      edit_mode: vi,
-
-      hooks: {
-        pre_prompt: [{ ||
-          let direnv = (direnv export json | from json)
-          let direnv = if ($direnv | is-empty) { {} } else { $direnv }
-          $direnv | load-env
-        }]
-      },
-
-      completions: {
-        external: {
-          enable: true
-          completer: $carapace_completer
-        }
-      }
-      
-    }
+    $env.config = ($env.config | upsert show_banner false)
+    $env.config = ($env.config | upsert edit_mode vi)
 
     alias da = direnv allow
     alias g = git
-    alias c = code-insiders
+    alias gui = gitui
+    alias c = code
 
-    $env.GPG_TTY = (tty)
-    $env.EDITOR = nvim
-    $env.PATH = ($env.PATH | split row (char esep) | append '/home/orre/.npm-packages/bin')
+    # Maybe these won't be needed one day
+    alias ls = lsd
+    alias l = ls -l
+    alias la = ls -a
+    alias lla = ls -la
+    alias lt = ls --tree
+  '';
 
+  extraEnv = ''
+    $env.EDITOR = 'nvim'
+    $env.LS_COLORS = (${pkgs.vivid}/bin/vivid generate nord | str trim)
+    $env.CARGO_HOME = ($env.HOME | path join .cargo)
+    $env.PATH = (
+      $env.PATH | split row (char esep)
+        | append /usr/local/bin
+        | append ($env.CARGO_HOME | path join bin)
+        | append ($env.HOME | path join .local bin)
+        | uniq # filter so the paths are unique
+    )
   '';
 }
