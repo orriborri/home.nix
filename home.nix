@@ -36,11 +36,12 @@
     eza
     carapace
     gitAndTools.gh
-
-    nodejs-18_x
+    nodejs_20
 
     cargo
+    rustc
     pre-commit
+    pinentry
   ];
 
   programs = {
@@ -52,5 +53,9 @@
     direnv = (import ./direnv.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
     nushell = (import ./nushell.nix { inherit pkgs; });
+    gpg = (import ./gpg.nix { inherit pkgs; });
   };
+  programs.gpg-agent.extraConfig = ''
+        pinentry-program ${pkgs.pinentry.gnome3}/bin/pinentry-gnome3
+      '';
 }
