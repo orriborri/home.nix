@@ -51,9 +51,10 @@
 
     gitAndTools.gh
 
-    nodejs_22
+    nodejs_20
     nodePackages.pnpm
     cargo
+    rustc
     pre-commit
     lsd
     zoxide

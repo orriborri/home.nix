@@ -16,7 +16,6 @@
   plugins = with pkgs.tmuxPlugins; [
     sensible
     yank
-    copycat
     cpu
     {
       plugin = resurrect;
@@ -33,7 +32,7 @@
 
   extraConfig = ''
     # mouse support
-    set -g mouse on
+    set -g mouse on 
     bind -n MouseDrag1Status swap-window -t=
 
     # split panes with C-v (vertical split), C-s (horizontal split)
