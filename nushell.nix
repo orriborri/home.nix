@@ -42,14 +42,7 @@
   '';
 
   extraEnv = ''
-    $env.EDITOR = nvim
-  '';
-
-  extraEnv = ''
-    if (not (($env | get SSH_AUTH_SOCK?) | default false)) {
-      $env.HOME + '/.agent-brigde.nu'
-    }
-    $env.EDITOR = 'nvim'
+    $env.EDITOR = "nvim"
     $env.LS_COLORS = (${pkgs.vivid}/bin/vivid generate nord | str trim)
     $env.CARGO_HOME = ($env.HOME | path join .cargo)
     $env.PATH = (
