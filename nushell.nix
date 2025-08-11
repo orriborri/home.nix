@@ -50,6 +50,7 @@
         | append /usr/local/bin
         | append ($env.CARGO_HOME | path join bin)
         | append ($env.HOME | path join .local bin)
+        | append '/opt/homebrew/bin'
         | uniq # filter so the paths are unique
     )
   '';

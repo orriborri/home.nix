@@ -18,7 +18,7 @@
 
   initContent = ''
     # Fancy ls colors
-    export LS_COLORS="$(${pkgs.vivid}/bin/vivid generate nord)"
+    export LS_COLORS='$(${pkgs.vivid}/bin/vivid generate catppuccin-mocha'
 
     # 'jj' enters normal mode
     bindkey -M viins 'jj' vi-cmd-mode
@@ -38,6 +38,8 @@
     export PATH="$HOME/.cargo/bin:$PATH"
 
     # export DISPLAY=$(grep -m 1 nameserver /etc/resolv.conf | awk '{print $2}'):0
+
+    eval "$(/opt/homebrew/bin/brew shellenv)"
   '';
 
   sessionVariables = {
@@ -56,12 +58,12 @@
       name = "fast-syntax-highlighting";
       src = "${pkgs.zsh-fast-syntax-highlighting}/share/zsh/site-functions";
     }
-    {
-      name = "zsh-vi-mode";
-      src = builtins.fetchGit {
-        url = "https://github.com/jeffreytse/zsh-vi-mode";
-        rev = "9178e6bea2c8b4f7e998e59ef755820e761610c7";
-      };
-    }
+    # {
+    #   name = "zsh-vi-mode";
+    #   src = builtins.fetchGit {
+    #     url = "https://github.com/jeffreytse/zsh-vi-mode";
+    #     rev = "9178e6bea2c8b4f7e998e59ef755820e761610c7";
+    #   };
+    # }
   ];
 }
