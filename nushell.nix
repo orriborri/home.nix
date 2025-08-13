@@ -34,7 +34,7 @@
     def gui [] {
       bash -c 'eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa && gitui && eval $(ssh-agent -k)'
     }
-    alias c = code
+    alias c = code-insiders
 
     # Maybe these won't be needed one day
     alias ls = lsd
