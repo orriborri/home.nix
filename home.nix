@@ -8,7 +8,7 @@
   # paths it should manage.
   home.username = "orre";
   home.homeDirectory = "/home/orre";
-
+  nixpkgs.config.allowUnfree = true;
   # This value determines the Home Manager release that your
   # configuration is compatible with. This helps avoid breakage
   # when a new Home Manager release introduces backwards
@@ -18,9 +18,8 @@
   # the Home Manager release notes for a list of state version
   # changes in each release.
   home.stateVersion = "21.05";
-
   home.packages = with pkgs; [
-        (uutils-coreutils.override { prefix = ""; })
+    (uutils-coreutils.override { prefix = ""; })
     less # Non busybox version of less needed by delta
 
     ripgrep
@@ -58,6 +57,12 @@
     pre-commit
     lsd
     zoxide
+    pueue
+    devbox
+    nixfmt-rfc-style
+    
+    zed # Modern, high-performance code editor
+
   ];
 
   programs = {
@@ -72,6 +77,6 @@
     zoxide = (import ./zoxide.nix { inherit pkgs; });
     carapace = (import ./carapace.nix { inherit pkgs; });
     atuin = (import ./atuin.nix { inherit pkgs; });
-    gitui = (import ./gitui.nix { inherit pkgs; }); 
+    gitui = (import ./gitui.nix { inherit pkgs; });
   };
 }

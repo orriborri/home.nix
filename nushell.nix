@@ -1,4 +1,3 @@
-
 { pkgs, ... }:
 
 {
@@ -14,7 +13,7 @@
     def gui [] {
       bash -c 'eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa && gitui && eval $(ssh-agent -k)'
     }
-    alias c = code
+    alias c = code-insiders
 
     # Maybe these won't be needed one day
     alias ls = lsd
@@ -22,9 +21,15 @@
     alias la = ls -a
     alias lla = ls -la
     alias lt = ls --tree
+    alias ssh = ssh.exe
+    alias ssh-add = ssh-add.exe
+    alias scp = scp.exe
   '';
 
   extraEnv = ''
+    if (not (($env | get SSH_AUTH_SOCK?) | default false)) {
+      $env.HOME + '/.agent-brigde.nu'
+    }
     $env.EDITOR = 'nvim'
     $env.LS_COLORS = (${pkgs.vivid}/bin/vivid generate nord | str trim)
     $env.CARGO_HOME = ($env.HOME | path join .cargo)
