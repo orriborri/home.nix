@@ -16,7 +16,7 @@
     zed = "DISPLAY=:0 zed";
   };
 
-  initExtra = ''
+  initContent = ''
     # Fancy ls colors
     export LS_COLORS="$(${pkgs.vivid}/bin/vivid generate nord)"
 

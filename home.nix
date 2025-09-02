@@ -9,6 +9,12 @@
   home.username = "orre";
   home.homeDirectory = "/home/orre";
   nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.permittedInsecurePackages = [];
+  nixpkgs.overlays = [
+    (final: prev: {
+      nodejs = prev.nodejs;
+    })
+  ];
   # This value determines the Home Manager release that your
   # configuration is compatible with. This helps avoid breakage
   # when a new Home Manager release introduces backwards
@@ -50,8 +56,8 @@
 
     gitAndTools.gh
 
-    nodejs_20
-    nodePackages.pnpm
+    # nvm installed manually via curl
+    nodePackages.npm
     cargo
     rustc
     pre-commit
@@ -60,10 +66,17 @@
     pueue
     devbox
     nixfmt-rfc-style
+    uv
     
     zed # Modern, high-performance code editor
 
   ];
+
+  home.activation.installNvm = config.lib.dag.entryAfter [ "checkLinkTargets" ] ''
+    if [ ! -d "$HOME/.nvm" ]; then
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    fi
+  '';
 
   programs = {
     neovim = (import ./neovim.nix { inherit pkgs; });
@@ -79,4 +92,6 @@
     atuin = (import ./atuin.nix { inherit pkgs; });
     gitui = (import ./gitui.nix { inherit pkgs; });
   };
+
+
 }
