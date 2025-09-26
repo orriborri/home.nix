@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   # Let Home Manager install and manage itself.
@@ -23,74 +23,79 @@
   # You can update Home Manager without changing this value. See
   # the Home Manager release notes for a list of state version
   # changes in each release.
-  home.stateVersion = "21.05";
-  home.packages = with pkgs; [
-    (uutils-coreutils.override { prefix = ""; })
-    less # Non busybox version of less needed by delta
+  home.stateVersion = "25.05";
 
-    ripgrep
-    igrep
+  home.packages =
+    with pkgs;
+    [
+      (uutils-coreutils.override { prefix = ""; })
+      less # Non busybox version of less needed by delta
 
-    fd
-    skim
+      # Utilities
+      fd
+      skim
 
-    jq
-    unzip
-    ncdu
-    strace
-    # binutils
-    tokei
-    xh
-    jc
-    xclip
-    bottom
-    jless
-    navi
-    tealdeer
-    fend
+      unzip
+      ncdu
+      jc
+      xclip
+      bottom
+      jless
+      navi
+      tealdeer
+      fend
+      bandwhich
+      gnused
+      gawk
 
-    zellij
+      ripgrep
+      igrep
 
-    dust
-    dua
+      dust
+      dua
 
-    gitAndTools.gh
+      # Git
+      gitAndTools.gh
+      pre-commit
 
-    # nvm installed manually via curl
-    nodePackages.npm
-    cargo
-    rustc
-    pre-commit
-    lsd
-    zoxide
-    pueue
-    devbox
-    nixfmt-rfc-style
-    uv
-    
-    zed # Modern, high-performance code editor
+      # Programming
+      nodejs_latest
+      nodePackages.pnpm
+      #cargo
+      tokei
+      jq
+      xh
 
-  ];
-
-  home.activation.installNvm = config.lib.dag.entryAfter [ "checkLinkTargets" ] ''
-    if [ ! -d "$HOME/.nvm" ]; then
-      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-    fi
-  '';
+      # Needed by Nix LSP
+      nil
+      nixd
+    ]
+    # Linux only
+    ++ (
+      if pkgs.stdenv.isLinux then
+        [
+          strace
+          binutils
+        ]
+      else
+        [ ]
+    );
 
   programs = {
     neovim = (import ./neovim.nix { inherit pkgs; });
     git = (import ./git.nix { inherit pkgs; });
-    tmux = (import ./tmux.nix { inherit pkgs; });
     zsh = (import ./zsh.nix { inherit pkgs; });
     starship = (import ./starship.nix { inherit pkgs; });
     direnv = (import ./direnv.nix { inherit pkgs; });
+    lsd = (import ./lsd.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
     nushell = (import ./nushell.nix { inherit pkgs; });
     zoxide = (import ./zoxide.nix { inherit pkgs; });
     carapace = (import ./carapace.nix { inherit pkgs; });
     atuin = (import ./atuin.nix { inherit pkgs; });
     gitui = (import ./gitui.nix { inherit pkgs; });
+    wezterm = (import ./wezterm.nix { inherit pkgs; });
+    zellij = (import ./zellij.nix { inherit pkgs; });
   };
 
 
