@@ -10,9 +10,9 @@
     da = "direnv allow";
     g = "git";
     c = "code";
-    ssh = "ssh.exe";
-    ssh-add = "ssh-add.exe";
-    scp = "scp.exe";
+    ssh = "ssh";
+    ssh-add = "ssh-add";
+    scp = "scp";
     zed = "DISPLAY=:0 zed";
   };
 
