@@ -100,7 +100,7 @@
 
 
   imports = [
-    ./hyprland.nix
-    ./waybar.nix
+     ./hypr/hyprland.nix
+    ./waybar/waybar.nix
   ];
 }
