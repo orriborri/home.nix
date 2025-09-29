@@ -1,5 +1,5 @@
 { config, pkgs, ... }:
 {
   home.packages = [ pkgs.hyprland ];
-  xdg.configFile."hypr/hyprland.conf".source = ./hypr/hyprland.conf;
+  xdg.configFile."hypr/hyprland.conf".source = ./hyprland.conf;
 }

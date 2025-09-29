@@ -99,8 +99,12 @@
   };
 
 
-  imports = [
-     ./hypr/hyprland.nix
-    ./waybar/waybar.nix
-  ];
+  imports =
+    let
+      hostname = builtins.getEnv "HOSTNAME";
+    in
+      if hostname == "fedora" then [
+        ./hypr/hyprland.nix
+        ./waybar/waybar.nix
+      ] else [];
 }
