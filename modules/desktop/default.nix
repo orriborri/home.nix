@@ -2,15 +2,15 @@
 
 {
   imports = [
-    ../../hyprland.nix
-    ../../waybar/waybar.nix
-    ../../hyprlock/hyprlock.nix
-    ../../hyprlogout/hyprlogout.nix
+    ./hyprland.nix
+    ./waybar/waybar.nix
+    ./hyprlock/hyprlock.nix
+    ./hyprlogout/hyprlogout.nix
   ];
 
   programs = {
-    wezterm = (import ../../wezterm.nix { inherit pkgs; });
-    zellij = (import ../../zellij.nix { inherit pkgs; });
+    wezterm = (import ./wezterm.nix { inherit pkgs; });
+    zellij = (import ./zellij.nix { inherit pkgs; });
     
     foot = {
       enable = true;

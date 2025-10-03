@@ -2,9 +2,9 @@
 
 {
   programs = {
-    neovim = (import ../../neovim.nix { inherit pkgs; });
-    git = (import ../../git.nix { inherit pkgs; });
-    gitui = (import ../../gitui.nix { inherit pkgs; });
+    neovim = (import ./neovim.nix { inherit pkgs; });
+    git = (import ./git.nix { inherit pkgs; });
+    gitui = (import ./gitui.nix { inherit pkgs; });
   };
 
   home.packages = with pkgs; [

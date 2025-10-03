@@ -2,8 +2,8 @@
 
 {
   programs = {
-    lsd = (import ../lsd.nix { inherit pkgs; });
-    htop = (import ../htop.nix { inherit pkgs; });
+    lsd = (import ./utilities/lsd.nix { inherit pkgs; });
+    htop = (import ./utilities/htop.nix { inherit pkgs; });
   };
 
   home.packages = with pkgs; [
