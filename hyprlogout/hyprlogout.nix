@@ -1,16 +1,12 @@
+
+
 { config, pkgs, lib, ... }:
 {
   home.packages = with pkgs; [ 
-    waybar 
+    waylogout
   ];
   
-  # Waybar configuration
-  xdg.configFile."waybar/config.jsonc".source = ./config.jsonc;
-  xdg.configFile."waybar/network-speed.sh" = {
-    source = ./network-speed.sh;
-    executable = true;
-  };
-  
+
   # Wlogout configuration for logout menu
   xdg.configFile."wlogout/layout".text = ''
     {

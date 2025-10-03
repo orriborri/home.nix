@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-
+{ pkgs, lib, ... }:
 {
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
@@ -9,6 +8,9 @@
   home.username = "orre";
   home.homeDirectory = "/home/orre";
   nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+    "obsidian"
+  ];
   nixpkgs.config.permittedInsecurePackages = [];
   nixpkgs.overlays = [
     (final: prev: {
@@ -34,8 +36,8 @@
       # Utilities
       fd
       skim
-
-      unzip
+      networkmanager  # nm-tui for network management
+      bluetui
       ncdu
       jc
       xclip
@@ -65,10 +67,15 @@
       tokei
       jq
       xh
-
+      obsidian
+      
       # Needed by Nix LSP
       nil
       nixd
+
+      cmake
+      meson
+      cpio
     ]
     # Linux only
     ++ (
@@ -96,15 +103,24 @@
     gitui = (import ./gitui.nix { inherit pkgs; });
     wezterm = (import ./wezterm.nix { inherit pkgs; });
     zellij = (import ./zellij.nix { inherit pkgs; });
+    
+    # Foot terminal with zsh
+    foot = {
+      enable = true;
+      settings = {
+        main = {
+          shell = "zsh";
+        };
+      };
+    };
+
   };
 
 
-  imports =
-    let
-      hostname = builtins.getEnv "HOSTNAME";
-    in
-      if hostname == "fedora" then [
-        ./hypr/hyprland.nix
-        ./waybar/waybar.nix
-      ] else [];
+  imports = [
+    ./hyprland.nix
+    ./waybar/waybar.nix
+    ./hyprlock/hyprlock.nix
+    ./hyprlogout/hyprlogout.nix
+  ];
 }

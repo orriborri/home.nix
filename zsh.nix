@@ -14,6 +14,7 @@
     ssh-add = "ssh-add";
     scp = "scp";
     zed = "DISPLAY=:0 zed";
+    nm = "nm-tui";  # Network manager TUI
   };
 
   initContent = pkgs.lib.mkOrder 1 ''
