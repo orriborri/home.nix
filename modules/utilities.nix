@@ -1,0 +1,45 @@
+{ pkgs, ... }:
+
+{
+  programs = {
+    lsd = (import ../lsd.nix { inherit pkgs; });
+    htop = (import ../htop.nix { inherit pkgs; });
+  };
+
+  home.packages = with pkgs; [
+    (uutils-coreutils.override { prefix = ""; })
+    less
+    
+    # File utilities
+    fd
+    skim
+    ncdu
+    dust
+    dua
+    
+    # Network utilities
+    networkmanager
+    bluetui
+    bandwhich
+    
+    # Text processing
+    jc
+    ripgrep
+    igrep
+    gnused
+    gawk
+    
+    # System utilities
+    xclip
+    bottom
+    jless
+    navi
+    tealdeer
+    fend
+  ] ++ (
+    if pkgs.stdenv.isLinux then [
+      strace
+      binutils
+    ] else []
+  );
+}

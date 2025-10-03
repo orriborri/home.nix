@@ -1,7 +1,6 @@
 { pkgs, lib, ... }:
 {
-  # Let Home Manager install and manage itself.
-  programs.home-manager.enable = true;
+
 
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
@@ -27,100 +26,19 @@
   # changes in each release.
   home.stateVersion = "25.05";
 
-  home.packages =
-    with pkgs;
-    [
-      (uutils-coreutils.override { prefix = ""; })
-      less # Non busybox version of less needed by delta
-
-      # Utilities
-      fd
-      skim
-      networkmanager  # nm-tui for network management
-      bluetui
-      ncdu
-      jc
-      xclip
-      bottom
-      jless
-      navi
-      tealdeer
-      fend
-      bandwhich
-      gnused
-      gawk
-
-      ripgrep
-      igrep
-
-      dust
-      dua
-
-      # Git
-      gitAndTools.gh
-      pre-commit
-
-      # Programming
-      nodejs_latest
-      nodePackages.pnpm
-      #cargo
-      tokei
-      jq
-      xh
-      obsidian
-      
-      # Needed by Nix LSP
-      nil
-      nixd
-
-      cmake
-      meson
-      cpio
-    ]
-    # Linux only
-    ++ (
-      if pkgs.stdenv.isLinux then
-        [
-          strace
-          binutils
-        ]
-      else
-        [ ]
-    );
+  home.packages = with pkgs; [
+    gitAndTools.gh
+  ];
 
   programs = {
-    neovim = (import ./neovim.nix { inherit pkgs; });
-    git = (import ./git.nix { inherit pkgs; });
-    zsh = (import ./zsh.nix { inherit pkgs; });
-    starship = (import ./starship.nix { inherit pkgs; });
-    direnv = (import ./direnv.nix { inherit pkgs; });
-    lsd = (import ./lsd.nix { inherit pkgs; });
-    htop = (import ./htop.nix { inherit pkgs; });
-    nushell = (import ./nushell.nix { inherit pkgs; });
-    zoxide = (import ./zoxide.nix { inherit pkgs; });
-    carapace = (import ./carapace.nix { inherit pkgs; });
-    atuin = (import ./atuin.nix { inherit pkgs; });
-    gitui = (import ./gitui.nix { inherit pkgs; });
-    wezterm = (import ./wezterm.nix { inherit pkgs; });
-    zellij = (import ./zellij.nix { inherit pkgs; });
-    
-    # Foot terminal with zsh
-    foot = {
-      enable = true;
-      settings = {
-        main = {
-          shell = "zsh";
-        };
-      };
-    };
-
+    home-manager.enable = true;
   };
 
 
   imports = [
-    ./hyprland.nix
-    ./waybar/waybar.nix
-    ./hyprlock/hyprlock.nix
-    ./hyprlogout/hyprlogout.nix
+    ./modules/shell
+    ./modules/development
+    ./modules/desktop
+    ./modules/utilities.nix
   ];
 }
