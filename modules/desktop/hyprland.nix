@@ -7,7 +7,7 @@ in
   # Install essential packages through Nix (works on any system)
   home.packages = with pkgs; [
     # Wayland essentials
-    waybar
+    #waybar
     wofi
     wofi-emoji
   
@@ -27,10 +27,18 @@ in
     # Fonts
     font-awesome
     
-    # Lock screen (swaylock-effects as alternative to hyprlock)
+    # Lock screen - swaylock-effects works better with Fedora PAM
+    swaylock-effects
     
+    # PolicyKit authentication agent
+    lxqt.lxqt-policykit
+    
+    # Fingerprint tools
+    fprintd
+    gtklock 
     # Monitor configuration tool
     nwg-displays
+    
     
   ] ++ lib.optionals (!isNixOS) [
     # On non-NixOS, also install Hyprland through Nix as fallback
@@ -51,25 +59,22 @@ in
     settings = {
       # Variables
       "$mod" = "SUPER";
-      "$terminal" = "foot";
+      "$terminal" = "kitty";
       "$fileManager" = "nautilus";
       "$menu" = "wofi --show drun";
       
-      # Monitor configuration (managed by nwg-displays)
-      # Source external monitor configuration
+      # Monitor and workspace configuration
       source = [
         "~/.config/hypr/monitors.conf"
-      ];
-      
-      # Workspace configuration is now handled by split-monitor-workspaces plugin
-      
+        "~/.config/hypr/workspaces.conf"
+      ];   
       # Autostart
       exec-once = [
-        "waybar"
         "dbus-update-activation-environment --systemd --all"
         "wl-paste --type text --watch cliphist store"   # Clipboard manager daemon
         "wl-paste --type image --watch cliphist store"  # Clipboard manager for images
         "mako"  # Notification daemon
+        "${pkgs.lxqt.lxqt-policykit}/bin/lxqt-policykit-agent"  # PolicyKit agent
       ];
       
       # Environment variables
@@ -138,7 +143,7 @@ in
         # Application shortcuts
         "$mod, Q, exec, $terminal"
         "$mod, C, killactive,"
-        "$mod, M, exec, hyprctl keyword general:layout master"
+
         "$mod, E, exec, $fileManager"
         "$mod, V, togglefloating,"
         "$mod, space, exec, $menu"
@@ -151,8 +156,8 @@ in
         # Emoji picker
         "$mod, period, exec, /home/orre/.nix-profile/bin/wofi-emoji"
         
-        # Lock screen with swaylock-effects (more compatible than hyprlock)
-        "ctrl alt, L, exec, swaylock --screenshots --clock --indicator --indicator-radius 100 --indicator-thickness 7 --effect-blur 7x5 --effect-vignette 0.5:0.5 --ring-color bb00cc --key-hl-color 880033 --line-color 00000000 --inside-color 00000088 --separator-color 00000000 --grace 2 --fade-in 0.2"
+        # Lock screen with swaylock (Fedora compatible)
+        "CTRL ALT, L, exec, swaylock -f -c 000000"
         
         # Focus movement
         "$mod, h, movefocus, l"
@@ -221,6 +226,11 @@ in
         "suppressevent maximize, class:.*"
       ];
     };
+    
+    extraConfig = ''
+      bind = $mod, T, exec, hyprctl dispatch layoutmsg cyclenext
+      bind = $mod, M, exec, hyprctl dispatch layoutmsg swapwithmaster
+    '';
   };
   
   # Create desktop session file on non-NixOS systems
@@ -265,18 +275,71 @@ in
     
     # Waybar configuration
     waybar = {
-      enable = true;
-      # You can add waybar config here if needed
+      enable = lib.mkForce true;
     };
   };
   
+
+  
+  # nwg-panel configuration
+  # xdg.configFile."nwg-panel/config".text = ''
+  #   [
+  #     {
+  #       "name": "panel-top",
+  #       "output": "",
+  #       "layer": "top",
+  #       "position": "top",
+  #       "controls": "right",
+  #       "controls-settings": {
+  #         "window-width": 0,
+  #         "window-height": 0,
+  #         "alignment": "right",
+  #         "margin": 0,
+  #         "icon-size": 16,
+  #         "hover-opens": false,
+  #         "leave-closes": true,
+  #         "click-closes": true,
+  #         "css-name": "controls-window",
+  #         "show-values": false,
+  #         "interval": 1,
+  #         "angle": 0.0,
+  #         "components": [
+  #           "brightness",
+  #           "volume",
+  #           "battery"
+  #         ]
+  #       },
+  #       "width": "auto",
+  #       "height": 30,
+  #       "homogeneous": true,
+  #       "margin-top": 0,
+  #       "margin-bottom": 0,
+  #       "padding-horizontal": 0,
+  #       "padding-vertical": 0,
+  #       "spacing": 4,
+  #       "items-padding": 4,
+  #       "icons": "",
+  #       "css-name": "panel-top",
+  #       "modules-left": [
+  #         "hypr-workspaces"
+  #       ],
+  #       "modules-center": [
+  #         "clock"
+  #       ],
+  #       "modules-right": [
+  #         "controls"
+  #       ]
+  #     }
+  #   ]
+  # '';
+  
   # Hyprlock configuration
   xdg.configFile."hypr/hyprlock.conf".text = ''
-    # Hyprlock Configuration for v0.8.2
-    
     general {
-        grace = 5
-        hide_cursor = true
+        disable_loading_bar = true
+        grace = 2
+        hide_cursor = false
+        no_fade_in = false
     }
     
     background {
@@ -288,44 +351,41 @@ in
     
     input-field {
         monitor =
-        size = 200, 50
-        outline_thickness = 3
-        dots_size = 0.33
-        dots_spacing = 0.15
-        dots_center = false
-        dots_rounding = -1
-        outer_color = rgb(33ccff)
-        inner_color = rgb(200, 200, 200)
-        font_color = rgb(10, 10, 10)
-        fade_on_empty = true
-        fade_timeout = 1000
-        placeholder_text = <i>Input Password...</i>
+        size = 300, 60
+        outline_thickness = 2
+        dots_size = 0.2
+        dots_spacing = 0.2
+        dots_center = true
+        outer_color = rgba(33, 204, 255, 1.0)
+        inner_color = rgba(30, 30, 30, 1.0)
+        font_color = rgba(255, 255, 255, 1.0)
+        fade_on_empty = false
+        placeholder_text = Enter Password
         hide_input = false
-        rounding = -1
-        check_color = rgb(204, 136, 34)
-        fail_color = rgb(204, 34, 34)
-        fail_text = <i>''${FAIL} <b>(''${ATTEMPTS})</b></i>
-        capslock_color = -1
-        numlock_color = -1
-        bothlock_color = -1
-        invert_numlock = false
-        swap_font_color = false
-        
-        position = 0, -20
+        position = 0, -120
+        halign = center
+        valign = center
+        zindex = 10
+    }
+    
+    label {
+        monitor =
+        text = cmd[update:1000] echo "$(date +"%A, %B %d")"
+        color = rgba(255, 255, 255, 0.8)
+        font_size = 22
+        font_family = Inter
+        position = 0, 300
         halign = center
         valign = center
     }
     
     label {
         monitor =
-        text = Hi there, ''${USER}
-        text_align = center
-        color = rgba(200, 200, 200, 1.0)
-        font_size = 25
-        font_family = Noto Sans
-        rotate = 0
-        
-        position = 0, 80
+        text = cmd[update:1000] echo "$(date +"%H:%M")"
+        color = rgba(255, 255, 255, 1.0)
+        font_size = 95
+        font_family = Inter
+        position = 0, 200
         halign = center
         valign = center
     }

@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
   programs = {
@@ -9,7 +9,7 @@
   home.packages = with pkgs; [
     (uutils-coreutils.override { prefix = ""; })
     less
-    
+    cmake  
     # File utilities
     fd
     skim
@@ -36,10 +36,12 @@
     navi
     tealdeer
     fend
+    
   ] ++ (
     if pkgs.stdenv.isLinux then [
       strace
       binutils
     ] else []
   );
+  
 }

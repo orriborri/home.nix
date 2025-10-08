@@ -17,6 +17,13 @@
     jq
     xh
     pre-commit
+    uv
+    
+    # Audio
+    pulsemixer
+    
+    # Shell
+    zsh
     
     # Nix tools
     nil

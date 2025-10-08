@@ -7,6 +7,6 @@ echo "🔄 Updating flake inputs..."
 nix flake update
 
 echo "🏠 Switching to updated configuration..."
-home-manager switch --flake .#orre
+home-manager switch -b backup --flake .#orre
 
 echo "✅ Update complete!"

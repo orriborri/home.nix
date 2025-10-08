@@ -28,6 +28,7 @@
 
   home.packages = with pkgs; [
     gitAndTools.gh
+    linuxPackages.cpupower
   ];
 
   programs = {

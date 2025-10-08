@@ -77,21 +77,21 @@
   '';
   
   # Restart Waybar when configuration changes
-  home.activation.restartWaybar = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if [[ -v HYPRLAND_INSTANCE_SIGNATURE ]] && command -v waybar >/dev/null 2>&1; then
-      echo "🔄 Restarting Waybar..."
-      $DRY_RUN_CMD pkill waybar || true
-      if [[ ! -v DRY_RUN ]]; then
-        # Wait a moment for waybar to fully stop
-        sleep 0.5
-        # Start waybar in background
-        waybar &
-        echo "✅ Waybar restarted"
-      else
-        echo "📋 Would restart Waybar"
-      fi
-    else
-      echo "ℹ️  Not in Hyprland session or waybar not available, skipping restart"
-    fi
-  '';
+  # home.activation.restartWaybar = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  #   if [[ -v HYPRLAND_INSTANCE_SIGNATURE ]] && command -v waybar >/dev/null 2>&1; then
+  #     echo "🔄 Restarting Waybar..."
+  #     $DRY_RUN_CMD pkill waybar || true
+  #     if [[ ! -v DRY_RUN ]]; then
+  #       # Wait a moment for waybar to fully stop
+  #       sleep 0.5
+  #       # Start waybar in background
+  #       waybar &
+  #       echo "✅ Waybar restarted"
+  #     else
+  #       echo "📋 Would restart Waybar"
+  #     fi
+  #   else
+  #     echo "ℹ️  Not in Hyprland session or waybar not available, skipping restart"
+  #   fi
+  # '';
 }
