@@ -8,6 +8,5 @@
     zoxide = (import ./zoxide.nix { inherit pkgs; });
     carapace = (import ./carapace.nix { inherit pkgs; });
     atuin = (import ./atuin.nix { inherit pkgs; });
-    nushell = (import ./nushell.nix { inherit pkgs; });
   };
 }

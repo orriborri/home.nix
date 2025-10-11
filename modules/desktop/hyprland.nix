@@ -59,7 +59,7 @@ in
     settings = {
       # Variables
       "$mod" = "SUPER";
-      "$terminal" = "kitty";
+      "$terminal" = "foot";
       "$fileManager" = "nautilus";
       "$menu" = "wofi --show drun";
       
@@ -154,7 +154,7 @@ in
         "$mod SHIFT, V, exec, cliphist list | wofi --dmenu | cliphist decode | wl-copy"
         
         # Emoji picker
-        "$mod, period, exec, /home/orre/.nix-profile/bin/wofi-emoji"
+        "$mod, period, exec, /home/orre/.nix-profile/bin/emote"
         
         # Lock screen with swaylock (Fedora compatible)
         "CTRL ALT, L, exec, swaylock -f -c 000000"

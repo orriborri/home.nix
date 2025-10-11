@@ -7,6 +7,7 @@
     gitui = (import ./gitui.nix { inherit pkgs; });
   };
 
+  # AWS CLI v2 can be installed via: ~/.config/home-manager/scripts/install-awscli.sh
   home.packages = with pkgs; [
     # Programming languages
     nodejs_latest

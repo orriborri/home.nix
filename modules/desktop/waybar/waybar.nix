@@ -11,8 +11,8 @@
         position = "top";
         modules-left = [ "hyprland/mode" "hyprland/workspaces" "custom/arrow10" "hyprland/window" ];
         modules-right = [
-          "custom/arrow11" "custom/power-profile" "custom/arrow10" "pulseaudio" "custom/arrow9" "network" "custom/arrow8" "memory"
-          "custom/arrow7" "cpu" "custom/arrow6" "temperature" "custom/arrow5" "battery"
+          "custom/arrow12" "custom/power-meter" "custom/arrow11" "custom/power-profile" "custom/arrow10" "pulseaudio" "custom/arrow9" "network" "custom/arrow8" "memory"
+          "custom/arrow7" "cpu" "custom/arrow6" "custom/temperature" "custom/arrow5" "battery"
           "custom/arrow4" "hyprland/language" "custom/arrow3" "tray" "clock#date" "custom/arrow2" "clock#time"
         ];
         
@@ -112,11 +112,11 @@
           tooltip = false;
         };
         
-        temperature = {
-          critical-threshold = 90;
+        "custom/temperature" = {
+          exec = "temp=$(cat /sys/class/thermal/thermal_zone*/temp | head -1); temp_c=$((temp/1000)); echo \"🌡️ \${temp_c}°C\"";
           interval = 5;
-          format = "{icon} {temperatureC}°";
-          format-icons = [ "" "" "" "" "" ];
+          format = "{}";
+          exec-if = "test -f /sys/class/thermal/thermal_zone0/temp";
           tooltip = false;
         };
         
@@ -164,16 +164,42 @@
         };
         
         "custom/power-profile" = {
-          exec = "profile=$(powerprofilesctl get); case $profile in performance) echo '🔥 performance';; power-saver) echo '🌿 power-saver';; *) echo '⚡ balanced';; esac";
+          exec = "profile=$(/home/orre/.nix-profile/bin/powerprofilesctl get); case $profile in performance) echo '🔧 🐅';; power-saver) echo '🔧 🐢';; *) echo '🔧 🐶';; esac";
           interval = 5;
           format = "{}";
-          on-click = "powerprofilesctl set $(powerprofilesctl list | grep -v $(powerprofilesctl get) | head -1 | cut -d: -f1)";
+          on-click = "current=$(/home/orre/.nix-profile/bin/powerprofilesctl get); case $current in performance) /home/orre/.nix-profile/bin/powerprofilesctl set balanced;; balanced) /home/orre/.nix-profile/bin/powerprofilesctl set power-saver;; power-saver) /home/orre/.nix-profile/bin/powerprofilesctl set performance;; esac";
           tooltip-format = "Click to cycle power profile";
         };
-        
+    
         "custom/arrow11" = {
           format = "";
           tooltip = false;
+        };
+        
+        "custom/arrow12" = {
+          format = "";
+          tooltip = false;
+        };
+      };
+      
+      secondaryBar = {
+        output = "HDMI-A-1";
+        layer = "top";
+        position = "top";
+        modules-left = [ "hyprland/workspaces" ];
+        modules-right = [ "clock#time" ];
+        
+        "clock#time" = {
+          interval = 10;
+          format = "{:%H:%M}";
+          tooltip = false;
+        };
+        
+        "hyprland/workspaces" = {
+          disable-scroll-wraparound = true;
+          smooth-scrolling-threshold = 4;
+          enable-bar-scroll = true;
+          format = "{name}";
         };
       };
     };
@@ -231,7 +257,7 @@
       	padding: 0;
       	box-shadow: none;
       	text-shadow: none;
-      	icon-shadow: none;
+      	-gtk-icon-shadow: none;
       }
 
       /* The whole bar */
@@ -266,7 +292,7 @@
       #mode,
       #memory.critical,
       #cpu.critical,
-      #temperature.critical,
+      #custom-temperature.critical,
       #battery.critical.discharging {
       	animation-timing-function: linear;
       	animation-iteration-count: infinite;
@@ -279,7 +305,7 @@
       #network.disconnected,
       #memory.warning,
       #cpu.warning,
-      #temperature.warning,
+      #custom-temperature.warning,
       #battery.warning.discharging {
       	color: @warning;
       }
@@ -329,6 +355,11 @@
 
       #pulseaudio {
       	background: @sound;
+      	color: @black;
+      }
+      
+      #custom-temperature {
+      	background: @temp;
       	color: @black;
       }
 
@@ -435,9 +466,20 @@
       	color: @black;
       }
       
+      #custom-power-meter {
+      	background: @brgreen;
+      	color: @black;
+      }
+      
       #custom-arrow11 {
       	font-size: 11pt;
       	color: @power;
+      	background: @brgreen;
+      }
+      
+      #custom-arrow12 {
+      	font-size: 11pt;
+      	color: @brgreen;
       	background: rgba(40, 40, 40, 0.8784313725);
       }
 

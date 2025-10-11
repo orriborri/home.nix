@@ -9,7 +9,7 @@
   home.packages = with pkgs; [
     (uutils-coreutils.override { prefix = ""; })
     less
-    cmake  
+    
     # File utilities
     fd
     skim
