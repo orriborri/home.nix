@@ -145,6 +145,7 @@
     # Start applications on startup
     exec foot
     exec waybar
+    exec 1password --silent
   '';
 
   # Kanshi service for display management
