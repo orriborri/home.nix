@@ -57,7 +57,7 @@
 
   sessionVariables = {
     # Suppress direnv logs
-    DIRENV_LOG_FORMAT = "";
+    DIRENV_LOG_format = "";
 
     # Don't use nano
     EDITOR = "vim";

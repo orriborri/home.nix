@@ -1,7 +1,10 @@
 { pkgs, lib, ... }:
+
+let
+  #windowManager = "hyprland"; # Change to "sway"
+  windowManager = "sway"; # Change to "sway"
+in
 {
-
-
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
   home.username = "orre";
@@ -30,18 +33,36 @@
     gitAndTools.gh
     power-profiles-daemon
     nerd-fonts.jetbrains-mono
+    nerd-fonts.hack
+    powerline-fonts
+    font-awesome
+    liberation_ttf
     emote
+    # Graphics and Wayland support
+    mesa
+    vulkan-loader
+    vulkan-headers
+    vulkan-tools
+    libva
+    libva-utils
   ];
 
   programs = {
     home-manager.enable = true;
   };
 
-
-  imports = [
-    ./modules/shell
-    ./modules/development
-    ./modules/desktop
-    ./modules/utilities.nix
-  ];
+  imports =
+    [
+      ./modules/shell
+      ./modules/development
+      ./modules/utilities.nix
+    ]
+    ++ (
+      if windowManager == "hyprland" then [
+        ./modules/wm/hyprland/default.nix
+        ./modules/desktop  # Keep non-waybar desktop modules
+      ] else if windowManager == "sway" then [
+        ./modules/wm/sway/default.nix
+      ] else []
+    );
 }

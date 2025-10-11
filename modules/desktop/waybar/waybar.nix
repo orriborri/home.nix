@@ -1,20 +1,28 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, powerlineLib ? null, ... }:
+
+let
+  # Define powerline modules and colors
+  rightModules = [ "custom/kanshi" "custom/power-profile" "custom/audio" "network" "memory" "cpu" "custom/temperature" "battery" "sway/language" "tray" "clock#date" "clock#time" ];
+  rightColors = [ "rgba(40, 40, 40, 0.8784313725)" "@power" "@sound" "@network" "@memory" "@cpu" "@temp" "@battery" "@layout" "@date" "@date" "@time" ];
+  
+  rightPowerline = if powerlineLib != null then powerlineLib.mkPowerline rightModules rightColors else {
+    arrows = {};
+    moduleOrder = rightModules;
+    arrowCSS = "";
+  };
+in
 {
   programs.waybar = {
     enable = true;
     package = pkgs.waybar;
-    systemd.enable = true;
+    systemd.enable = false;
     
     settings = {
       mainBar = {
         layer = "top";
         position = "top";
-        modules-left = [ "hyprland/mode" "hyprland/workspaces" "custom/arrow10" "hyprland/window" ];
-        modules-right = [
-          "custom/arrow12" "custom/power-meter" "custom/arrow11" "custom/power-profile" "custom/arrow10" "pulseaudio" "custom/arrow9" "network" "custom/arrow8" "memory"
-          "custom/arrow7" "cpu" "custom/arrow6" "custom/temperature" "custom/arrow5" "battery"
-          "custom/arrow4" "hyprland/language" "custom/arrow3" "tray" "clock#date" "custom/arrow2" "clock#time"
-        ];
+        modules-left = [ "sway/mode" "sway/workspaces" "custom/arrow14" "sway/window" ];
+        modules-right = rightPowerline.moduleOrder;
         
         battery = {
           interval = 10;
@@ -55,7 +63,7 @@
           };
         };
         
-        "hyprland/language" = {
+        "sway/language" = {
           format = " {}";
           min-length = 5;
           tooltip = false;
@@ -80,36 +88,25 @@
           tooltip = false;
         };
         
-        "hyprland/window" = {
-          format = "{}";
-          max-length = 30;
-          tooltip = false;
-        };
-        
-        "hyprland/workspaces" = {
+        "sway/workspaces" = {
           disable-scroll-wraparound = true;
           smooth-scrolling-threshold = 4;
           enable-bar-scroll = true;
           format = "{name}";
         };
         
-        pulseaudio = {
-          format = "{icon} {volume}%";
-          format-bluetooth = "{icon} {volume}%";
-          format-muted = " {volume}%";
-          format-icons = {
-            headphone = "";
-            hands-free = "";
-            headset = "";
-            phone = "";
-            portable = "";
-            car = "";
-            default = [ "" "" ];
-          };
-          scroll-step = 1;
-          on-click = "pactl set-sink-mute @DEFAULT_SINK@ toggle";
-          on-click-right = "pactl list sinks short | cut -f2 | wofi --dmenu | xargs -I {} pactl set-default-sink {}";
-          tooltip = false;
+        "custom/audio" = {
+          exec = "sink_vol=$(pactl get-sink-volume @DEFAULT_SINK@ | grep -o '[0-9]*%' | head -1); source_vol=$(pactl get-source-volume @DEFAULT_SOURCE@ | grep -o '[0-9]*%' | head -1); echo \"🎧 $sink_vol 🎤 $source_vol\"";
+          interval = 2;
+          format = "{}";
+          tooltip-format = "Left: Output | Right: Input | Middle: Mute mic";
+          on-click = "pactl list sinks short | cut -f2 | wofi --dmenu --prompt='Output Device:' | xargs -I {} pactl set-default-sink {}";
+          on-click-right = "pactl list sources short | grep -v monitor | cut -f2 | wofi --dmenu --prompt='Input Device:' | xargs -I {} pactl set-default-source {}";
+          on-click-middle = "pactl set-source-mute @DEFAULT_SOURCE@ toggle";
+          scroll-step = 5;
+          on-scroll-up = "pactl set-sink-volume @DEFAULT_SINK@ +5%";
+          on-scroll-down = "pactl set-sink-volume @DEFAULT_SINK@ -5%";
+          tooltip = true;
         };
         
         "custom/temperature" = {
@@ -120,10 +117,19 @@
           tooltip = false;
         };
         
+        "custom/kanshi" = {
+          exec = "echo '🖥️'";
+          format = "{}";
+          tooltip-format = "Display Profile Manager - Click for menu";
+          on-click = "echo -e \"laptop\\nhome\\nsamsung-monitor\\ntriple\\nauto\" | wofi --dmenu --prompt='Display Profile:' | while read profile; do if [ \"$profile\" = \"auto\" ]; then systemctl --user restart kanshi; else ~/.config/kanshi/switch-profile.sh \"$profile\"; fi; done";
+          on-click-right = "systemctl --user restart kanshi";
+          tooltip = true;
+        };
+        
         tray.icon-size = 18;
         
         "custom/arrow1" = {
-          format = "";
+           format = "";
           tooltip = false;
         };
         "custom/arrow2" = {
@@ -162,6 +168,22 @@
           format = "";
           tooltip = false;
         };
+        "custom/arrow11" = {
+          format = "";
+          tooltip = false;
+        };
+        "custom/arrow12" = {
+          format = "";
+          tooltip = false;
+        };
+        "custom/arrow13" = {
+          format = "";
+          tooltip = false;
+        };
+        "custom/arrow14" = {
+          format = "";
+          tooltip = false;
+        };
         
         "custom/power-profile" = {
           exec = "profile=$(/home/orre/.nix-profile/bin/powerprofilesctl get); case $profile in performance) echo '🔧 🐅';; power-saver) echo '🔧 🐢';; *) echo '🔧 🐶';; esac";
@@ -170,23 +192,14 @@
           on-click = "current=$(/home/orre/.nix-profile/bin/powerprofilesctl get); case $current in performance) /home/orre/.nix-profile/bin/powerprofilesctl set balanced;; balanced) /home/orre/.nix-profile/bin/powerprofilesctl set power-saver;; power-saver) /home/orre/.nix-profile/bin/powerprofilesctl set performance;; esac";
           tooltip-format = "Click to cycle power profile";
         };
-    
-        "custom/arrow11" = {
-          format = "";
-          tooltip = false;
-        };
-        
-        "custom/arrow12" = {
-          format = "";
-          tooltip = false;
-        };
+      } // rightPowerline.arrows // {
       };
       
       secondaryBar = {
         output = "HDMI-A-1";
         layer = "top";
         position = "top";
-        modules-left = [ "hyprland/workspaces" ];
+        modules-left = [ "sway/workspaces" ];
         modules-right = [ "clock#time" ];
         
         "clock#time" = {
@@ -195,7 +208,7 @@
           tooltip = false;
         };
         
-        "hyprland/workspaces" = {
+        "sway/workspaces" = {
           disable-scroll-wraparound = true;
           smooth-scrolling-threshold = 4;
           enable-bar-scroll = true;
@@ -246,6 +259,7 @@
       @define-color battery	@aqua;
       @define-color date	@black;
       @define-color time	@white;
+      @define-color music	@brblue;
       @define-color power	@bryellow;
 
       /* Reset all styles */
@@ -264,12 +278,11 @@
       #waybar {
       	background: rgba(40, 40, 40, 0.8784313725);
       	color: @white;
-      	font-family: JetBrains Mono, Siji;
+      	font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
       	font-size: 10pt;
       }
 
       /* Each module */
-      #battery,
       #clock,
       #cpu,
       #language,
@@ -284,15 +297,15 @@
       #disk,
       #user,
       #mpris {
-      	padding-left: 8pt;
-      	padding-right: 8pt;
+      	padding-left: 20pt;
+      	padding-right: 20pt;
       }
 
       /* Each critical module */
       #mode,
       #memory.critical,
       #cpu.critical,
-      #custom-temperature.critical,
+      #temperature.critical,
       #battery.critical.discharging {
       	animation-timing-function: linear;
       	animation-iteration-count: infinite;
@@ -305,15 +318,9 @@
       #network.disconnected,
       #memory.warning,
       #cpu.warning,
-      #custom-temperature.warning,
+      #temperature.warning,
       #battery.warning.discharging {
       	color: @warning;
-      }
-
-      /* Current sway mode (resize etc) */
-      #mode {
-      	color: @white;
-      	background: @mode;
       }
 
       /* Workspaces stuff */
@@ -357,15 +364,15 @@
       	background: @sound;
       	color: @black;
       }
-      
-      #custom-temperature {
-      	background: @temp;
-      	color: @black;
-      }
 
       #network {
       	background: @network;
       	color: @white;
+      }
+
+      #mpris {
+      	background: @music;
+      	color: @black;
       }
 
       #memory {
@@ -405,6 +412,12 @@
       #clock.time {
       	background: @time;
       	color: @black;
+      }
+
+      #custom-arrow1 {
+      	font-size: 11pt;
+      	color: @time;
+      	background: @date;
       }
 
       #custom-arrow2 {
@@ -460,163 +473,52 @@
       	color: @sound;
       	background: @power;
       }
+
+      #custom-arrow11 {
+      	font-size: 11pt;
+      	color: rgba(40, 40, 40, 0.8784313725);
+      	background: @power;
+      }
+      
+      #custom-audio {
+      	background: @sound;
+      	color: @black;
+      }
+      
+      #custom-temperature {
+      	background: @temp;
+      	color: @black;
+      }
       
       #custom-power-profile {
       	background: @power;
       	color: @black;
       }
       
-      #custom-power-meter {
-      	background: @brgreen;
-      	color: @black;
-      }
-      
-      #custom-arrow11 {
-      	font-size: 11pt;
-      	color: @power;
-      	background: @brgreen;
+      #custom-kanshi {
+      	background: rgba(40, 40, 40, 0.8784313725);
+      	color: @white;
       }
       
       #custom-arrow12 {
       	font-size: 11pt;
-      	color: @brgreen;
+      	color: transparent;
       	background: rgba(40, 40, 40, 0.8784313725);
       }
-
-      #custom-arrow3 {
+      
+      #custom-arrow13 {
       	font-size: 11pt;
-      	color: @layout;
-      	background: @battery;
+      	color: rgba(40, 40, 40, 0.8784313725);
+      	background: rgba(40, 40, 40, 0.8784313725);
       }
-
-      #custom-arrow4 {
-      	font-size: 11pt;
-      	color: @battery;
-      	background: @temp;
-      }
-
-      #custom-arrow5 {
-      	font-size: 11pt;
-      	color: @temp;
-      	background: @cpu;
-      }
-
-      #custom-arrow6 {
-      	font-size: 11pt;
-      	color: @cpu;
-      	background: @memory;
-      }
-
-      #custom-arrow7 {
-      	font-size: 11pt;
-      	color: @memory;
-      	background: @network;
-      }
-
-      #custom-arrow8 {
-      	font-size: 11pt;
-      	color: @network;
-      	background: @sound;
-      }
-
-      #custom-arrow9 {
-      	font-size: 11pt;
-      	color: @sound;
-      	background: transparent;
-      }
-
-      #custom-arrow10 {
+      
+      #custom-arrow14 {
       	font-size: 11pt;
       	color: @unfocused;
       	background: transparent;
       }
+      
+      ${rightPowerline.arrowCSS}
     '';
   };
-  
-  xdg.configFile."waybar/network-speed.sh" = {
-    text = ''
-      #!/bin/bash
-      interface=$(ip route | grep default | awk '{print $5}' | head -n1)
-      rx1=$(cat /sys/class/net/$interface/statistics/rx_bytes)
-      tx1=$(cat /sys/class/net/$interface/statistics/tx_bytes)
-      sleep 1
-      rx2=$(cat /sys/class/net/$interface/statistics/rx_bytes)
-      tx2=$(cat /sys/class/net/$interface/statistics/tx_bytes)
-      rx_rate=$(((rx2-rx1)/1024))
-      tx_rate=$(((tx2-tx1)/1024))
-      printf "↓%dKB/s ↑%dKB/s" $rx_rate $tx_rate
-    '';
-    executable = true;
-  };
-  
-  # Wlogout configuration for logout menu
-  xdg.configFile."wlogout/layout".text = ''
-    {
-        "label" : "lock",
-        "action" : "hyprlock",
-        "text" : "Lock",
-        "keybind" : "l"
-    }
-    {
-        "label" : "hibernate",
-        "action" : "systemctl hibernate",
-        "text" : "Hibernate",
-        "keybind" : "h"
-    }
-    {
-        "label" : "logout",
-        "action" : "hyprctl dispatch exit 0",
-        "text" : "Logout",
-        "keybind" : "e"
-    }
-    {
-        "label" : "shutdown",
-        "action" : "systemctl poweroff",
-        "text" : "Shutdown",
-        "keybind" : "s"
-    }
-    {
-        "label" : "suspend",
-        "action" : "systemctl suspend",
-        "text" : "Suspend",
-        "keybind" : "u"
-    }
-    {
-        "label" : "reboot",
-        "action" : "systemctl reboot",
-        "text" : "Reboot",
-        "keybind" : "r"
-    }
-  '';
-  
-  # Basic wlogout styling
-  xdg.configFile."wlogout/style.css".text = ''
-    * {
-        background-image: none;
-        box-shadow: none;
-    }
-    
-    window {
-        background-color: rgba(12, 12, 12, 0.9);
-    }
-    
-    button {
-        color: #FFFFFF;
-        background-color: #1E1E1E;
-        border-style: solid;
-        border-width: 2px;
-        border-radius: 20px;
-        border-color: #33ccff;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 25%;
-        margin: 5px;
-        transition: all 0.3s ease-in-out;
-    }
-    
-    button:focus, button:active, button:hover {
-        background-color: #33ccff;
-        outline-style: none;
-    }
-  '';
 }

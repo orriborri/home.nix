@@ -2,8 +2,9 @@
 
 {
   imports = [
-    ./hyprland.nix
-    ./waybar/waybar.nix
+    # hyprland.nix and waybar.nix are now in wm modules
+    # ./hyprland.nix
+    # ./waybar/waybar.nix
     ./hyprlock/hyprlock.nix
     ./hyprlogout/hyprlogout.nix
   ];
