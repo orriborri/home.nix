@@ -39,6 +39,8 @@ in
     liberation_ttf
     emote
     devbox
+    amazon-q-cli
+    gitlab-ci-local
     # Graphics and Wayland support
     mesa
     vulkan-loader

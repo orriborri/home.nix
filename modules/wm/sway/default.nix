@@ -62,7 +62,7 @@ in
         "🖱️ Select Area")
           mkdir -p ~/Pictures
           file=~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
-          slurp | wayshot -s -f "$file" && slurp | wayshot -s --stdout | wl-copy
+          geometry=$(slurp) && wayshot -s "$geometry" -f "$file" && wayshot -s "$geometry" --stdout | wl-copy
           notify-send "Screenshot" "Area saved to $file and copied to clipboard"
           ;;
         "📋 Full Screen (Clipboard Only)")
@@ -70,7 +70,7 @@ in
           notify-send "Screenshot" "Full screen copied to clipboard"
           ;;
         "✂️ Select Area (Clipboard Only)")
-          slurp | wayshot -s --stdout | wl-copy
+          geometry=$(slurp) && wayshot -s "$geometry" --stdout | wl-copy
           notify-send "Screenshot" "Selected area copied to clipboard"
           ;;
       esac
@@ -132,6 +132,10 @@ in
     exec systemctl --user set-environment XDG_SESSION_DESKTOP=sway
     exec systemctl --user import-environment WAYLAND_DISPLAY
     
+    # Start gnome-keyring and set environment variables
+    exec eval $(gnome-keyring-daemon --start --components=secrets,ssh)
+    exec systemctl --user import-environment SSH_AUTH_SOCK GNOME_KEYRING_CONTROL
+    
     # Remove titlebars but keep 1px border for window delimitation
     default_border none
     default_floating_border none
@@ -177,7 +181,7 @@ in
     bindsym $mod+F8 exec ~/.nix-profile/bin/kanshi-menu
     
     # Lock screen
-    bindsym Ctrl+Mod1+l exec swaylock -c 000000
+    bindsym $mod+Escape exec swaylock -c 000000
 
     # Change focus
     bindsym $mod+h focus left

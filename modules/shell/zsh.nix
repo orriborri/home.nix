@@ -5,6 +5,7 @@
 
   autosuggestion.enable = true;
   enableVteIntegration = true;
+  completionInit = "autoload -U compinit && compinit -u";
 
   shellAliases = {
     da = "direnv allow";
@@ -18,6 +19,7 @@
   };
 
   initContent = pkgs.lib.mkOrder 1 ''
+    export ZSH_DISABLE_COMPFIX=true
     eval "$(zellij setup --generate-auto-start zsh)"
     # 'jj' enters normal mode
     bindkey -M viins 'jj' vi-cmd-mode
@@ -57,6 +59,9 @@
 
     # 'jj' enters normal mode
     ZVM_VI_INSERT_ESCAPE_BINDKEY = "jj";
+
+    # NPM global packages
+    NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
   };
 
   plugins = [

@@ -194,27 +194,6 @@ in
         };
       } // rightPowerline.arrows // {
       };
-      
-      secondaryBar = {
-        output = "HDMI-A-1";
-        layer = "top";
-        position = "top";
-        modules-left = [ "sway/workspaces" ];
-        modules-right = [ "clock#time" ];
-        
-        "clock#time" = {
-          interval = 10;
-          format = "{:%H:%M}";
-          tooltip = false;
-        };
-        
-        "sway/workspaces" = {
-          disable-scroll-wraparound = true;
-          smooth-scrolling-threshold = 4;
-          enable-bar-scroll = true;
-          format = "{name}";
-        };
-      };
     };
     
     style = ''
