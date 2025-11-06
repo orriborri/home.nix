@@ -30,7 +30,7 @@ in
   home.stateVersion = "24.05";
 
   home.packages = with pkgs; [
-    gitAndTools.gh
+    gh
     power-profiles-daemon
     nerd-fonts.jetbrains-mono
     nerd-fonts.hack
@@ -38,6 +38,7 @@ in
     font-awesome
     liberation_ttf
     emote
+    devbox
     # Graphics and Wayland support
     mesa
     vulkan-loader

@@ -10,6 +10,9 @@
     (uutils-coreutils.override { prefix = ""; })
     less
     
+    # Time tracking
+    timewarrior
+    
     # File utilities
     fd
     skim
@@ -31,6 +34,9 @@
     
     # System utilities
     xclip
+    wl-clipboard
+    wayshot
+    slurp
     bottom
     jless
     navi

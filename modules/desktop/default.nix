@@ -13,14 +13,7 @@
     wezterm = (import ./wezterm.nix { inherit pkgs; });
     zellij = (import ./zellij.nix { inherit pkgs; });
     
-    foot = {
-      enable = true;
-      settings = {
-        main = {
-          shell = "zsh";
-        };
-      };
-    };
+    alacritty = (import ./alacritty.nix { inherit pkgs; });
     
     kitty = {
       enable = true;
