@@ -127,6 +127,9 @@ in
     # Sway config
     set $mod Mod4
     
+    # Prevent workspaces from jumping between displays
+    workspace_auto_back_and_forth no
+    
     # Set desktop environment properly for applications
     exec systemctl --user set-environment XDG_CURRENT_DESKTOP=sway
     exec systemctl --user set-environment XDG_SESSION_DESKTOP=sway
@@ -204,29 +207,34 @@ in
     # Create new tabbed container to the right
     bindsym $mod+Shift+t splith; layout tabbed
 
-    # Workspace switching
-    bindsym $mod+1 exec python3 ~/.config/sway/swaysome.py focus 1
-    bindsym $mod+2 exec python3 ~/.config/sway/swaysome.py focus 2
-    bindsym $mod+3 exec python3 ~/.config/sway/swaysome.py focus 3
-    bindsym $mod+4 exec python3 ~/.config/sway/swaysome.py focus 4
-    bindsym $mod+5 exec python3 ~/.config/sway/swaysome.py focus 5
-    bindsym $mod+6 exec python3 ~/.config/sway/swaysome.py focus 6
-    bindsym $mod+7 exec python3 ~/.config/sway/swaysome.py focus 7
-    bindsym $mod+8 exec python3 ~/.config/sway/swaysome.py focus 8
-    bindsym $mod+9 exec python3 ~/.config/sway/swaysome.py focus 9
-    bindsym $mod+0 exec python3 ~/.config/sway/swaysome.py focus 10
+    # Focus outputs (displays)
+    bindsym $mod+Ctrl+1 exec python3 ~/.config/sway/swaysome.py output 1
+    bindsym $mod+Ctrl+2 exec python3 ~/.config/sway/swaysome.py output 2
+    bindsym $mod+Ctrl+3 exec python3 ~/.config/sway/swaysome.py output 3
+
+    # Workspace switching (stays on current display)
+    bindsym $mod+1 exec swaymsg "workspace number 1; move workspace to output current"
+    bindsym $mod+2 exec swaymsg "workspace number 2; move workspace to output current"
+    bindsym $mod+3 exec swaymsg "workspace number 3; move workspace to output current"
+    bindsym $mod+4 exec swaymsg "workspace number 4; move workspace to output current"
+    bindsym $mod+5 exec swaymsg "workspace number 5; move workspace to output current"
+    bindsym $mod+6 exec swaymsg "workspace number 6; move workspace to output current"
+    bindsym $mod+7 exec swaymsg "workspace number 7; move workspace to output current"
+    bindsym $mod+8 exec swaymsg "workspace number 8; move workspace to output current"
+    bindsym $mod+9 exec swaymsg "workspace number 9; move workspace to output current"
+    bindsym $mod+0 exec swaymsg "workspace number 10; move workspace to output current"
 
     # Move container to workspace
-    bindsym $mod+Shift+1 exec python3 ~/.config/sway/swaysome.py move 1
-    bindsym $mod+Shift+2 exec python3 ~/.config/sway/swaysome.py move 2
-    bindsym $mod+Shift+3 exec python3 ~/.config/sway/swaysome.py move 3
-    bindsym $mod+Shift+4 exec python3 ~/.config/sway/swaysome.py move 4
-    bindsym $mod+Shift+5 exec python3 ~/.config/sway/swaysome.py move 5
-    bindsym $mod+Shift+6 exec python3 ~/.config/sway/swaysome.py move 6
-    bindsym $mod+Shift+7 exec python3 ~/.config/sway/swaysome.py move 7
-    bindsym $mod+Shift+8 exec python3 ~/.config/sway/swaysome.py move 8
-    bindsym $mod+Shift+9 exec python3 ~/.config/sway/swaysome.py move 9
-    bindsym $mod+Shift+0 exec python3 ~/.config/sway/swaysome.py move 10
+    bindsym $mod+Shift+1 move container to workspace number 1
+    bindsym $mod+Shift+2 move container to workspace number 2
+    bindsym $mod+Shift+3 move container to workspace number 3
+    bindsym $mod+Shift+4 move container to workspace number 4
+    bindsym $mod+Shift+5 move container to workspace number 5
+    bindsym $mod+Shift+6 move container to workspace number 6
+    bindsym $mod+Shift+7 move container to workspace number 7
+    bindsym $mod+Shift+8 move container to workspace number 8
+    bindsym $mod+Shift+9 move container to workspace number 9
+    bindsym $mod+Shift+0 move container to workspace number 10
 
     # Move workspace between monitors
     bindsym $mod+Ctrl+h move workspace to output left

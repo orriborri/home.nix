@@ -48,6 +48,7 @@ in
     vulkan-tools
     libva
     libva-utils
+    # (pkgs.callPackage ./packages/kiro-ide.nix {})
   ];
 
   programs = {

@@ -30,9 +30,18 @@ def move_to_workspace(key_num):
     workspace_num = get_workspace_number(key_num)
     sway.command(f'move container to workspace number {workspace_num}')
 
+def focus_output(output_num):
+    """Focus output by number (1, 2, 3)"""
+    outputs = [o for o in sway.get_outputs() if not o.name.startswith('__')]
+    if output_num <= len(outputs):
+        output = outputs[output_num - 1]
+        workspaces = [w for w in sway.get_workspaces() if w.output == output.name]
+        if workspaces:
+            sway.command(f'workspace {workspaces[0].name}')
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: swaysome.py [focus|move] <key_num>")
+        print("Usage: swaysome.py [focus|move|output] <key_num>")
         sys.exit(1)
     
     action = sys.argv[1]
@@ -42,3 +51,5 @@ if __name__ == '__main__':
         focus_workspace(key_num)
     elif action == 'move':
         move_to_workspace(key_num)
+    elif action == 'output':
+        focus_output(key_num)
