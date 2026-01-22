@@ -1,9 +1,6 @@
 {
   "mcpServers": {
-    "nixos": {
-      "command": "nix",
-      "args": ["run", "github:utensils/mcp-nixos", "--"]
-    },
+   
     "eks-experts": {
       "command": "npx",
       "args": ["-y", "@aws/mcp-server-eks-experts"]

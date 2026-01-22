@@ -1,72 +1,121 @@
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, pkgs-stable ? pkgs, ... }:
 
 let
-  #windowManager = "hyprland"; # Change to "sway"
-  windowManager = "sway"; # Change to "sway"
+  # Configuration variables
+  username = "orre";
+  homeDirectory = "/home/${username}";
+  windowManager = "sway"; # Using Sway as the window manager
+
+  # System detection
+  isNixOS = builtins.pathExists /etc/NIXOS;
+  isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.isLinux;
 in
 {
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
-  home.username = "orre";
-  home.homeDirectory = "/home/orre";
-  nixpkgs.config.allowUnfree = true;
-  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
-    "obsidian"
-  ];
-  nixpkgs.config.permittedInsecurePackages = [];
-  nixpkgs.overlays = [
-    (final: prev: {
-      nodejs = prev.nodejs;
-    })
-  ];
-  # This value determines the Home Manager release that your
-  # configuration is compatible with. This helps avoid breakage
-  # when a new Home Manager release introduces backwards
-  # incompatible changes.
-  #
-  # You can update Home Manager without changing this value. See
-  # the Home Manager release notes for a list of state version
-  # changes in each release.
-  home.stateVersion = "24.05";
+  home = {
+    inherit username homeDirectory;
+    stateVersion = "24.05";
+  };
 
+  # Nixpkgs configuration
+  nixpkgs = {
+    config = {
+      allowUnfree = true;
+      allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+        "obsidian"
+      ];
+      permittedInsecurePackages = [];
+    };
+    overlays = [
+      (final: prev: {
+        nodejs = prev.nodejs_latest;
+      })
+    ];
+  };
+
+  # System packages
   home.packages = with pkgs; [
+    # Essential tools
     gh
     power-profiles-daemon
+
+    # Fonts
     nerd-fonts.jetbrains-mono
     nerd-fonts.hack
     powerline-fonts
     font-awesome
     liberation_ttf
+
+    # Applications
     emote
     devbox
     amazon-q-cli
     gitlab-ci-local
-    # Graphics and Wayland support
+    awscli2
+    # Graphics and Wayland support (Linux only)
+  ] ++ lib.optionals isLinux [
     mesa
     vulkan-loader
     vulkan-headers
     vulkan-tools
     libva
     libva-utils
-    # (pkgs.callPackage ./packages/kiro-ide.nix {})
+  ] ++ lib.optionals isDarwin [
+    # macOS-specific packages can go here
   ];
 
+  # Programs
   programs = {
     home-manager.enable = true;
+
+    # Basic shell
+    zsh = {
+      enable = true;
+      shellAliases = {
+        g = "git";
+      };
+      initContent = ''
+        autoload -Uz bashcompinit && bashcompinit
+        complete -C '${pkgs.awscli2}/bin/aws_completer' aws
+      '';
+    };
+
+    # Better directory navigation
+    direnv = {
+      enable = true;
+      nix-direnv.enable = true;
+    };
+
+
+    # Fuzzy finder with shell integration
+    fzf = {
+      enable = true;
+      enableZshIntegration = true;
+    };
   };
 
-  imports =
-    [
-      ./modules/shell
-      ./modules/development
-      ./modules/utilities.nix
-    ]
-    ++ (
-      if windowManager == "hyprland" then [
-        ./modules/wm/hyprland/default.nix
-        ./modules/desktop  # Keep non-waybar desktop modules
-      ] else if windowManager == "sway" then [
-        ./modules/wm/sway/default.nix
-      ] else []
-    );
+  # XDG configuration
+  xdg = {
+    enable = true;
+    mimeApps.enable = true;
+  };
+
+  # Security and GPG
+  programs.gpg.enable = true;
+  services.gpg-agent = lib.mkIf isLinux {
+    enable = true;
+    pinentry.package = pkgs.pinentry-gtk2;
+  };
+
+  # Import modules gradually for testing
+  imports = [
+    ./modules/shell
+    ./modules/development
+    ./modules/utilities.nix
+    ./packages/kiro.nix
+  ] ++ lib.optionals (windowManager == "sway") [
+    ./modules/wm/sway
+  ];
 }

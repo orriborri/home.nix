@@ -1,4 +1,4 @@
-# Portable Hyprland Setup with Home Manager
+# Portable Sway Setup with Home Manager
 
 This configuration automatically adapts to work on both NixOS and non-NixOS systems.
 
@@ -17,8 +17,8 @@ OR manually:
 
 **On Fedora/CentOS/RHEL:**
 ```bash
-# Install system Hyprland (recommended for better hardware support)
-sudo dnf install hyprland kitty waybar wofi thunar
+# Install system Sway (recommended for better hardware support)
+sudo dnf install sway kitty waybar wofi thunar
 
 # Install Nix package manager
 sh <(curl -L https://nixos.org/nix/install) --daemon
@@ -26,9 +26,8 @@ sh <(curl -L https://nixos.org/nix/install) --daemon
 
 **On Ubuntu/Debian:**
 ```bash
-# Install Hyprland
-sudo add-apt-repository ppa:hyprland/hyprland -y
-sudo apt update && sudo apt install hyprland kitty waybar wofi thunar
+# Install Sway
+sudo apt update && sudo apt install sway kitty waybar wofi thunar
 
 # Install Nix package manager  
 sh <(curl -L https://nixos.org/nix/install) --daemon
@@ -37,7 +36,7 @@ sh <(curl -L https://nixos.org/nix/install) --daemon
 **On Arch/Manjaro:**
 ```bash
 # Install system packages
-sudo pacman -S hyprland kitty waybar wofi thunar
+sudo pacman -S sway kitty waybar wofi thunar
 
 # Install Nix package manager
 sh <(curl -L https://nixos.org/nix/install) --daemon
@@ -46,7 +45,7 @@ sh <(curl -L https://nixos.org/nix/install) --daemon
 **On NixOS:**
 ```nix
 # Add to /etc/nixos/configuration.nix
-programs.hyprland.enable = true;
+programs.sway.enable = true;
 services.xserver.displayManager.gdm = {
   enable = true;
   wayland = true;
@@ -80,7 +79,7 @@ home-manager switch
 The configuration will automatically:
 - ✅ Detect your system type (NixOS vs non-NixOS)
 - ✅ Install necessary packages through Nix
-- ✅ Force-apply your custom Hyprland configuration
+- ✅ Force-apply your custom Sway configuration
 - ✅ Create desktop session files
 - ✅ Set up proper environment variables
 - ✅ Create a restore script if the config gets overwritten
@@ -102,16 +101,16 @@ The configuration will automatically:
 
 ### ⚙️ **Adaptive Configuration**
 - Same config works on any Linux distribution
-- Uses system Hyprland when available (better GPU support)
-- Falls back to Nix Hyprland as backup
+- Uses system Sway when available (better GPU support)
+- Falls back to Nix Sway as backup
 - Optimized for your hardware
 
 ## 🚀 **Using on New Machines**
 
 1. **Fresh machine**: Run the one-line installer
 2. **Existing machine**: Just clone config and run `home-manager switch`
-3. **Config gets overwritten**: Run `~/.config/hypr/restore-config.sh`
-4. **Log out and select "Hyprland" from login screen**
+3. **Config gets overwritten**: Run `~/.config/sway/restore-config.sh`
+4. **Log out and select "Sway" from login screen**
 
 ## 🔄 **Updating**
 
@@ -122,7 +121,7 @@ git pull
 home-manager switch
 
 # If config gets overwritten, restore it:
-~/.config/hypr/restore-config.sh
+~/.config/sway/restore-config.sh
 ```
 
 ## 🛠️ **Troubleshooting**
@@ -130,7 +129,7 @@ home-manager switch
 ### Config Gets Overwritten
 ```bash
 # Restore your custom config
-~/.config/hypr/restore-config.sh
+~/.config/sway/restore-config.sh
 ```
 
 ### Missing Packages
@@ -145,4 +144,4 @@ The environment variables are set to work with AMD GPUs by default. For other GP
 - **Intel**: Usually works out of the box
 - **NVIDIA**: You may need additional drivers
 
-This setup ensures your Hyprland environment is identical and robust across all your machines! 🎉
+This setup ensures your Sway environment is identical and robust across all your machines! 🎉

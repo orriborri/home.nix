@@ -1,80 +1,134 @@
-{ pkgs, ... }:
+{ pkgs, lib, config, ... }:
 
 {
+  # Shell configuration
   enable = true;
+  
+  # Use XDG config directory for zsh files (resolves deprecation warning)
+  dotDir = "${config.xdg.configHome}/zsh";
 
+  # Shell options
   autosuggestion.enable = true;
   enableVteIntegration = true;
   completionInit = "autoload -U compinit && compinit -u";
+  
+  # History configuration
+  history = {
+    size = 10000;
+    save = 10000;
+    extended = true;
+    ignoreDups = true;
+    ignoreSpace = true;
+  };
 
-  shellAliases = {
+  # Shell aliases organized by category
+  shellAliases = lib.mkDefault {
+    # Directory navigation
     da = "direnv allow";
+    
+    # Git shortcuts
     g = "git";
+    
+    # Editor shortcuts
     c = "code";
+    v = "nvim";
+    
+    # Network utilities
     ssh = "ssh";
     ssh-add = "ssh-add";
     scp = "scp";
+    nm = "nm-tui";
+    
+    # Application shortcuts
     zed = "DISPLAY=:0 zed";
-    nm = "nm-tui";  # Network manager TUI
+    
+    # System utilities (using mkDefault to allow program modules to override)
+    ll = "lsd -la";
+    la = "lsd -a";
+    lt = "lsd --tree";
+    
+    # Nix utilities
+    hm = "home-manager";
+    hms = "home-manager switch";
+    hmb = "home-manager build";
   };
 
-  initContent = pkgs.lib.mkOrder 1 ''
+  # Shell initialization
+  initContent = lib.mkOrder 1 ''
     export ZSH_DISABLE_COMPFIX=true
+    
+    # Zellij auto-start
     eval "$(zellij setup --generate-auto-start zsh)"
-    # 'jj' enters normal mode
+    
+    # Vi mode keybindings
     bindkey -M viins 'jj' vi-cmd-mode
+    
+    # Better history search
+    bindkey '^R' history-incremental-search-backward
+    bindkey '^S' history-incremental-search-forward
+    
+    # Directory navigation
+    setopt AUTO_CD
+    setopt AUTO_PUSHD
+    setopt PUSHD_IGNORE_DUPS
+    
+    # Completion improvements
+    setopt COMPLETE_ALIASES
+    setopt GLOB_COMPLETE
+    
+    # History options
+    setopt HIST_VERIFY
+    setopt SHARE_HISTORY
+    setopt APPEND_HISTORY
   '';
 
+  # Profile configuration
   profileExtra = ''
-    # Adds global npm & yarn packages to $PATH
-    export PATH="$HOME/.npm-packages/bin:$HOME/.yarn/bin:$PATH";
-
-    # Adds local npm & yarn packages to $PATH
+    # Development paths
+    export PATH="$HOME/.npm-packages/bin:$HOME/.yarn/bin:$PATH"
     export PATH="./node_modules/.bin:$PATH"
-
-    # Adds pip packages to $PATH
     export PATH="$HOME/.local/bin:$PATH"
+    export PATH="$HOME/.cargo/bin:$PATH"
 
-    # Adds cargo packages to $PATH
-    . "$HOME/.cargo/env"
-
+    # Load cargo environment if available
+    [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
   ''
-  + (
-    if pkgs.stdenv.isDarwin then
-      ''
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-      ''
-    else
-      ''
-        # export DISPLAY=$(grep -m 1 nameserver /etc/resolv.conf | awk '{print $2}'):0
-      ''
-  );
+  + lib.optionalString pkgs.stdenv.isDarwin ''
+    # macOS specific
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  '';
 
+  # Session variables
   sessionVariables = {
     # Suppress direnv logs
-    DIRENV_LOG_format = "";
+    DIRENV_LOG_FORMAT = "";
 
-    # Don't use nano
-    EDITOR = "vim";
+    # Editor preference
+    EDITOR = "nvim";
+    VISUAL = "nvim";
 
-    # 'jj' enters normal mode
+    # Vi mode configuration
     ZVM_VI_INSERT_ESCAPE_BINDKEY = "jj";
 
     # NPM global packages
     NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
+    
+    # Better less defaults
+    LESS = "-R -S -M -I -x4";
+    
+    # FZF configuration
+    FZF_DEFAULT_OPTS = "--height 40% --layout=reverse --border --inline-info";
   };
 
+  # Plugins
   plugins = [
     {
       name = "fast-syntax-highlighting";
       src = "${pkgs.zsh-fast-syntax-highlighting}/share/zsh/site-functions";
     }
-    # {
-    #   name = "zsh-vi-mode";
-    #   src = builtins.fetchGit {
-    #     url = "https://github.com/jeffreytse/zsh-vi-mode";
-    #     rev = "9178e6bea2c8b4f7e998e59ef755820e761610c7";
-    #   };
-    # }
+    {
+      name = "zsh-autosuggestions";
+      src = "${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions";
+    }
   ];
 }
