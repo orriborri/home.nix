@@ -31,6 +31,7 @@
     
     # Editor shortcuts
     c = "code";
+    k = "kiro-ide";
     v = "nvim";
     
     # Network utilities
@@ -56,6 +57,10 @@
   # Shell initialization
   initContent = lib.mkOrder 1 ''
     export ZSH_DISABLE_COMPFIX=true
+    
+    # AWS CLI completion
+    autoload -Uz bashcompinit && bashcompinit
+    complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
     # Zellij auto-start
     eval "$(zellij setup --generate-auto-start zsh)"

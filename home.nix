@@ -70,18 +70,6 @@ in
   programs = {
     home-manager.enable = true;
 
-    # Basic shell
-    zsh = {
-      enable = true;
-      shellAliases = {
-        g = "git";
-      };
-      initContent = ''
-        autoload -Uz bashcompinit && bashcompinit
-        complete -C '${pkgs.awscli2}/bin/aws_completer' aws
-      '';
-    };
-
     # Better directory navigation
     direnv = {
       enable = true;
