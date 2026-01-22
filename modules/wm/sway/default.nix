@@ -22,6 +22,11 @@ let
     "F6" = "exec ~/.nix-profile/bin/brightnessctl set +5%";
     "${modifier}+F8" = "exec ~/.nix-profile/bin/kanshi-menu";
     
+    # Screenshots
+    "Print" = "exec ~/.nix-profile/bin/screenshot-menu";
+    "${modifier}+Print" = "exec ~/.nix-profile/bin/wayshot --stdout | wl-copy";
+    "${modifier}+Shift+Print" = "exec ~/.nix-profile/bin/slurp | xargs -I {} ~/.nix-profile/bin/wayshot -s {} --stdout | wl-copy";
+    
     # Window management
     "${modifier}+h" = "focus left";
     "${modifier}+j" = "focus down";
@@ -221,6 +226,7 @@ in
     # Screenshot utilities
     wayshot
     slurp
+    wl-clipboard
     
     # Custom scripts
     (writeShellScriptBin "sway-new-workspace" ''
