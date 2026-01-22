@@ -22,7 +22,7 @@
   };
 
   # Shell aliases organized by category
-  shellAliases = lib.mkDefault {
+  shellAliases = {
     # Directory navigation
     da = "direnv allow";
     
@@ -43,11 +43,6 @@
     # Application shortcuts
     zed = "DISPLAY=:0 zed";
     
-    # System utilities (using mkDefault to allow program modules to override)
-    ll = "lsd -la";
-    la = "lsd -a";
-    lt = "lsd --tree";
-    
     # Nix utilities
     hm = "home-manager";
     hms = "home-manager switch";
@@ -55,10 +50,10 @@
   };
 
   # Shell initialization
-  initContent = lib.mkOrder 1 ''
+  initContent = lib.mkOrder 1000 ''
     export ZSH_DISABLE_COMPFIX=true
     
-    # AWS CLI completion
+    # AWS CLI completion (after compinit)
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
