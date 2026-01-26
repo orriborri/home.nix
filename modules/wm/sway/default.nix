@@ -485,8 +485,8 @@ in
     
     profile tripleOffice {
       output DP-10 enable position 0,0 transform 90
-      output DP-8 enable position 1440,0
-      output eDP-1 enable position 4000,0
+      output DP-8 enable position 1080,0
+      output eDP-1 enable position 3640,0
     }
   '';
 
