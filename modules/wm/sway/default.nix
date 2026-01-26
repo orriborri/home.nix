@@ -1,6 +1,9 @@
 { config, pkgs, lib, powerlineLib ? null, ... }:
 
 let
+  # Import waybar configuration
+  waybarConfig = import ../../desktop/waybar/waybar.nix { inherit config pkgs lib powerlineLib; };
+  
   terminal = "foot";
   modifier = "Mod4";
   
@@ -23,9 +26,9 @@ let
     "${modifier}+F8" = "exec ~/.nix-profile/bin/kanshi-menu";
     
     # Screenshots
-    "Print" = "exec ~/.nix-profile/bin/screenshot-menu";
-    "${modifier}+Print" = "exec ~/.nix-profile/bin/wayshot --stdout | wl-copy";
-    "${modifier}+Shift+Print" = "exec ~/.nix-profile/bin/slurp | xargs -I {} ~/.nix-profile/bin/wayshot -s {} --stdout | wl-copy";
+    "${modifier}+p" = "exec ~/.nix-profile/bin/screenshot-menu";
+    "${modifier}+Shift+p" = "exec ~/.nix-profile/bin/grim - | ~/.nix-profile/bin/wl-copy";
+    "${modifier}+Ctrl+p" = "exec ~/.nix-profile/bin/grim -g \"$(~/.nix-profile/bin/slurp)\" - | ~/.nix-profile/bin/wl-copy";
     
     # Window management
     "${modifier}+h" = "focus left";
@@ -224,7 +227,7 @@ in
     sov
     
     # Screenshot utilities
-    wayshot
+    grim
     slurp
     wl-clipboard
     
@@ -251,6 +254,8 @@ in
     (writeShellScriptBin "screenshot-menu" ''
       #!/usr/bin/env bash
       
+      export PATH="$HOME/.nix-profile/bin:$PATH"
+      
       options="📷 Full Screen\n🖱️ Select Area\n📋 Full Screen (Clipboard Only)\n✂️ Select Area (Clipboard Only)"
       selected=$(echo -e "$options" | rofi -dmenu -p 'Screenshot Mode:')
       
@@ -258,21 +263,21 @@ in
         "📷 Full Screen")
           mkdir -p ~/Pictures
           file=~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
-          wayshot -f "$file" && wayshot --stdout | wl-copy
+          grim "$file" && grim - | wl-copy
           notify-send "Screenshot" "Saved to $file and copied to clipboard"
           ;;
         "🖱️ Select Area")
           mkdir -p ~/Pictures
           file=~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
-          geometry=$(slurp) && wayshot -s "$geometry" -f "$file" && wayshot -s "$geometry" --stdout | wl-copy
+          geometry=$(slurp) && grim -g "$geometry" "$file" && grim -g "$geometry" - | wl-copy
           notify-send "Screenshot" "Area saved to $file and copied to clipboard"
           ;;
         "📋 Full Screen (Clipboard Only)")
-          wayshot --stdout | wl-copy
+          grim - | wl-copy
           notify-send "Screenshot" "Full screen copied to clipboard"
           ;;
         "✂️ Select Area (Clipboard Only)")
-          geometry=$(slurp) && wayshot -s "$geometry" --stdout | wl-copy
+          geometry=$(slurp) && grim -g "$geometry" - | wl-copy
           notify-send "Screenshot" "Selected area copied to clipboard"
           ;;
       esac
@@ -487,4 +492,7 @@ in
 
   # Enable kanshi service
   services.kanshi.enable = true;
+  
+  # Waybar configuration
+  programs.waybar = waybarConfig.programs.waybar;
 }

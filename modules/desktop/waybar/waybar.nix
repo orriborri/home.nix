@@ -2,8 +2,8 @@
 
 let
   # Define powerline modules and colors
-  rightModules = [ "custom/kanshi" "custom/power-profile" "custom/audio" "network" "memory" "cpu" "custom/temperature" "battery" "sway/language" "tray" "clock#date" "clock#time" ];
-  rightColors = [ "rgba(40, 40, 40, 0.8784313725)" "@power" "@sound" "@network" "@memory" "@cpu" "@temp" "@battery" "@layout" "@date" "@date" "@time" ];
+  rightModules = [ "custom/kanshi" "custom/power-profile" "custom/audio" "network" "memory" "cpu" "custom/cpu-freq" "custom/temperature" "battery" "sway/language" "tray" "clock#date" "clock#time" ];
+  rightColors = [ "rgba(40, 40, 40, 0.8784313725)" "@power" "@sound" "@network" "@memory" "@cpu" "@cpufreq" "@temp" "@battery" "@layout" "@date" "@date" "@time" ];
   
   rightPowerline = if powerlineLib != null then powerlineLib.mkPowerline rightModules rightColors else {
     arrows = {};
@@ -107,6 +107,13 @@ in
           on-scroll-up = "pactl set-sink-volume @DEFAULT_SINK@ +5%";
           on-scroll-down = "pactl set-sink-volume @DEFAULT_SINK@ -5%";
           tooltip = true;
+        };
+        
+        "custom/cpu-freq" = {
+          exec = "awk '/cpu MHz/ {printf \"🚀 %.0fMHz\", $4; exit}' /proc/cpuinfo";
+          interval = 2;
+          format = "{}";
+          tooltip = false;
         };
         
         "custom/temperature" = {
@@ -233,6 +240,7 @@ in
       @define-color network	@purple;
       @define-color memory	@braqua;
       @define-color cpu	@green;
+      @define-color cpufreq	@aqua;
       @define-color temp	@brgreen;
       @define-color layout	@bryellow;
       @define-color battery	@aqua;
@@ -466,6 +474,11 @@ in
       
       #custom-temperature {
       	background: @temp;
+      	color: @black;
+      }
+      
+      #custom-cpu-freq {
+      	background: @cpufreq;
       	color: @black;
       }
       

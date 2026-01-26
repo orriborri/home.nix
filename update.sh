@@ -3,11 +3,15 @@
 
 set -e
 
+# Only update flake inputs if --update flag is passed
+if [[ "$1" == "--update" ]]; then
+    echo "🔄 Updating flake inputs..."
+    nix flake update
+fi
 
-echo "🔄 Updating flake inputs..."
-nix flake update
-
-echo "🏠 Switching to updated configuration..."
+echo "🏠 Switching to configuration..."
 home-manager switch -b backup --flake .#orre
+pkill waybar
 swaymsg reload
+kanshi status &
 echo "✅ Update complete!"
