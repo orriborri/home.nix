@@ -439,58 +439,32 @@ in
 
   # Kanshi configuration
   xdg.configFile."kanshi/config".text = ''
-    # Display profiles
-    output "Lenovo Group Limited 0x403A Unknown" {
-      mode 1920x1200
-      alias $LAPTOP
-    }
-
-    output "LG Electronics 27GL850 912NTRL9A022" {
-      mode 2560x1440
-      alias $LG
-    }
-
-    output "Samsung Electric Company SMS27A650 Unknown" {
-      mode 1920x1080
-      alias $SAMSUNG
-    }
-
-    output "BNQ BenQ GL2706PQ E9G03141SL0" {
-      mode 2560x1440
-      alias $BenqOffice
-    }
+    # Profiles - using full output names for reliability
     
-    output "Lenovo Group Limited G27q-30 UMB6HX30" {
-      mode 2560x1440
-      alias $LenovoOffice
-    }
-
-    # Profiles
     profile laptop {
-      output $LAPTOP enable
+      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
     }
 
     profile home {
-      output $LAPTOP enable position 2560,0
-      output $LG enable position 0,0
+      output "LG Electronics 27GL850 912NTRL9A022" enable mode 2560x1440 position 0,0
+      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 2560,0
     }
     
     profile portable {
-      output $LAPTOP enable position 0,0
+      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
       output DP-1 enable position 1920,0
     }
 
     profile triple {
-      output $LAPTOP enable position 0,0
-      output $LG enable position 1920,0
-      output $SAMSUNG enable position 4480,0 transform 90
-   
+      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
+      output "LG Electronics 27GL850 912NTRL9A022" enable mode 2560x1440 position 1920,0
+      output "Samsung Electric Company SMS27A650 Unknown" enable mode 1920x1080 position 4480,0 transform 90
     }
     
     profile tripleOffice {
-      output "BNQ BenQ GL2706PQ E9G03141SL0" mode 2560x1440 position 0,0 transform 270
-      output "Lenovo Group Limited G27q-30 UMB6HX30" mode 2560x1440 position 1440,0
-      output "Lenovo Group Limited 0x403A Unknown" mode 1920x1200 position 4000,0
+      output "BNQ BenQ GL2706PQ E9G03141SL0" enable mode 2560x1440 position 0,0
+      output "Lenovo Group Limited G27q-30 UMB6HX30" enable mode 2560x1440 position 2560,0
+      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 5120,0
     }
   '';
 
