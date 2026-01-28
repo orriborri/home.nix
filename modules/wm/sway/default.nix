@@ -472,7 +472,7 @@ in
       {
         profile.name = "tripleOffice";
         profile.outputs = [
-          { criteria = "BNQ BenQ GL2706PQ E9G03141SL0"; mode = "2560x1440"; position = "0,0"; transform = "270"; }
+          { criteria = "BNQ BenQ GL2706PQ"; mode = "2560x1440"; position = "0,0"; transform = "270"; }
           { criteria = "Lenovo Group Limited G27q-30 UMB6HX30"; mode = "2560x1440"; position = "1440,0"; }
           { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "4000,240"; }
         ];
