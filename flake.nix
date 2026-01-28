@@ -9,9 +9,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-utils.url = "github:numtide/flake-utils";
+    nixgl = {
+      url = "github:nix-community/nixGL";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -56,6 +60,7 @@
           extraSpecialArgs = { 
             powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
+            nixgl = nixgl.packages.x86_64-linux;
           };
           modules = [
             ./home.nix

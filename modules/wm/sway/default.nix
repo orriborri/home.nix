@@ -131,7 +131,6 @@ let
         { command = "~/.nix-profile/bin/${terminal}"; }
         { command = "1password --silent"; }
         { command = "sov"; }
-        { command = "~/.nix-profile/bin/way-displays"; }
         { 
           command = "~/.nix-profile/bin/swayidle -w timeout 600 '/usr/bin/swaylock -c 000000' timeout 900 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"' before-sleep '/usr/bin/swaylock -c 000000'";
           always = true;

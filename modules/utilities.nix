@@ -58,6 +58,7 @@
     slurp
     strace
     binutils
+    wdisplays
   ] ++ lib.optionals pkgs.stdenv.isDarwin [
     # macOS specific utilities
     pbcopy

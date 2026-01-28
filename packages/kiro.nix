@@ -4,11 +4,11 @@ let
   # Kiro IDE - fetched from official metadata endpoint
   kiro-ide = pkgs.stdenv.mkDerivation rec {
     pname = "kiro-ide";
-    version = "latest";
+    version = "0.8.140";
 
     src = pkgs.fetchurl {
       # Get latest from: curl -sL "https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-stable.json" | jq -r '.releases[].updateTo.url | select(endswith(".tar.gz"))' | head -1
-      url = "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/0.8.140/tar/kiro-ide-0.8.140-stable-linux-x64.tar.gz";
+      url = "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${version}/tar/kiro-ide-${version}-stable-linux-x64.tar.gz";
       sha256 = "sha256-nF4i7hSRMEvDCQ9b4rfU5X2M5x76kU6tEfxbo36vBFY=";
     };
 
@@ -29,9 +29,10 @@ let
       glib
       gtk3
       libdrm
+      libGL # provides libGL.so.1
       libxkbcommon
       libxkbfile
-      mesa
+      mesa # provides libgbm.so.1
       nspr
       nss
       pango
@@ -54,8 +55,7 @@ let
 
       mkdir -p $out/bin
       makeWrapper $out/opt/kiro/kiro $out/bin/kiro-ide \
-        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}" \
-        --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations}}"
+        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}"
 
       # Desktop entry
       mkdir -p $out/share/applications
@@ -87,12 +87,17 @@ in
   # Add Kiro CLI to PATH
   programs.zsh.profileExtra = lib.mkAfter ''
     # Kiro CLI
-    export PATH="$HOME/.kiro/bin:$PATH"
+    export PATH="$HOME/.local/bin:$HOME/.kiro/bin:$PATH"
   '';
+  
+  # Shell alias to default to current directory, run in background
+  programs.zsh.shellAliases = {
+    kiro = "kiro-ide . > /dev/null 2>&1 &";
+  };
 
   # Install Kiro CLI if not present
-  home.activation.installKiro = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -x "$HOME/.kiro/bin/kiro" ]; then
+  home.activation.installKiroCli = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -x "$HOME/.local/bin/kiro-cli" ]; then
       $DRY_RUN_CMD ${pkgs.curl}/bin/curl -fsSL https://cli.kiro.dev/install | $DRY_RUN_CMD ${pkgs.bash}/bin/bash
     fi
   '';
