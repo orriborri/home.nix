@@ -1,14 +1,16 @@
 # Home Manager Configuration
 
-Modern, secure, and well-structured Home Manager configuration for cross-platform development environments.
+Modern, secure, and well-structured Home Manager configuration for cross-platform development environments using **Nix Flakes**.
 
 ## Features
 
-- **Multi-system support**: Works on NixOS, Fedora, Ubuntu, Arch, and other Linux distributions
+- **Flake-based**: Reproducible builds with lockfile, composable modules, and multi-system support
+- **Multi-system support**: Works on NixOS, Fedora, Ubuntu, Arch, macOS, and other platforms
 - **Modular architecture**: Clean separation of concerns with organized modules
 - **Security-focused**: GPG, SSH hardening, and secure defaults
 - **Development-ready**: Comprehensive tooling for modern development workflows
 - **Window manager support**: Sway configuration with structured configs
+- **Reusable**: Export modules, overlays, and packages for use in other flakes
 - **Cross-platform compatibility**: Adapts to different operating systems automatically
 
 ## Quick Start
@@ -19,32 +21,41 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 curl -fsSL https://raw.githubusercontent.com/orriborri/home.nix/main/setup.sh | bash
 ```
 
-### Manual Installation
+### Using Flakes (Recommended)
 
-1. **Install Nix package manager**:
+1. **Install Nix with flakes enabled**:
    ```bash
    sh <(curl -L https://nixos.org/nix/install) --daemon
+   
+   # Enable flakes
+   mkdir -p ~/.config/nix
+   echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
    ```
 
-2. **Install Home Manager**:
-   ```bash
-   nix-channel --add https://github.com/nix-community/home-manager/archive/master.tar.gz home-manager
-   nix-channel --update
-   nix-shell '<home-manager>' -A install
-   ```
-
-3. **Clone and apply configuration**:
+2. **Clone and apply configuration**:
    ```bash
    git clone https://github.com/orriborri/home.nix.git ~/.config/home-manager
    cd ~/.config/home-manager
-   home-manager switch
+   nix run nixpkgs#home-manager -- switch --flake .
    ```
+
+### Bootstrap from Template
+
+Start with a minimal configuration:
+
+```bash
+nix flake init -t github:orriborri/home.nix#minimal
+# Edit home.nix with your details
+home-manager switch --flake .
+```
 
 ## Configuration Structure
 
 ```
 ├── flake.nix                 # Flake configuration with multi-system support
+├── flake.lock                # Lockfile for reproducible builds
 ├── home.nix                  # Main configuration entry point
+├── FLAKES.md                 # Comprehensive flakes guide
 ├── modules/
 │   ├── default.nix          # Module aggregator
 │   ├── development/         # Development tools and languages
@@ -54,9 +65,83 @@ curl -fsSL https://raw.githubusercontent.com/orriborri/home.nix/main/setup.sh | 
 │   ├── desktop/             # Desktop applications
 │   └── wm/                  # Window manager configurations
 │       └── sway/            # Sway window manager
-├── overlays/                # Nixpkgs overlays
 ├── lib/                     # Custom library functions
-└── scripts/                 # Utility scripts
+│   └── powerline.nix        # Powerline helpers for Waybar
+├── overlays/                # Nixpkgs overlays
+│   └── nodejs.nix           # Node.js version override
+├── packages/                # Custom package definitions
+│   ├── kiro.nix             # Kiro IDE Home Manager module
+│   └── kiro-package.nix     # Kiro IDE standalone package
+├── templates/               # Flake templates
+│   └── minimal/             # Minimal starter template
+└── nixos/                   # NixOS-specific configuration
+```
+
+## Flake Outputs
+
+This repository exports multiple outputs for reuse:
+
+### Home Configurations
+- `orre` - Full configuration for Linux
+- `orre@darwin` - macOS configuration
+- `orre-minimal` - Minimal config without desktop environment
+
+### Packages
+- `kiro-ide` - Kiro AI IDE (x86_64-linux)
+
+### Modules (Reusable)
+- `shell` - zsh, starship, atuin, zoxide
+- `development` - git, neovim, dev tools
+- `desktop` - terminals, multiplexers
+- `security` - GPG, SSH hardening
+- `utilities` - system utilities
+- `sway` - Sway window manager
+- `kiro` - Kiro IDE
+
+### Overlays
+- `nodejs` - Latest Node.js version
+- `default` - All overlays combined
+
+### Libraries
+- `powerline` - Waybar powerline helpers
+
+### Templates
+- `minimal` - Bootstrap a new Home Manager config
+
+See [FLAKES.md](./FLAKES.md) for detailed usage.
+
+## Using This Configuration in Your Own Flake
+
+Import modules, overlays, or packages:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    home-nix = {
+      url = "github:orriborri/home.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { nixpkgs, home-manager, home-nix, ... }: {
+    homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        # Import specific modules
+        home-nix.homeManagerModules.shell
+        home-nix.homeManagerModules.development
+        
+        # Your config
+        ./home.nix
+      ];
+      
+      # Use overlays
+      nixpkgs.overlays = [ home-nix.overlays.nodejs ];
+    };
+  };
+}
 ```
 
 ## Key Improvements
@@ -117,20 +202,38 @@ The configuration automatically detects your system and applies appropriate sett
 
 ### Building and Testing
 ```bash
-# Build configuration
-home-manager build
+# Validate flake configuration
+nix flake check
+
+# Show all flake outputs
+nix flake show
+
+# Format all Nix files
+nix fmt
+
+# Build configuration without applying
+home-manager build --flake .
 
 # Apply configuration
-home-manager switch
+home-manager switch --flake .
 
-# Check for issues
-nix flake check
+# Apply specific configuration
+home-manager switch --flake .#orre-minimal
+
+# Update flake inputs
+nix flake update
+
+# Update and apply in one command
+nix run .#update
 ```
 
-### Formatting
+### Development Environment
 ```bash
-# Format Nix files
-nixfmt **/*.nix
+# Enter development shell
+nix develop
+
+# Enter test shell with additional tools
+nix develop .#test
 ```
 
 ## Troubleshooting

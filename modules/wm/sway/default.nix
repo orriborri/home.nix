@@ -233,13 +233,17 @@ in
     
     # Custom scripts
     (writeShellScriptBin "sway-new-workspace" ''
+      #!/usr/bin/env bash
+      export PATH="$HOME/.nix-profile/bin:/usr/bin:$PATH"
+      
       current_output=$(swaymsg -t get_workspaces | jq -r '.[] | select(.focused==true) | .output')
-      used=$(swaymsg -t get_workspaces | jq -r --arg output "$current_output" '.[] | select(.output==$output) | .num')
+      used=$(swaymsg -t get_workspaces | jq -r '.[].num')
       
       for i in $(seq 1 20); do
         if ! echo "$used" | grep -q "^$i$"; then
-          swaymsg workspace number $i
-          exit
+          swaymsg "workspace number $i; move workspace to output $current_output"
+          organize-workspaces
+          exit 0
         fi
       done
     '')
@@ -484,9 +488,9 @@ in
     }
     
     profile tripleOffice {
-      output DP-10 enable position 0,0 transform 90
-      output DP-8 enable position 1080,0
-      output eDP-1 enable position 3640,0
+      output "BNQ BenQ GL2706PQ E9G03141SL0" mode 2560x1440 position 0,0 transform 270
+      output "Lenovo Group Limited G27q-30 UMB6HX30" mode 2560x1440 position 1440,0
+      output "Lenovo Group Limited 0x403A Unknown" mode 1920x1200 position 4000,0
     }
   '';
 
