@@ -131,6 +131,7 @@ let
         { command = "~/.nix-profile/bin/${terminal}"; }
         { command = "1password --silent"; }
         { command = "sov"; }
+        { command = "~/.nix-profile/bin/way-displays"; }
         { 
           command = "~/.nix-profile/bin/swayidle -w timeout 600 '/usr/bin/swaylock -c 000000' timeout 900 'swaymsg \"output * dpms off\"' resume 'swaymsg \"output * dpms on\"' before-sleep '/usr/bin/swaylock -c 000000'";
           always = true;
@@ -220,6 +221,7 @@ in
     
     # Display management
     kanshi
+    way-displays
     brightnessctl
     
     # Workspace management
@@ -437,48 +439,52 @@ in
     ) swayConfig.config.startup)}
   '';
 
-  # Kanshi configuration using Home Manager service
-  services.kanshi = {
-    enable = true;
-    settings = [
-      {
-        profile.name = "laptop";
-        profile.outputs = [
-          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
-        ];
-      }
-      {
-        profile.name = "home";
-        profile.outputs = [
-          { criteria = "LG Electronics 27GL850 912NTRL9A022"; mode = "2560x1440"; position = "0,0"; }
-          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "2560,0"; }
-        ];
-      }
-      {
-        profile.name = "portable";
-        profile.outputs = [
-          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
-          { criteria = "DP-1"; position = "1920,0"; }
-        ];
-      }
-      {
-        profile.name = "triple";
-        profile.outputs = [
-          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
-          { criteria = "LG Electronics 27GL850 912NTRL9A022"; mode = "2560x1440"; position = "1920,0"; }
-          { criteria = "Samsung Electric Company SMS27A650 Unknown"; mode = "1920x1080"; position = "4480,0"; transform = "90"; }
-        ];
-      }
-      {
-        profile.name = "tripleOffice";
-        profile.outputs = [
-          { criteria = "BNQ BenQ GL2706PQ"; mode = "2560x1440"; position = "0,0"; transform = "270"; }
-          { criteria = "Lenovo Group Limited G27q-30 UMB6HX30"; mode = "2560x1440"; position = "1440,0"; }
-          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "4000,240"; }
-        ];
-      }
-    ];
-  };
+  # way-displays configuration (replaces kanshi)
+  xdg.configFile."way-displays/cfg.yaml".text = ''
+    # way-displays configuration
+    # See: https://github.com/alex-courtis/way-displays
+    
+    ARRANGE: ROW
+    ALIGN: TOP
+    
+    ORDER:
+      - "BNQ BenQ GL2706PQ"
+      - "Lenovo Group Limited G27q-30"
+      - "LG Electronics 27GL850"
+      - "Lenovo Group Limited 0x403A"
+    
+    SCALE:
+      - NAME_DESC: "Lenovo Group Limited 0x403A"
+        SCALE: 1
+      - NAME_DESC: "BNQ BenQ GL2706PQ"
+        SCALE: 1
+      - NAME_DESC: "Lenovo Group Limited G27q-30"
+        SCALE: 1
+      - NAME_DESC: "LG Electronics 27GL850"
+        SCALE: 1
+    
+    MODE:
+      - NAME_DESC: "Lenovo Group Limited 0x403A"
+        WIDTH: 1920
+        HEIGHT: 1200
+      - NAME_DESC: "BNQ BenQ GL2706PQ"
+        WIDTH: 2560
+        HEIGHT: 1440
+      - NAME_DESC: "Lenovo Group Limited G27q-30"
+        WIDTH: 2560
+        HEIGHT: 1440
+      - NAME_DESC: "LG Electronics 27GL850"
+        WIDTH: 2560
+        HEIGHT: 1440
+    
+    TRANSFORM:
+      - NAME_DESC: "BNQ BenQ GL2706PQ"
+        TRANSFORM: 270
+    
+    AUTO_SCALE: FALSE
+    
+    LOG_THRESHOLD: WARNING
+  '';
   
   # Waybar configuration
   programs.waybar = waybarConfig.programs.waybar;
