@@ -143,6 +143,11 @@ let
           command = "~/.nix-profile/bin/waybar";
           always = true;
         }
+        {
+          # Apply BenQ rotation after kanshi sets up displays
+          command = "sleep 2 && swaymsg 'output \"BNQ BenQ GL2706PQ E9G03141SL0\" transform 270'";
+          always = true;
+        }
       ];
       
       # Swaybar configuration
