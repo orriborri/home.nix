@@ -438,51 +438,76 @@ in
     ) swayConfig.config.startup)}
   '';
 
-  # way-displays configuration (replaces kanshi)
-  xdg.configFile."way-displays/cfg.yaml".text = ''
-    # way-displays configuration
-    # See: https://github.com/alex-courtis/way-displays
-    
-    ARRANGE: ROW
-    ALIGN: TOP
-    
-    ORDER:
-      - "BNQ BenQ GL2706PQ"
-      - "Lenovo Group Limited G27q-30"
-      - "LG Electronics 27GL850"
-      - "Lenovo Group Limited 0x403A"
-    
-    SCALE:
-      - NAME_DESC: "Lenovo Group Limited 0x403A"
-        SCALE: 1
-      - NAME_DESC: "BNQ BenQ GL2706PQ"
-        SCALE: 1
-      - NAME_DESC: "Lenovo Group Limited G27q-30"
-        SCALE: 1
-      - NAME_DESC: "LG Electronics 27GL850"
-        SCALE: 1
-    
-    MODE:
-      - NAME_DESC: "Lenovo Group Limited 0x403A"
-        WIDTH: 1920
-        HEIGHT: 1200
-      - NAME_DESC: "BNQ BenQ GL2706PQ"
-        WIDTH: 2560
-        HEIGHT: 1440
-      - NAME_DESC: "Lenovo Group Limited G27q-30"
-        WIDTH: 2560
-        HEIGHT: 1440
-      - NAME_DESC: "LG Electronics 27GL850"
-        WIDTH: 2560
-        HEIGHT: 1440
-    
-    TRANSFORM:
-      - NAME_DESC: "BNQ BenQ GL2706PQ"
-        TRANSFORM: 270
-    
-    AUTO_SCALE: FALSE
-    
-    LOG_THRESHOLD: WARNING
+  # way-displays systemd service for automatic display management
+  # Config is stored in ~/.config/way-displays/cfg.yaml (not managed by Home Manager)
+  # This allows manual edits to persist across rebuilds
+  systemd.user.services.way-displays = {
+    Unit = {
+      Description = "way-displays display management";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.way-displays}/bin/way-displays";
+      Restart = "on-failure";
+      RestartSec = 3;
+    };
+    Install = {
+      WantedBy = [ "graphical-session.target" ];
+    };
+  };
+  
+  # Create default config only if it doesn't exist (using activation script)
+  home.activation.way-displays-config = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -f "$HOME/.config/way-displays/cfg.yaml" ]; then
+      mkdir -p "$HOME/.config/way-displays"
+      cat > "$HOME/.config/way-displays/cfg.yaml" << 'EOF'
+# way-displays configuration
+# See: https://github.com/alex-courtis/way-displays
+# This file is NOT managed by Home Manager - edit freely!
+
+ARRANGE: ROW
+ALIGN: TOP
+
+ORDER:
+  - "BNQ BenQ GL2706PQ"
+  - "Lenovo Group Limited G27q-30"
+  - "LG Electronics 27GL850"
+  - "Lenovo Group Limited 0x403A"
+
+SCALE:
+  - NAME_DESC: "Lenovo Group Limited 0x403A"
+    SCALE: 1
+  - NAME_DESC: "BNQ BenQ GL2706PQ"
+    SCALE: 1
+  - NAME_DESC: "Lenovo Group Limited G27q-30"
+    SCALE: 1
+  - NAME_DESC: "LG Electronics 27GL850"
+    SCALE: 1
+
+MODE:
+  - NAME_DESC: "Lenovo Group Limited 0x403A"
+    WIDTH: 1920
+    HEIGHT: 1200
+  - NAME_DESC: "BNQ BenQ GL2706PQ"
+    WIDTH: 2560
+    HEIGHT: 1440
+  - NAME_DESC: "Lenovo Group Limited G27q-30"
+    WIDTH: 2560
+    HEIGHT: 1440
+  - NAME_DESC: "LG Electronics 27GL850"
+    WIDTH: 2560
+    HEIGHT: 1440
+
+TRANSFORM:
+  - NAME_DESC: "BNQ BenQ GL2706PQ"
+    TRANSFORM: 270
+
+AUTO_SCALE: FALSE
+
+LOG_THRESHOLD: WARNING
+EOF
+    fi
   '';
   
   # Waybar configuration
