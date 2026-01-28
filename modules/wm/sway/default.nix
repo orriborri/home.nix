@@ -143,11 +143,6 @@ let
           command = "~/.nix-profile/bin/waybar";
           always = true;
         }
-        {
-          # Apply BenQ rotation after kanshi sets up displays
-          command = "sleep 2 && swaymsg 'output \"BNQ BenQ GL2706PQ E9G03141SL0\" transform 270'";
-          always = true;
-        }
       ];
       
       # Swaybar configuration
@@ -442,39 +437,48 @@ in
     ) swayConfig.config.startup)}
   '';
 
-  # Kanshi configuration
-  xdg.configFile."kanshi/config".text = ''
-    # Profiles - using full output names for reliability
-    
-    profile laptop {
-      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
-    }
-
-    profile home {
-      output "LG Electronics 27GL850 912NTRL9A022" enable mode 2560x1440 position 0,0
-      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 2560,0
-    }
-    
-    profile portable {
-      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
-      output DP-1 enable position 1920,0
-    }
-
-    profile triple {
-      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 0,0
-      output "LG Electronics 27GL850 912NTRL9A022" enable mode 2560x1440 position 1920,0
-      output "Samsung Electric Company SMS27A650 Unknown" enable mode 1920x1080 position 4480,0 transform 90
-    }
-    
-    profile tripleOffice {
-      output "BNQ BenQ GL2706PQ E9G03141SL0" enable mode 2560x1440 position 0,0
-      output "Lenovo Group Limited G27q-30 UMB6HX30" enable mode 2560x1440 position 2560,0
-      output "Lenovo Group Limited 0x403A Unknown" enable mode 1920x1200 position 5120,0
-    }
-  '';
-
-  # Enable kanshi service
-  services.kanshi.enable = true;
+  # Kanshi configuration using Home Manager service
+  services.kanshi = {
+    enable = true;
+    settings = [
+      {
+        profile.name = "laptop";
+        profile.outputs = [
+          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
+        ];
+      }
+      {
+        profile.name = "home";
+        profile.outputs = [
+          { criteria = "LG Electronics 27GL850 912NTRL9A022"; mode = "2560x1440"; position = "0,0"; }
+          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "2560,0"; }
+        ];
+      }
+      {
+        profile.name = "portable";
+        profile.outputs = [
+          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
+          { criteria = "DP-1"; position = "1920,0"; }
+        ];
+      }
+      {
+        profile.name = "triple";
+        profile.outputs = [
+          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "0,0"; }
+          { criteria = "LG Electronics 27GL850 912NTRL9A022"; mode = "2560x1440"; position = "1920,0"; }
+          { criteria = "Samsung Electric Company SMS27A650 Unknown"; mode = "1920x1080"; position = "4480,0"; transform = "90"; }
+        ];
+      }
+      {
+        profile.name = "tripleOffice";
+        profile.outputs = [
+          { criteria = "BNQ BenQ GL2706PQ E9G03141SL0"; mode = "2560x1440"; position = "0,0"; transform = "270"; }
+          { criteria = "Lenovo Group Limited G27q-30 UMB6HX30"; mode = "2560x1440"; position = "1440,0"; }
+          { criteria = "Lenovo Group Limited 0x403A Unknown"; mode = "1920x1200"; position = "4000,240"; }
+        ];
+      }
+    ];
+  };
   
   # Waybar configuration
   programs.waybar = waybarConfig.programs.waybar;
