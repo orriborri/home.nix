@@ -120,6 +120,23 @@ let
         };
       };
       
+      # Output configuration (permanent display setup)
+      output = {
+        "DP-10" = {
+          mode = "2560x1440@59.951Hz";
+          pos = "1120 0";
+          transform = "270";
+        };
+        "DP-8" = {
+          mode = "2560x1440@60Hz";
+          pos = "2560 0";
+        };
+        "eDP-1" = {
+          mode = "1920x1200@60.001Hz";
+          pos = "5120 0";
+        };
+      };
+      
       # Window configuration
       window = {
         border = 1;

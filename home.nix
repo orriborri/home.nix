@@ -35,6 +35,11 @@ in
     ];
   };
 
+  # Environment variables
+  home.sessionVariables = {
+    BROWSER = "firefox";
+  };
+
   # System packages
   home.packages = with pkgs; [
     # Essential tools
@@ -87,7 +92,14 @@ in
   # XDG configuration
   xdg = {
     enable = true;
-    mimeApps.enable = true;
+    mimeApps = {
+      enable = true;
+      defaultApplications = {
+        "text/html" = "org.mozilla.firefox.desktop";
+        "x-scheme-handler/http" = "org.mozilla.firefox.desktop";
+        "x-scheme-handler/https" = "org.mozilla.firefox.desktop";
+      };
+    };
   };
 
   # Security and GPG

@@ -55,7 +55,8 @@ let
 
       mkdir -p $out/bin
       makeWrapper $out/opt/kiro/kiro $out/bin/kiro-ide \
-        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}"
+        --unset LD_LIBRARY_PATH \
+        --set BROWSER "/usr/bin/firefox"
 
       # Desktop entry
       mkdir -p $out/share/applications
@@ -82,7 +83,10 @@ let
   };
 in
 {
-  home.packages = [ kiro-ide ];
+  home.packages = [ 
+    kiro-ide
+    pkgs.xdg-utils  # Required for browser-based authentication
+  ];
 
   # Add Kiro CLI to PATH
   programs.zsh.profileExtra = lib.mkAfter ''

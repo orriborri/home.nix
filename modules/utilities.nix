@@ -24,7 +24,7 @@
   # Utility packages organized by category
   home.packages = with pkgs; [
     # Core utilities (cross-platform)
-    (uutils-coreutils.override { prefix = ""; })
+    # (uutils-coreutils.override { prefix = ""; })  # Disabled: buggy, system coreutils work fine
     less
     
     # Time tracking
