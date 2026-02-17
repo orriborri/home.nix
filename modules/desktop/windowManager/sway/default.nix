@@ -2,7 +2,7 @@
 
 let
   # Import waybar configuration
-  waybarConfig = import ../../desktop/waybar/waybar.nix { inherit config pkgs lib powerlineLib; };
+  waybarConfig = import ../../utils/waybar/waybar.nix { inherit config pkgs lib powerlineLib; };
   
   terminal = "foot";
   modifier = "Mod4";
@@ -388,7 +388,7 @@ in
   ];
 
   programs = {
-    zellij = (import ../../desktop/zellij.nix { inherit pkgs; });
+    zellij = (import ../../../applications/gui/zellij.nix { inherit pkgs; });
     
     foot = {
       enable = true;
@@ -456,8 +456,6 @@ in
   '';
 
   # way-displays systemd service for automatic display management
-  # Config is stored in ~/.config/way-displays/cfg.yaml (not managed by Home Manager)
-  # This allows manual edits to persist across rebuilds
   systemd.user.services.way-displays = {
     Unit = {
       Description = "way-displays display management";

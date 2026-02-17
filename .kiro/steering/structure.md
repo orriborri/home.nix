@@ -12,40 +12,53 @@
 ├── .editorconfig          # Editor configuration for consistent formatting
 │
 ├── modules/               # Modular configuration components
-│   ├── default.nix       # Module aggregator
-│   ├── shell/            # Shell configuration (zsh, starship, atuin, etc.)
-│   │   ├── default.nix   # Shell module entry point
-│   │   ├── zsh.nix       # Zsh configuration
-│   │   ├── starship.nix  # Starship prompt
-│   │   ├── atuin.nix     # Shell history
-│   │   ├── zoxide.nix    # Directory navigation
-│   │   ├── carapace.nix  # Completion generator
-│   │   └── direnv.nix    # Environment loader
+│   ├── default.nix       # Module aggregator (imports applications, feature, service)
 │   │
-│   ├── development/      # Development tools and languages
-│   │   ├── default.nix   # Development module entry point
-│   │   ├── git.nix       # Git configuration
-│   │   ├── gitui.nix     # Git TUI
-│   │   └── neovim.nix    # Neovim configuration
+│   ├── applications/     # Application configurations
+│   │   ├── default.nix   # Imports cli/ and gui/
+│   │   ├── cli/          # Command-line tools
+│   │   │   ├── default.nix   # CLI module entry point (programs config)
+│   │   │   ├── zsh.nix       # Zsh shell configuration
+│   │   │   ├── starship.nix  # Starship prompt
+│   │   │   ├── atuin.nix     # Shell history
+│   │   │   ├── zoxide.nix    # Directory navigation
+│   │   │   ├── carapace.nix  # Completion generator
+│   │   │   ├── direnv.nix    # Environment loader
+│   │   │   ├── git.nix       # Git configuration
+│   │   │   ├── gitui.nix     # Git TUI
+│   │   │   ├── neovim.nix    # Neovim editor
+│   │   │   ├── lsd.nix       # Better ls
+│   │   │   └── htop.nix      # Process viewer
+│   │   └── gui/          # Graphical applications
+│   │       ├── default.nix   # GUI module entry point
+│   │       ├── alacritty.nix # Alacritty terminal
+│   │       ├── wezterm.nix   # Wezterm terminal
+│   │       └── zellij.nix    # Terminal multiplexer
 │   │
-│   ├── desktop/          # Desktop applications and configuration
+│   ├── desktop/          # Desktop environment configuration
 │   │   ├── default.nix   # Desktop module entry point
-│   │   ├── alacritty.nix # Alacritty terminal
-│   │   ├── wezterm.nix   # Wezterm terminal
-│   │   ├── zellij.nix    # Terminal multiplexer
-│   │   └── waybar/       # Waybar status bar configurations
-│   │       ├── waybar.nix
-│   │       ├── powerline.nix
-│   │       ├── mechabar.nix
-│   │       └── *.jsonc, *.css, *.sh
+│   │   ├── utils/        # Desktop utilities
+│   │   │   ├── default.nix
+│   │   │   └── waybar/   # Waybar status bar configurations
+│   │   │       ├── waybar.nix
+│   │   │       ├── powerline.nix
+│   │   │       ├── mechabar.nix
+│   │   │       ├── waybar-backup.nix
+│   │   │       └── *.jsonc, *.css, *.sh
+│   │   └── windowManager/  # Window manager configurations
+│   │       └── sway/       # Sway window manager
+│   │           ├── default.nix
+│   │           └── swaysome.py
 │   │
-│   ├── wm/               # Window manager configurations
-│   │   └── sway/         # Sway window manager
-│   │       ├── default.nix
-│   │       └── swaysome.py
+│   ├── feature/          # Switchable features (packages, env vars, config)
+│   │   ├── default.nix   # Imports all features
+│   │   ├── development.nix  # Dev packages and environment
+│   │   ├── utilities.nix    # System utility packages and aliases
+│   │   └── security.nix     # GPG, SSH, password management
 │   │
-│   ├── utilities.nix     # System utilities and tools
-│   └── security.nix      # Security tools and hardening (GPG, SSH)
+│   └── service/          # Daemons and services
+│       ├── default.nix   # Service module entry point
+│       └── gpg-agent.nix # GPG agent service
 │
 ├── lib/                  # Custom library functions
 │   └── powerline.nix     # Powerline helpers for Waybar
@@ -54,17 +67,29 @@
 │   └── nodejs.nix        # Node.js version override
 │
 ├── packages/             # Custom package definitions
-│   └── kiro.nix          # Kiro IDE package
+│   ├── kiro.nix          # Kiro IDE Home Manager module
+│   └── kiro-package.nix  # Kiro IDE standalone package
 │
 ├── nixos/                # NixOS-specific configuration
 │   ├── README.md
 │   └── configuration.nix
+│
+├── templates/            # Flake templates
+│   └── minimal/          # Minimal Home Manager template
 │
 └── .kiro/                # Kiro IDE configuration
     └── steering/         # AI assistant steering rules
 ```
 
 ## Architecture Patterns
+
+### Module Organization (tiredofit-inspired)
+
+Modules are organized by concern:
+- `applications/`: Per-program configurations split into `cli/` and `gui/`
+- `feature/`: Cross-cutting features (dev tools, utilities, security)
+- `service/`: System services and daemons
+- `desktop/`: Desktop environment (utils, window managers)
 
 ### Module Structure
 
@@ -102,7 +127,7 @@ home.packages = with pkgs; [
 
 The flake exports multiple outputs:
 - `overlays`: Custom package overlays (e.g., Node.js version)
-- `homeManagerModules`: Reusable modules for other flakes
+- `homeModules`: Reusable modules for other flakes
 - `nixosModules`: NixOS system modules
 - `homeConfigurations`: Pre-configured Home Manager profiles
 - `devShells`: Development environments
@@ -127,7 +152,7 @@ Custom arguments passed to modules:
 - UPPERCASE for environment variables (e.g., `EDITOR`)
 
 ### Modules
-- Organized by function: `shell/`, `development/`, `desktop/`, `wm/`
+- Organized by concern: `applications/`, `feature/`, `service/`, `desktop/`
 - Each module has a `default.nix` entry point
 - Sub-modules named after the tool they configure
 
@@ -136,10 +161,12 @@ Custom arguments passed to modules:
 1. `flake.nix` defines inputs and outputs
 2. `home.nix` is the main entry point
 3. System detection determines platform-specific behavior
-4. Modules are imported conditionally based on configuration
-5. Each module configures specific programs and packages
-6. Overlays modify package versions (e.g., Node.js)
-7. Custom libraries provide helper functions (e.g., powerline)
+4. `modules/applications/` configures individual programs (cli + gui)
+5. `modules/feature/` adds cross-cutting packages and environment config
+6. `modules/service/` manages daemons (gpg-agent, etc.)
+7. `modules/desktop/windowManager/sway/` is conditionally imported for Sway
+8. Overlays modify package versions (e.g., Node.js)
+9. Custom libraries provide helper functions (e.g., powerline)
 
 ## Best Practices
 
@@ -150,3 +177,6 @@ Custom arguments passed to modules:
 - Use `lib.optionals` for conditional lists
 - Export reusable modules via flake outputs
 - Maintain consistent formatting with `nix fmt`
+- Place program configs in `applications/cli/` or `applications/gui/`
+- Place package lists and env vars in `feature/`
+- Place services/daemons in `service/`

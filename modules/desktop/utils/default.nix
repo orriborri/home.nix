@@ -2,8 +2,6 @@
 
 {
   imports = [
-    ./applications
-    ./feature
-    ./service
+    ./waybar
   ];
 }

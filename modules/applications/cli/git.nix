@@ -64,7 +64,6 @@
       autocrlf = "input";
       eol = "lf";
       editor = "nvim";
-      # pager will be set by delta integration
       whitespace = "trailing-space,space-before-tab";
     };
 

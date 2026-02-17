@@ -84,19 +84,6 @@ in
   # Programs
   programs = {
     home-manager.enable = true;
-
-    # Better directory navigation
-    direnv = {
-      enable = true;
-      nix-direnv.enable = true;
-    };
-
-
-    # Fuzzy finder with shell integration
-    fzf = {
-      enable = true;
-      enableZshIntegration = true;
-    };
   };
 
   # XDG configuration
@@ -119,13 +106,13 @@ in
     pinentry.package = pkgs.pinentry-gtk2;
   };
 
-  # Import modules gradually for testing
+  # Import modules
   imports = [
-    ./modules/shell
-    ./modules/development
-    ./modules/utilities.nix
+    ./modules/applications
+    ./modules/feature
+    ./modules/service
     ./packages/kiro.nix
   ] ++ lib.optionals (windowManager == "sway") [
-    ./modules/wm/sway
+    ./modules/desktop/windowManager/sway
   ];
 }

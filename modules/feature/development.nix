@@ -1,29 +1,6 @@
 { pkgs, lib, pkgs-stable ? pkgs, ... }:
 
 {
-  programs = {
-    neovim = (import ./neovim.nix { inherit pkgs; });
-    git = (import ./git.nix { inherit pkgs lib; });
-    gitui = (import ./gitui.nix { inherit pkgs; });
-    
-    # Better git diff viewer
-    delta = {
-      enable = true;
-      enableGitIntegration = true;
-      options = {
-        line-numbers = true;
-        side-by-side = true;
-        syntax-theme = "Dracula";
-      };
-    };
-    
-    # Better directory navigation
-    direnv = {
-      enable = true;
-      nix-direnv.enable = true;
-    };
-  };
-
   # Development packages organized by category
   home.packages = with pkgs; [
     # Programming languages

@@ -1,31 +1,9 @@
 { config, pkgs, lib, ... }:
 
 {
-  programs = {
-    lsd = (import ./utilities/lsd.nix { inherit pkgs; });
-    htop = (import ./utilities/htop.nix { inherit pkgs; });
-    
-    # Better file manager
-    yazi = {
-      enable = true;
-      enableZshIntegration = true;
-      shellWrapperName = "yy";
-    };
-    
-    # Better cat alternative
-    bat = {
-      enable = true;
-      config = {
-        theme = "TwoDark";
-        style = "numbers,changes,header";
-      };
-    };
-  };
-
   # Utility packages organized by category
   home.packages = with pkgs; [
     # Core utilities (cross-platform)
-    # (uutils-coreutils.override { prefix = ""; })  # Disabled: buggy, system coreutils work fine
     less
     
     # Time tracking

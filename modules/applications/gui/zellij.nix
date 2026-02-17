@@ -2,8 +2,6 @@
 
 {
   enable = true;
-  # enableZshIntegration = true;
-  # exitShellOnExit = true;
   settings = {
     simplified_ui = true;
     theme = "catppuccin-mocha";

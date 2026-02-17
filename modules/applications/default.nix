@@ -2,8 +2,7 @@
 
 {
   imports = [
-    ./applications
-    ./feature
-    ./service
+    ./cli
+    ./gui
   ];
 }

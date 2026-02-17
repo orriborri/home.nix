@@ -38,13 +38,14 @@
       # Export Home Manager modules for reuse
       homeModules = {
         default = ./home.nix;
-        shell = ./modules/shell;
-        development = ./modules/development;
+        applications = ./modules/applications;
+        cli = ./modules/applications/cli;
+        gui = ./modules/applications/gui;
+        feature = ./modules/feature;
+        service = ./modules/service;
         desktop = ./modules/desktop;
-        utilities = ./modules/utilities.nix;
-        security = ./modules/security.nix;
         kiro = ./packages/kiro.nix;
-        sway = ./modules/wm/sway;
+        sway = ./modules/desktop/windowManager/sway;
       };
 
       # Export NixOS modules
@@ -91,10 +92,9 @@
             { 
               # Override to disable desktop modules
               imports = nixpkgs.lib.mkForce [
-                ./modules/shell
-                ./modules/development
-                ./modules/utilities.nix
-                ./modules/security.nix
+                ./modules/applications
+                ./modules/feature
+                ./modules/service
               ];
             }
           ];
