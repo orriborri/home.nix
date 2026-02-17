@@ -16,7 +16,7 @@ in
   # paths it should manage.
   home = {
     inherit username homeDirectory;
-    stateVersion = "24.05";
+    stateVersion = "25.05";
   };
 
   # Nixpkgs configuration

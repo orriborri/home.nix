@@ -9,6 +9,7 @@
     yazi = {
       enable = true;
       enableZshIntegration = true;
+      shellWrapperName = "yy";
     };
     
     # Better cat alternative

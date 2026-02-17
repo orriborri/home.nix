@@ -7,5 +7,14 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 6am on monday"]
-  }
+  },
+  "regexManagers": [
+    {
+      "fileMatch": ["^flake\\.nix$"],
+      "matchStrings": ["nixpkgs-stable\\.url\\s*=\\s*\"github:NixOS/nixpkgs/nixos-(?<currentValue>[\\d.]+)\""],
+      "depNameTemplate": "NixOS/nixpkgs",
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "loose"
+    }
+  ]
 }
