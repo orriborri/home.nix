@@ -3,10 +3,17 @@
 
 set -e
 
-# Only update flake inputs if --update flag is passed
-if [[ "$1" == "--update" ]]; then
+# -u: update flake inputs + dnf upgrade
+# --update: only update flake inputs
+# --upgrade: only dnf upgrade
+if [[ "$1" == "-u" || "$1" == "--update" ]]; then
     echo "🔄 Updating flake inputs..."
     nix flake update
+fi
+
+if [[ "$1" == "-u" || "$1" == "--upgrade" ]]; then
+    echo "⬆️  Upgrading system packages..."
+    sudo dnf upgrade --allowerasing -y
 fi
 
 echo "🏠 Switching to configuration..."
