@@ -99,12 +99,6 @@ in
     };
   };
 
-  # Security and GPG
-  programs.gpg.enable = true;
-  services.gpg-agent = lib.mkIf isLinux {
-    enable = true;
-    pinentry.package = pkgs.pinentry-gtk2;
-  };
 
   # Import modules
   imports = [

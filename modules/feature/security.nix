@@ -41,6 +41,7 @@
   # SSH configuration
   programs.ssh = {
     enable = true;
+    enableDefaultConfig = false;
 
     # Default match block for all hosts
     matchBlocks."*" = {
@@ -80,7 +81,6 @@
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     # Linux-specific security tools
     lynis            # Security auditing
-    rkhunter         # Rootkit detection
   ];
 
   # Environment variables for security tools
