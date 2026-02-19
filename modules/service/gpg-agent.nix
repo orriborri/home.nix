@@ -5,7 +5,7 @@
   services.gpg-agent = lib.mkIf pkgs.stdenv.isLinux {
     enable = true;
     enableZshIntegration = true;
-    enableSshSupport = true;
+    enableSshSupport = false;  # Disabled — 1Password handles SSH agent
     pinentry.package = pkgs.pinentry-gtk2;
     
     # Cache settings

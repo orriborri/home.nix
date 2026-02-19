@@ -38,31 +38,38 @@
     };
   };
 
-  # SSH configuration
+  # SSH configuration — uses 1Password as SSH agent
   programs.ssh = {
     enable = true;
-    enableDefaultConfig = false;
-
-    # Default match block for all hosts
-    matchBlocks."*" = {
-      controlMaster = "auto";
-      controlPath = "~/.ssh/master-%r@%n:%p";
-      controlPersist = "10m";
-      extraOptions = {
-        Protocol = "2";
-        Ciphers = "chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr";
-        MACs = "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512";
-        KexAlgorithms = "curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512";
-        HostKeyAlgorithms = "ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa";
-        ServerAliveInterval = "60";
-        ServerAliveCountMax = "3";
-        TCPKeepAlive = "yes";
-        HashKnownHosts = "yes";
-        VerifyHostKeyDNS = "ask";
-        StrictHostKeyChecking = "ask";
-        Compression = "yes";
-      };
-    };
+    
+    extraConfig = ''
+      # 1Password SSH agent
+      IdentityAgent "~/.1password/agent.sock"
+      
+      # Security settings
+      Protocol 2
+      Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+      MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512
+      KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+      HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa
+      
+      # Connection settings
+      ServerAliveInterval 60
+      ServerAliveCountMax 3
+      TCPKeepAlive yes
+      
+      # Security
+      HashKnownHosts yes
+      VerifyHostKeyDNS ask
+      StrictHostKeyChecking ask
+      
+      # Performance
+      Compression yes
+    '';
+    
+    controlMaster = "auto";
+    controlPath = "~/.ssh/master-%r@%n:%p";
+    controlPersist = "10m";
   };
 
   # Security-related packages

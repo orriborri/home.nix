@@ -14,6 +14,6 @@
   };
 
   home.packages = with pkgs; [
-    obsidian
+    # obsidian  # Temporarily disabled — triggers full Electron/Chromium source build
   ];
 }
