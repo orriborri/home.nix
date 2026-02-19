@@ -77,7 +77,7 @@
     
     # Network security
     nmap             # Network scanning
-    wireshark        # Network analysis (if needed)
+    # wireshark        # Network analysis (if needed)
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     # Linux-specific security tools
     lynis            # Security auditing
