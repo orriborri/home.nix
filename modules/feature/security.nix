@@ -80,7 +80,7 @@
     # wireshark        # Network analysis (if needed)
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     # Linux-specific security tools
-    lynis            # Security auditing
+    #lynis            # Security auditing
   ];
 
   # Environment variables for security tools
