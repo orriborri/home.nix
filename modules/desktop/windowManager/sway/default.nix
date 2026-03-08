@@ -11,11 +11,12 @@ let
   keybindings = {
     # Application shortcuts
     "${modifier}+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal}";
-    "${modifier}+d" = "exec ~/.nix-profile/bin/rofi -show drun";
+    "${modifier}+d" = "exec ~/.nix-profile/bin/wofi --show drun";
+    "${modifier}+period" = "exec ~/.nix-profile/bin/wofi-emoji";
     "${modifier}+Shift+q" = "kill";
 
     # Keybinding browser
-    "${modifier}+slash" = "exec ~/.nix-profile/bin/rofi-sway-keybindings";
+    "${modifier}+slash" = "exec ~/.nix-profile/bin/wofi-sway-keybindings";
     
     # Workspace management
     "${modifier}+Tab" = "exec ~/.nix-profile/bin/swaymsg_workspace";
@@ -236,7 +237,7 @@ in
     
     # Application launchers and menus
     dmenu
-    rofi
+    wofi
     waybar
     
     # Display management
@@ -252,6 +253,7 @@ in
     grim
     slurp
     wl-clipboard
+    wofi-emoji
     
     # Custom scripts
     (writeShellScriptBin "sway-new-workspace" ''
@@ -273,7 +275,7 @@ in
     (writeShellScriptBin "swaymsg_workspace" ''
       #!/usr/bin/env bash
       workspaces=$(swaymsg -t get_workspaces | jq -r '.[] | "\(.num) \(.name) [\(.output)]"')
-      selected=$(echo "$workspaces" | rofi -dmenu -p "Workspace:" | awk '{print $1}')
+      selected=$(echo "$workspaces" | wofi --dmenu -p "Workspace:" | awk '{print $1}')
       [ -n "$selected" ] && swaymsg workspace number "$selected"
     '')
     
@@ -283,7 +285,7 @@ in
       export PATH="$HOME/.nix-profile/bin:$PATH"
       
       options="📷 Full Screen\n🖱️ Select Area\n📋 Full Screen (Clipboard Only)\n✂️ Select Area (Clipboard Only)"
-      selected=$(echo -e "$options" | rofi -dmenu -p 'Screenshot Mode:')
+      selected=$(echo -e "$options" | wofi --dmenu -p 'Screenshot Mode:')
       
       case "$selected" in
         "📷 Full Screen")
@@ -310,7 +312,7 @@ in
     '')
     
     (writeShellScriptBin "power-menu" ''
-      selected=$(echo -e "🔒 Lock\n😴 Suspend\n🔄 Reboot\n⏻ Shutdown\n🚪 Logout" | rofi -i -dmenu -p "Power:")
+      selected=$(echo -e "🔒 Lock\n😴 Suspend\n🔄 Reboot\n⏻ Shutdown\n🚪 Logout" | wofi -i --dmenu -p "Power:")
       case "$selected" in
         "🔒 Lock") /usr/bin/swaylock -c 000000 ;;
         "😴 Suspend") /usr/bin/swaylock -c 000000 && systemctl suspend ;;
@@ -320,7 +322,7 @@ in
       esac
     '')
 
-    (writeShellScriptBin "rofi-sway-keybindings" ''
+    (writeShellScriptBin "wofi-sway-keybindings" ''
       CONFIG_FILE="''${XDG_CONFIG_HOME:-$HOME/.config}/sway/config"
       if [[ ! -f "$CONFIG_FILE" ]]; then
         notify-send "Sway Keybindings" "Config not found: $CONFIG_FILE" -u critical
@@ -343,7 +345,7 @@ in
           gsub(/\+/, " + ", keys)
           printf "%-35s → %s\n", keys, cmd
         }')
-      selected=$(echo "$keybindings" | rofi -i -dmenu -p "Sway Shortcuts" -theme-str 'window {width: 60%;}')
+      selected=$(echo "$keybindings" | wofi -i --dmenu -p "Sway Shortcuts" --width=800)
       if [[ -n "$selected" ]]; then
         command=$(echo "$selected" | sed 's/^[^→]*→\s*//')
         [[ -n "$command" ]] && swaymsg "$command"
@@ -353,7 +355,7 @@ in
     (writeShellScriptBin "kanshi-menu" ''
       #!/usr/bin/env bash
       profiles=$(grep "profile " ~/.config/kanshi/config 2>/dev/null | awk '{print $2}' | tr -d '{' || echo -e "laptop\nhome")
-      selected=$(echo -e "$profiles\nauto" | rofi -dmenu -p 'Display Profile:')
+      selected=$(echo -e "$profiles\nauto" | wofi --dmenu -p 'Display Profile:')
 
       if [ "$selected" = "auto" ]; then
           systemctl --user restart kanshi

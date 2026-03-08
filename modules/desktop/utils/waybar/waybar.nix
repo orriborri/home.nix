@@ -201,9 +201,10 @@ in
         };
 
         "custom/power" = {
-          format = "⏻";
-          on-click = "~/.nix-profile/bin/power-menu";
-          tooltip-format = "Power menu";
+          exec = "echo '  ⏻  '";
+          format = "{}";
+          tooltip = false;
+          on-click = "selected=$(echo -e \"🔒 Lock\\n😴 Suspend\\n🔄 Reboot\\n⏻ Shutdown\\n🚪 Logout\" | wofi --dmenu --prompt='Power:'); case \"$selected\" in '🔒 Lock') /usr/bin/swaylock -c 000000 ;; '😴 Suspend') /usr/bin/swaylock -c 000000 && systemctl suspend ;; '🔄 Reboot') systemctl reboot ;; '⏻ Shutdown') systemctl poweroff ;; '🚪 Logout') swaymsg exit ;; esac";
         };
       } // rightPowerline.arrows // {
       };
