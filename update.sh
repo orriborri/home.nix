@@ -42,4 +42,9 @@ home-manager switch -b backup --flake .#orre
 pkill waybar
 swaymsg reload
 kanshi status &
+
+echo "🧹 Garbage collecting and optimising Nix store..."
+nix store gc --verbose
+nix store optimise --verbose
+
 echo "✅ Update complete!"

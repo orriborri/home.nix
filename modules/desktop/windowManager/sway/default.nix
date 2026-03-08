@@ -148,6 +148,7 @@ let
       
       # Startup applications
       startup = [
+        { command = "python3 ~/.config/sway/autotab.py"; always = true; }
         { command = "~/.nix-profile/bin/${terminal}"; }
         { command = "1password --silent"; }
         { command = "sov"; }
@@ -449,6 +450,12 @@ in
   # Copy swaysome script
   xdg.configFile."sway/swaysome.py" = {
     source = ./swaysome.py;
+    executable = true;
+  };
+
+  # Copy autotab script
+  xdg.configFile."sway/autotab.py" = {
+    source = ./autotab.py;
     executable = true;
   };
 

@@ -29,9 +29,6 @@ in
       permittedInsecurePackages = [];
     };
     overlays = [
-      (final: prev: {
-        nodejs = prev.nodejs_latest;
-      })
     ];
   };
 
