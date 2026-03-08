@@ -41,10 +41,10 @@ def on_new(i3, event):
             i3.command(f'[con_id={target.id}] unmark _tab')
     else:
         # No tabbed container yet — create master + tabbed structure
+        # Focus second leaf, make it tabbed, move the rest in
         master = leaves[0]
         second = leaves[1]
         i3.command(f'[con_id={second.id}] focus')
-        i3.command('splitv')
         i3.command('layout tabbed')
         i3.command(f'[con_id={second.id}] mark --add _tab')
         for leaf in leaves[2:]:

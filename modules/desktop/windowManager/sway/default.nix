@@ -309,6 +309,17 @@ in
       esac
     '')
     
+    (writeShellScriptBin "power-menu" ''
+      selected=$(echo -e "🔒 Lock\n😴 Suspend\n🔄 Reboot\n⏻ Shutdown\n🚪 Logout" | rofi -i -dmenu -p "Power:")
+      case "$selected" in
+        "🔒 Lock") /usr/bin/swaylock -c 000000 ;;
+        "😴 Suspend") /usr/bin/swaylock -c 000000 && systemctl suspend ;;
+        "🔄 Reboot") systemctl reboot ;;
+        "⏻ Shutdown") systemctl poweroff ;;
+        "🚪 Logout") swaymsg exit ;;
+      esac
+    '')
+
     (writeShellScriptBin "rofi-sway-keybindings" ''
       CONFIG_FILE="''${XDG_CONFIG_HOME:-$HOME/.config}/sway/config"
       if [[ ! -f "$CONFIG_FILE" ]]; then

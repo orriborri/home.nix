@@ -2,8 +2,8 @@
 
 let
   # Define powerline modules and colors
-  rightModules = [ "custom/kanshi" "custom/power-profile" "custom/audio" "network" "memory" "cpu" "custom/cpu-freq" "custom/temperature" "battery" "sway/language" "tray" "clock#date" "clock#time" ];
-  rightColors = [ "rgba(40, 40, 40, 0.8784313725)" "@power" "@sound" "@network" "@memory" "@cpu" "@cpufreq" "@temp" "@battery" "@layout" "@date" "@date" "@time" ];
+  rightModules = [ "custom/kanshi" "custom/power-profile" "custom/audio" "network" "memory" "cpu" "custom/cpu-freq" "custom/temperature" "battery" "sway/language" "tray" "clock#date" "clock#time" "custom/power" ];
+  rightColors = [ "rgba(40, 40, 40, 0.8784313725)" "@power" "@sound" "@network" "@memory" "@cpu" "@cpufreq" "@temp" "@battery" "@layout" "@date" "@date" "@time" "@power" ];
   
   rightPowerline = if powerlineLib != null then powerlineLib.mkPowerline rightModules rightColors else {
     arrows = {};
@@ -198,6 +198,12 @@ in
           format = "{}";
           on-click = "current=$(/home/orre/.nix-profile/bin/powerprofilesctl get); case $current in performance) /home/orre/.nix-profile/bin/powerprofilesctl set balanced;; balanced) /home/orre/.nix-profile/bin/powerprofilesctl set power-saver;; power-saver) /home/orre/.nix-profile/bin/powerprofilesctl set performance;; esac";
           tooltip-format = "Click to cycle power profile";
+        };
+
+        "custom/power" = {
+          format = "⏻";
+          on-click = "~/.nix-profile/bin/power-menu";
+          tooltip-format = "Power menu";
         };
       } // rightPowerline.arrows // {
       };
