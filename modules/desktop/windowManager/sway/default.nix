@@ -13,6 +13,7 @@ let
     "${modifier}+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal}";
     "${modifier}+d" = "exec ~/.nix-profile/bin/wofi --show drun";
     "${modifier}+period" = "exec ~/.nix-profile/bin/wofi-emoji";
+    "${modifier}+Shift+period" = "exec ~/.nix-profile/bin/gif-picker";
     "${modifier}+Shift+q" = "kill";
 
     # Keybinding browser
@@ -320,6 +321,26 @@ in
         "⏻ Shutdown") systemctl poweroff ;;
         "🚪 Logout") swaymsg exit ;;
       esac
+    '')
+
+    (writeShellScriptBin "gif-picker" ''
+      KEY=$(cat ~/.config/gif-picker/giphy-key 2>/dev/null)
+      if [[ -z "$KEY" ]]; then
+        notify-send "GIF Picker" "No API key found at ~/.config/gif-picker/giphy-key" -u critical
+        exit 1
+      fi
+      query=$(echo "" | wofi --dmenu -p "Search GIFs:")
+      [[ -z "$query" ]] && exit 0
+      encoded=$(echo -n "$query" | jq -sRr @uri)
+      results=$(curl -s "https://api.giphy.com/v1/gifs/search?api_key=$KEY&q=$encoded&limit=20&rating=g")
+      urls=$(echo "$results" | jq -r '.data[] | "\(.title) | \(.images.original.url)"')
+      [[ -z "$urls" ]] && notify-send "GIF Picker" "No results for: $query" && exit 0
+      selected=$(echo "$urls" | wofi -i --dmenu -p "Pick GIF:")
+      if [[ -n "$selected" ]]; then
+        url=$(echo "$selected" | sed 's/.*| //')
+        echo -n "$url" | wl-copy
+        notify-send "GIF Picker" "URL copied to clipboard"
+      fi
     '')
 
     (writeShellScriptBin "wofi-sway-keybindings" ''
