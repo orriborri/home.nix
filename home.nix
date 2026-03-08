@@ -105,7 +105,7 @@ in
     ./modules/applications
     ./modules/feature
     ./modules/service
-    ./packages/kiro.nix
+    # ./packages/kiro.nix
   ] ++ lib.optionals (windowManager == "sway") [
     ./modules/desktop/windowManager/sway
   ];

@@ -67,9 +67,16 @@
       Compression yes
     '';
     
-    controlMaster = "auto";
-    controlPath = "~/.ssh/master-%r@%n:%p";
-    controlPersist = "10m";
+    # Disable deprecated default config, use matchBlocks instead
+    enableDefaultConfig = false;
+
+    matchBlocks = {
+      "*" = {
+        controlMaster = "auto";
+        controlPath = "~/.ssh/master-%r@%n:%p";
+        controlPersist = "10m";
+      };
+    };
   };
 
   # Security-related packages

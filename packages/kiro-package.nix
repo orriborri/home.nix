@@ -2,10 +2,11 @@
 
 stdenv.mkDerivation rec {
   pname = "kiro-ide";
-  version = "0.8.140";
+  version = "0.10.16";
 
-  src = builtins.fetchTarball {
+  src = fetchurl {
     url = "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${version}/tar/kiro-ide-${version}-stable-linux-x64.tar.gz";
+    sha256 = "0vmiivnlv4fg98vhq1885iaglb85j0s4wlymvjknrcnhlksjb1s0";
   };
 
   nativeBuildInputs = [
@@ -38,6 +39,12 @@ stdenv.mkDerivation rec {
     libXfixes
     libXrandr
     libxcb
+    libsecret
+  ];
+
+  autoPatchelfIgnoreMissingDeps = [ 
+    "libwebkit2gtk-4.1.so.0"
+    "libsoup-3.0.so.0"
   ];
 
   sourceRoot = "Kiro";
@@ -51,6 +58,7 @@ stdenv.mkDerivation rec {
     mkdir -p $out/bin
     makeWrapper $out/opt/kiro/kiro $out/bin/kiro-ide \
       --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}" \
+      --add-flags "--no-sandbox" \
       --add-flags "''${NIXOS_OZONE_WL:+''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations}}"
 
     # Desktop entry
@@ -65,6 +73,7 @@ stdenv.mkDerivation rec {
     Type=Application
     Categories=Development;IDE;
     StartupWMClass=Kiro
+    MimeType=x-scheme-handler/kiro;
     EOF
 
     runHook postInstall
