@@ -13,6 +13,9 @@ let
     "${modifier}+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal}";
     "${modifier}+d" = "exec ~/.nix-profile/bin/rofi -show drun";
     "${modifier}+Shift+q" = "kill";
+
+    # Keybinding browser
+    "${modifier}+slash" = "exec ~/.nix-profile/bin/rofi-sway-keybindings";
     
     # Workspace management
     "${modifier}+Tab" = "exec ~/.nix-profile/bin/swaymsg_workspace";
@@ -305,6 +308,36 @@ in
       esac
     '')
     
+    (writeShellScriptBin "rofi-sway-keybindings" ''
+      CONFIG_FILE="''${XDG_CONFIG_HOME:-$HOME/.config}/sway/config"
+      if [[ ! -f "$CONFIG_FILE" ]]; then
+        notify-send "Sway Keybindings" "Config not found: $CONFIG_FILE" -u critical
+        exit 1
+      fi
+      keybindings=$(grep -E '^\s*bindsym' "$CONFIG_FILE" | \
+        grep -v '^[[:space:]]*#' | \
+        sed 's/^\s*bindsym\s*//' | \
+        awk '{
+          sub(/\s+#.*$/, "")
+          i = 1
+          while (i <= NF && $i ~ /^--/) { i++ }
+          if (i > NF) next
+          keys = $i; i++
+          cmd = ""
+          for (j = i; j <= NF; j++) { if (j > i) cmd = cmd " "; cmd = cmd $j }
+          gsub(/\$mod/, "Mod", keys)
+          gsub(/Shift/, "⇧", keys)
+          gsub(/Control/, "Ctrl", keys)
+          gsub(/\+/, " + ", keys)
+          printf "%-35s → %s\n", keys, cmd
+        }')
+      selected=$(echo "$keybindings" | rofi -i -dmenu -p "Sway Shortcuts" -theme-str 'window {width: 60%;}')
+      if [[ -n "$selected" ]]; then
+        command=$(echo "$selected" | sed 's/^[^→]*→\s*//')
+        [[ -n "$command" ]] && swaymsg "$command"
+      fi
+    '')
+
     (writeShellScriptBin "kanshi-menu" ''
       #!/usr/bin/env bash
       profiles=$(grep "profile " ~/.config/kanshi/config 2>/dev/null | awk '{print $2}' | tr -d '{' || echo -e "laptop\nhome")

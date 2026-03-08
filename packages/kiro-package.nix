@@ -6,7 +6,7 @@ stdenv.mkDerivation rec {
 
   src = fetchurl {
     url = "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${version}/tar/kiro-ide-${version}-stable-linux-x64.tar.gz";
-    sha256 = "0vmiivnlv4fg98vhq1885iaglb85j0s4wlymvjknrcnhlksjb1s0";
+    sha256 = "sha256-QIcl9aTQsmyn3NVTTjSQBS36VCwIBQw3Ss+RTe2OsW4=";
   };
 
   nativeBuildInputs = [
