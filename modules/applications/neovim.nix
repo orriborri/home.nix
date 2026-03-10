@@ -39,6 +39,7 @@
       # Git
       gitsigns-nvim
       vim-fugitive
+      vim-gitgutter
 
       # UI
       lualine-nvim
@@ -47,7 +48,14 @@
 
       # Code navigation
       trouble-nvim
-      
+
+      # Vim plugins
+      base16-vim
+      ctrlp-vim
+      editorconfig-vim
+      vim-markdown
+      vim-surround
+
       # Colorscheme
       catppuccin-nvim
     ];
