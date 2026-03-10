@@ -99,24 +99,35 @@
       -- LSP setup
       require("mason").setup()
       require("mason-lspconfig").setup({
-        ensure_installed = { "ts_ls", "eslint", "lua_ls", "nil_ls" },
-        automatic_installation = true,
+        ensure_installed = { "ts_ls", "eslint", "lua_ls" },
+        automatic_installation = false,
       })
       
-      local lspconfig = require("lspconfig")
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
+
+      vim.lsp.config("ts_ls", { capabilities = capabilities })
+      vim.lsp.config("eslint", { capabilities = capabilities })
+      vim.lsp.config("lua_ls", { capabilities = capabilities })
+      vim.lsp.config("nil_ls", { capabilities = capabilities })
+
+      vim.lsp.enable("ts_ls")
+      vim.lsp.enable("eslint")
+      vim.lsp.enable("lua_ls")
+      vim.lsp.enable("nil_ls")
       
-      lspconfig.ts_ls.setup({ capabilities = capabilities })
-      lspconfig.eslint.setup({ capabilities = capabilities })
-      lspconfig.lua_ls.setup({ capabilities = capabilities })
-      lspconfig.nil_ls.setup({ capabilities = capabilities })
-      
+      local map = vim.keymap.set
+
       -- LSP keybindings
-      vim.keymap.set("n", "gd", vim.lsp.buf.definition, { desc = "Go to definition" })
-      vim.keymap.set("n", "K", vim.lsp.buf.hover, { desc = "Hover documentation" })
-      vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, { desc = "Code action" })
-      vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, { desc = "Rename" })
-      vim.keymap.set("n", "gr", vim.lsp.buf.references, { desc = "References" })
+      map("n", "K", vim.lsp.buf.hover, { desc = "Hover documentation" })
+      map("n", "gd", vim.lsp.buf.definition, { desc = "Goto definition" })
+      map("n", "gD", vim.lsp.buf.declaration, { desc = "Goto declaration" })
+      map("n", "gi", vim.lsp.buf.implementation, { desc = "Goto implementation" })
+      map("n", "gr", vim.lsp.buf.references, { desc = "Goto references" })
+      map("n", "gt", vim.lsp.buf.type_definition, { desc = "Goto type definition" })
+      map("n", "<leader>ca", vim.lsp.buf.code_action, { desc = "Code action" })
+      map("n", "<leader>rn", vim.lsp.buf.rename, { desc = "Rename symbol" })
+      map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
+      map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
       
       -- Completion setup
       local cmp = require("cmp")
@@ -151,21 +162,27 @@
       })
       
       -- Treesitter
-      require("nvim-treesitter.configs").setup({
+      require("nvim-treesitter").setup({
         highlight = { enable = true },
         indent = { enable = true },
       })
       
       -- Telescope
       local builtin = require("telescope.builtin")
-      vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
-      vim.keymap.set("n", "<leader>fg", builtin.live_grep, { desc = "Live grep" })
-      vim.keymap.set("n", "<leader>fb", builtin.buffers, { desc = "Buffers" })
-      vim.keymap.set("n", "<leader>fh", builtin.help_tags, { desc = "Help tags" })
+      map("n", "<leader><space>", builtin.find_files, { desc = "Find files" })
+      map("n", "<leader>/", builtin.live_grep, { desc = "Live grep" })
+      map("n", "<leader>,", builtin.buffers, { desc = "Switch buffer" })
+      map("n", "<leader>sd", builtin.diagnostics, { desc = "Search diagnostics" })
+      map("n", "<leader>ss", builtin.lsp_document_symbols, { desc = "Search document symbols" })
+      map("n", "<leader>sS", builtin.lsp_workspace_symbols, { desc = "Search workspace symbols" })
+      map("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
+      map("n", "<leader>fg", builtin.live_grep, { desc = "Live grep" })
+      map("n", "<leader>fb", builtin.buffers, { desc = "Buffers" })
+      map("n", "<leader>fh", builtin.help_tags, { desc = "Help tags" })
       
       -- Nvim-tree
       require("nvim-tree").setup()
-      vim.keymap.set("n", "<leader>e", ":NvimTreeToggle<CR>", { desc = "Toggle file explorer" })
+      map("n", "<leader>e", ":NvimTreeToggle<CR>", { desc = "Toggle file explorer" })
       
       -- Gitsigns
       require("gitsigns").setup()
@@ -182,7 +199,7 @@
       
       -- Trouble
       require("trouble").setup()
-      vim.keymap.set("n", "<leader>xx", ":Trouble<CR>", { desc = "Toggle trouble" })
+      map("n", "<leader>xx", ":Trouble<CR>", { desc = "Toggle trouble" })
     '';
   };
 }

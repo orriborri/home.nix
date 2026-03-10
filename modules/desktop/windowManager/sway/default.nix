@@ -150,7 +150,10 @@ let
       
       # Startup applications
       startup = [
-        { command = "python3 ~/.config/sway/autotab.py"; always = true; }
+        {
+          command = "pkill -f 'python3 ~/.config/sway/autotab.py' >/dev/null 2>&1 || true; python3 ~/.config/sway/autotab.py";
+          always = true;
+        }
         { command = "~/.nix-profile/bin/${terminal}"; }
         { command = "1password --silent"; }
         { command = "sov"; }
