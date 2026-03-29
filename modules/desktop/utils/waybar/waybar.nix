@@ -83,9 +83,12 @@ in
           interval = 5;
           format-wifi = " {essid} ({signalStrength}%)";
           format-ethernet = " {ifname}";
-          format-disconnected = "No connection";
+          format-disconnected = "⚠ No connection";
           format-alt = " {ipaddr}/{cidr}";
-          tooltip = false;
+          tooltip-format-wifi = "{essid} ({signalStrength}%)\n{ipaddr}/{cidr}\nClick to pick network";
+          tooltip = true;
+          on-click = "${./wifi-picker.sh}";
+          on-click-right = "";
         };
         
         "sway/workspaces" = {

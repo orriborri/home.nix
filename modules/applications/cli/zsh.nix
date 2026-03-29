@@ -28,6 +28,7 @@
     
     # Git shortcuts
     g = "git";
+    lgit = "lazygit";
     
     # Editor shortcuts
     c = "code";
@@ -43,6 +44,12 @@
     # Application shortcuts
     zed = "DISPLAY=:0 zed";
     
+    # Worktree navigation
+    lw = "lazyworktree --output-selection /tmp/lwt_path </dev/tty >/dev/tty && cd \"$(cat /tmp/lwt_path)\"";
+
+    # TMC CLI
+    tmc = "/home/orre/Courses/Security/SecuringSoftware/tmc-cli-rust-x86_64-unknown-linux-gnu-v1.1.2";
+
     # Nix utilities
     hm = "home-manager";
     hms = "home-manager switch";
@@ -100,6 +107,9 @@
 
   # Session variables
   sessionVariables = {
+    # TMC configuration
+    TMC_LANGS_CONFIG_DIR = "/home/orre/tmc-config";
+
     # Suppress direnv logs
     DIRENV_LOG_FORMAT = "";
 

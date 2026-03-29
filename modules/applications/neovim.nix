@@ -31,6 +31,7 @@
       # Fuzzy finder
       telescope-nvim
       telescope-fzf-native-nvim
+      telescope-file-browser-nvim
       plenary-nvim
 
       # File explorer
@@ -49,6 +50,9 @@
       # Code navigation
       trouble-nvim
 
+      # Formatting
+      conform-nvim
+
       # Vim plugins
       base16-vim
       ctrlp-vim
@@ -66,6 +70,8 @@
       nodePackages.vscode-langservers-extracted # HTML, CSS, JSON, ESLint
       lua-language-server
       nil # Nix LSP
+      pyright
+      ruff
       
       # Formatters
       nodePackages.prettier
@@ -113,15 +119,25 @@
       
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
+      vim.lsp.config("pyright", {
+        capabilities = capabilities,
+        settings = {
+          pyright = { disableOrganizeImports = true },
+        },
+      })
+
       vim.lsp.config("ts_ls", { capabilities = capabilities })
       vim.lsp.config("eslint", { capabilities = capabilities })
       vim.lsp.config("lua_ls", { capabilities = capabilities })
       vim.lsp.config("nil_ls", { capabilities = capabilities })
+      vim.lsp.config("ruff", { capabilities = capabilities })
 
       vim.lsp.enable("ts_ls")
       vim.lsp.enable("eslint")
       vim.lsp.enable("lua_ls")
       vim.lsp.enable("nil_ls")
+      vim.lsp.enable("ruff")
+      vim.lsp.enable("pyright")
       
       local map = vim.keymap.set
 
@@ -177,6 +193,18 @@
       
       -- Telescope
       local builtin = require("telescope.builtin")
+      local telescope = require("telescope")
+
+      telescope.setup({
+        extensions = {
+          file_browser = {
+            hijack_netrw = true,
+          },
+        },
+      })
+      telescope.load_extension("fzf")
+      telescope.load_extension("file_browser")
+
       map("n", "<leader><space>", builtin.find_files, { desc = "Find files" })
       map("n", "<leader>/", builtin.live_grep, { desc = "Live grep" })
       map("n", "<leader>,", builtin.buffers, { desc = "Switch buffer" })
@@ -186,6 +214,12 @@
       map("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
       map("n", "<leader>fg", builtin.live_grep, { desc = "Live grep" })
       map("n", "<leader>fb", builtin.buffers, { desc = "Buffers" })
+      map("n", "<leader>fe", function()
+        telescope.extensions.file_browser.file_browser({
+          path = vim.fn.expand("%:p:h"),
+          select_buffer = true,
+        })
+      end, { desc = "File browser" })
       map("n", "<leader>fh", builtin.help_tags, { desc = "Help tags" })
       
       -- Nvim-tree
@@ -208,6 +242,20 @@
       -- Trouble
       require("trouble").setup()
       map("n", "<leader>xx", ":Trouble<CR>", { desc = "Toggle trouble" })
+
+      -- Formatting
+      require("conform").setup({
+        formatters_by_ft = {
+          python = { "ruff_format" },
+        },
+        format_on_save = {
+          timeout_ms = 500,
+          lsp_format = "fallback",
+        },
+      })
+      map("n", "<leader>cf", function()
+        require("conform").format({ async = true })
+      end, { desc = "Format file" })
     '';
   };
 }

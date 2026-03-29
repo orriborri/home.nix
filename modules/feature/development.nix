@@ -12,6 +12,7 @@
     jq             # JSON processor
     xh             # HTTP client
     pre-commit     # Git hooks
+    lazyworktree   # Git worktree TUI
     uv             # Python package manager
     
     # Nix development tools

@@ -11,6 +11,7 @@
     neovim = (import ./neovim.nix { inherit pkgs; });
     git = (import ./git.nix { inherit pkgs lib; });
     gitui = (import ./gitui.nix { inherit pkgs; });
+    lazygit = (import ./lazygit.nix { inherit pkgs; });
     lsd = (import ./lsd.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
 

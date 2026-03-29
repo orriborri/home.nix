@@ -58,5 +58,6 @@
     du = "dust";
     top = "btm";
     htop = "btm";
+    gwt = "lazyworktree";
   };
 }
