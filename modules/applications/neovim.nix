@@ -152,6 +152,7 @@
       map("n", "<leader>rn", vim.lsp.buf.rename, { desc = "Rename symbol" })
       map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
       map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+      map("n", "<leader>cd", vim.diagnostic.open_float, { desc = "Line diagnostics" })
       
       -- Completion setup
       local cmp = require("cmp")
@@ -227,7 +228,18 @@
       map("n", "<leader>e", ":NvimTreeToggle<CR>", { desc = "Toggle file explorer" })
       
       -- Gitsigns
-      require("gitsigns").setup()
+      require("gitsigns").setup({
+        on_attach = function(bufnr)
+          local gs = package.loaded.gitsigns
+          local opts = function(desc) return { buffer = bufnr, desc = desc } end
+          map("n", "<leader>gb", function() gs.blame_line({ full = true }) end, opts("Blame line"))
+          map("n", "<leader>gB", ":Git blame<CR>", opts("Blame file"))
+          map("n", "<leader>gp", gs.preview_hunk, opts("Preview hunk"))
+          map("n", "<leader>gr", gs.reset_hunk, opts("Reset hunk"))
+          map("n", "]h", gs.next_hunk, opts("Next hunk"))
+          map("n", "[h", gs.prev_hunk, opts("Previous hunk"))
+        end,
+      })
       
       -- Lualine
       require("lualine").setup({
@@ -238,6 +250,17 @@
       
       -- Which-key
       require("which-key").setup()
+      require("which-key").add({
+        { "<leader>c", group = "code" },
+        { "<leader>f", group = "find" },
+        { "<leader>g", group = "git" },
+        { "<leader>r", group = "refactor" },
+        { "<leader>s", group = "search" },
+        { "<leader>x", group = "trouble" },
+        { "g", group = "goto" },
+        { "[", group = "prev" },
+        { "]", group = "next" },
+      })
       
       -- Trouble
       require("trouble").setup()
