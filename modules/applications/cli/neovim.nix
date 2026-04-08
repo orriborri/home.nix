@@ -16,7 +16,7 @@
     vim-fugitive
     which-key-nvim
   ];
-  extraLuaConfig = ''
+  initLua = ''
     local wk = require("which-key")
     wk.setup({})
     wk.add({
