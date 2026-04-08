@@ -43,8 +43,8 @@ pkill waybar
 swaymsg reload
 kanshi status &
 
-echo "🧹 Garbage collecting and optimising Nix store..."
-nix store gc --verbose
+echo "🧹 Garbage collecting old generations (>7d) and optimising Nix store..."
+nix-collect-garbage --delete-older-than 7d
 nix store optimise --verbose
 
 echo "✅ Update complete!"
