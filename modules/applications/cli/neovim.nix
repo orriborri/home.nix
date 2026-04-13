@@ -15,8 +15,22 @@
     ctrlp-vim
     vim-fugitive
     which-key-nvim
+    (pkgs.vimUtils.buildVimPlugin {
+      pname = "agentic-nvim";
+      version = "latest";
+      src = pkgs.fetchFromGitHub {
+        owner = "carlos-algms";
+        repo = "agentic.nvim";
+        rev = "main";
+        hash = "sha256-0hnrhjpjrdvsOZ9SegWFwnBy5RP1w/GKKcY2cRUVM/s=";
+      };
+    })
   ];
   initLua = ''
+    require("agentic").setup({
+      provider = "claude-agent-acp",
+    })
+
     local wk = require("which-key")
     wk.setup({})
     wk.add({
@@ -35,6 +49,8 @@
       { "<C-j>", desc = "Move to split below" },
       { "<C-k>", desc = "Move to split above" },
       { "<C-l>", desc = "Move to right split" },
+      { "<C-\\>", function() require("agentic").toggle() end, desc = "Toggle Agentic Chat", mode = { "n", "v", "i" } },
+      { "<C-'>", function() require("agentic").add_selection_or_file_to_context() end, desc = "Add to Agentic Context", mode = { "n", "v" } },
     })
   '';
   extraConfig = ''
