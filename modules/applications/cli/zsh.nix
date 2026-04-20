@@ -64,8 +64,14 @@
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
-    # Zellij auto-start
-    eval "$(zellij setup --generate-auto-start zsh)"
+    # Zellij auto-start (session named after current directory)
+    export ZELLIJ_AUTO_ATTACH=true
+    if [[ -z "$ZELLIJ" ]]; then
+      zellij attach -c "$(basename "$PWD")"
+    fi
+
+    # Rename zellij session on directory change
+    chpwd() { [[ -n "$ZELLIJ" ]] && zellij action rename-session "$(basename "$PWD")"; }
     
     # Vi mode keybindings
     bindkey -M viins 'jj' vi-cmd-mode
