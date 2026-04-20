@@ -2,11 +2,12 @@
 
 let
   kiro-ide = pkgs.callPackage ./kiro-package.nix {};
+  kiro-cli = pkgs.callPackage ./kiro-cli-package.nix {};
 in
 {
   home.packages = [ 
     kiro-ide
-    pkgs.kiro-cli
+    kiro-cli
     pkgs.xdg-utils  # Required for browser-based authentication
   ];
 

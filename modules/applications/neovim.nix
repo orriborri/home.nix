@@ -66,15 +66,15 @@
 
     extraPackages = with pkgs; [
       # Language servers
-      nodePackages.typescript-language-server
-      nodePackages.vscode-langservers-extracted # HTML, CSS, JSON, ESLint
+      typescript-language-server
+      vscode-langservers-extracted # HTML, CSS, JSON, ESLint
       lua-language-server
       nil # Nix LSP
       pyright
       ruff
       
       # Formatters
-      nodePackages.prettier
+      prettier
       stylua
       nixpkgs-fmt
       

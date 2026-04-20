@@ -18,11 +18,12 @@
     (pkgs.vimUtils.buildVimPlugin {
       pname = "agentic-nvim";
       version = "latest";
+      nvimRequireCheck = "agentic";
       src = pkgs.fetchFromGitHub {
         owner = "carlos-algms";
         repo = "agentic.nvim";
         rev = "main";
-        hash = "sha256-0hnrhjpjrdvsOZ9SegWFwnBy5RP1w/GKKcY2cRUVM/s=";
+        hash = "sha256-5bNpbupqRveqCgQ+jMSYIgqAQrqC7yOlt+avDsk95i4=";
       };
     })
   ];

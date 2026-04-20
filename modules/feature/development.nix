@@ -5,7 +5,7 @@
   home.packages = with pkgs; [
     # Programming languages
     nodejs_latest
-    nodePackages.pnpm
+    pnpm
     
     # Development tools
     tokei          # Code statistics

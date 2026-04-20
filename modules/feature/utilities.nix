@@ -8,6 +8,8 @@
     
     # Time tracking
     timewarrior
+    taskwarrior3
+    taskwarrior-tui
     
     # File utilities
     fd              # Better find
@@ -44,7 +46,6 @@
     pbpaste
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     # Network utilities (Linux only)
-    networkmanager
     bluetui
     bandwhich
   ];
