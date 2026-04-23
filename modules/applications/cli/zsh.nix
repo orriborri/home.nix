@@ -54,6 +54,9 @@
     hm = "home-manager";
     hms = "home-manager switch";
     hmb = "home-manager build";
+
+    # Help
+    help = "echo '── Zsh Vi Mode ──\njj    → normal mode\ni     → insert mode\nv     → visual mode\n/     → search\nCtrl-R → history search\nCtrl-S → forward search\n── Navigation ──\n0/\\$   → line start/end\nw/b   → word forward/back\nf<c>  → jump to char\n── Editing ──\ndd    → delete line\ncc    → change line\nyy    → yank line\np     → paste\nu     → undo\n'";
   };
 
   # Shell initialization
@@ -64,17 +67,28 @@
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
-    # Zellij auto-start (session named after current directory)
-    export ZELLIJ_AUTO_ATTACH=true
-    if [[ -z "$ZELLIJ" ]]; then
-      zellij attach -c "$(basename "$PWD")"
+    # Zellij auto-start (session named with creation timestamp prefix)
+    if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" ]]; then
+      export ZELLIJ_STARTING=1
+      export _ZELLIJ_SESSION_PREFIX="$(date +%H:%M)"
+      zellij attach -c "$_ZELLIJ_SESSION_PREFIX-$(basename "$PWD")" 2>/dev/null
+      unset ZELLIJ_STARTING
     fi
 
-    # Rename zellij session on directory change
-    chpwd() { [[ -n "$ZELLIJ" ]] && zellij action rename-session "$(basename "$PWD")"; }
+    # Rename zellij session on directory change (keeps creation timestamp prefix)
+    _zellij_rename_session() {
+      if [[ -n "$ZELLIJ" ]]; then
+        zellij action rename-session -- "$_ZELLIJ_SESSION_PREFIX-$(basename "$PWD")"
+      fi
+    }
+    chpwd_functions+=(_zellij_rename_session)
     
     # Vi mode keybindings
     bindkey -M viins 'jj' vi-cmd-mode
+    
+    # Bracketed paste (prevents keybindings triggering during paste)
+    autoload -Uz bracketed-paste-magic
+    zle -N bracketed-paste bracketed-paste-magic
     
     # Better history search
     bindkey '^R' history-incremental-search-backward
@@ -84,6 +98,11 @@
     setopt AUTO_CD
     setopt AUTO_PUSHD
     setopt PUSHD_IGNORE_DUPS
+    
+    # Multiline command support
+    setopt INTERACTIVE_COMMENTS
+    setopt PROMPT_SUBST
+    export PS2="%F{yellow}∙%f "
     
     # Completion improvements
     setopt COMPLETE_ALIASES
