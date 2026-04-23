@@ -1,4 +1,4 @@
-{ pkgs, lib, config, pkgs-stable ? pkgs, ... }:
+{ pkgs, lib, config, pkgs-stable ? pkgs, llm-agents ? {}, ... }:
 
 let
   # Configuration variables
@@ -16,7 +16,7 @@ in
   # paths it should manage.
   home = {
     inherit username homeDirectory;
-    stateVersion = "25.05";
+    stateVersion = "26.05";
   };
 
   # Nixpkgs configuration
@@ -63,6 +63,8 @@ in
     amazon-q-cli
     gitlab-ci-local
     awscli2
+  ] ++ lib.optionals (llm-agents ? coderabbit-cli) [
+    llm-agents.coderabbit-cli
     # Graphics and Wayland support (Linux only)
   ] ++ lib.optionals isLinux [
     mesa
