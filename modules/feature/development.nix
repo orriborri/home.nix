@@ -20,17 +20,8 @@
     nixd           # Alternative Nix LSP
     nixfmt         # Nix formatter (updated from nixfmt-rfc-style)
     
-    # Build tools
-    cmake
-    meson
-    cpio
-    
     # Shell utilities
     zsh
-    
-    # Audio (Linux only)
-  ] ++ lib.optionals pkgs.stdenv.isLinux [
-    pulsemixer
   ];
 
   # Development environment variables

@@ -1,6 +1,14 @@
 { pkgs, lib, config, ... }:
 
 {
+  imports = [
+    ./zellij-layout.nix
+  ];
+
+  home.packages = with pkgs; [
+    fx
+  ];
+
   programs = {
     zsh = (import ./zsh.nix { inherit pkgs lib config; });
     starship = (import ./starship.nix { inherit pkgs; });
@@ -14,6 +22,7 @@
     lazygit = (import ./lazygit.nix { inherit pkgs; });
     lsd = (import ./lsd.nix { inherit pkgs; });
     htop = (import ./htop.nix { inherit pkgs; });
+    zellij = (import ./zellij.nix { inherit pkgs; });
 
     # Better git diff viewer
     delta = {

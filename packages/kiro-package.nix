@@ -2,11 +2,11 @@
 
 stdenv.mkDerivation rec {
   pname = "kiro-ide";
-  version = "0.10.16";
+  version = "0.11.133";
 
   src = fetchurl {
     url = "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${version}/tar/kiro-ide-${version}-stable-linux-x64.tar.gz";
-    sha256 = "sha256-QIcl9aTQsmyn3NVTTjSQBS36VCwIBQw3Ss+RTe2OsW4=";
+    sha256 = "sha256-D8Y1w3YmbgKvNpN3sLv+GZLcT7HAQaGjCL9YSdrHbbA=";
   };
 
   nativeBuildInputs = [

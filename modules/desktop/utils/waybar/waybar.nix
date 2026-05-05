@@ -25,6 +25,7 @@ in
         modules-right = rightPowerline.moduleOrder;
         
         battery = {
+          bat = "BAT0";
           interval = 10;
           states = {
             warning = 30;

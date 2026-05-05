@@ -7,7 +7,6 @@ let
   windowManager = "sway"; # Using Sway as the window manager
 
   # System detection
-  isNixOS = builtins.pathExists /etc/NIXOS;
   isSilverblue = builtins.pathExists /run/ostree-booted;
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
@@ -36,20 +35,12 @@ in
   # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
-  } // lib.optionalAttrs isLinux {
-    LD_LIBRARY_PATH = "${lib.makeLibraryPath (with pkgs; [
-      mesa
-      libglvnd
-      libGL
-      libGLU
-    ])}:$LD_LIBRARY_PATH";
   };
 
   # System packages
   home.packages = with pkgs; [
     # Essential tools
     gh
-    power-profiles-daemon
 
     # Fonts
     nerd-fonts.jetbrains-mono
@@ -66,17 +57,6 @@ in
     awscli2
   ] ++ lib.optionals (llm-agents ? coderabbit-cli) [
     llm-agents.coderabbit-cli
-    # Graphics and Wayland support (Linux only)
-  ] ++ lib.optionals isLinux [
-    mesa
-    libglvnd
-    libGL
-    libGLU
-    vulkan-loader
-    vulkan-headers
-    vulkan-tools
-    libva
-    libva-utils
   ] ++ lib.optionals isDarwin [
     # macOS-specific packages can go here
   ];
