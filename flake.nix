@@ -13,9 +13,13 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, llm-agents, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -48,20 +52,21 @@
         sway = ./modules/desktop/windowManager/sway;
       };
 
-      # Export NixOS modules
-      nixosModules = {
-        default = ./nixos/configuration.nix;
-      };
+      # NixOS modules (not used on Silverblue)
+      # nixosModules = {
+      #   default = ./nixos/configuration.nix;
+      # };
 
       # Home Manager configurations
       homeConfigurations = {
-        # Main configuration for user "orre"
+        # Main configuration for user "orre" (Fedora Silverblue)
         "orre" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
           extraSpecialArgs = { 
             powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
             nixgl = nixgl.packages.x86_64-linux;
+            llm-agents = llm-agents.packages.x86_64-linux;
           };
           modules = [
             ./home.nix

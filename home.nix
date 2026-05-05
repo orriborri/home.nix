@@ -8,6 +8,7 @@ let
 
   # System detection
   isNixOS = builtins.pathExists /etc/NIXOS;
+  isSilverblue = builtins.pathExists /run/ostree-booted;
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
 in
@@ -104,6 +105,7 @@ in
     ./modules/applications
     ./modules/feature
     ./modules/service
+    ./modules/desktop/gnome.nix
     ./packages/kiro.nix
   ] ++ lib.optionals (windowManager == "sway") [
     ./modules/desktop/windowManager/sway
