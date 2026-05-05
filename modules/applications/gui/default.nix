@@ -1,9 +1,12 @@
 { pkgs, ... }:
 
 {
+  imports = [
+    ./foot.nix
+  ];
+
   programs = {
     wezterm = (import ./wezterm.nix { inherit pkgs; });
-    zellij = (import ./zellij.nix { inherit pkgs; });
     alacritty = (import ./alacritty.nix { inherit pkgs; });
 
     kitty = {
@@ -14,6 +17,7 @@
   };
 
   home.packages = with pkgs; [
+    foot
     # obsidian  # Temporarily disabled — triggers full Electron/Chromium source build
   ];
 }

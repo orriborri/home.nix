@@ -7,7 +7,6 @@ let
   windowManager = "sway"; # Using Sway as the window manager
 
   # System detection
-  isNixOS = builtins.pathExists /etc/NIXOS;
   isSilverblue = builtins.pathExists /run/ostree-booted;
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
@@ -42,7 +41,6 @@ in
   home.packages = with pkgs; [
     # Essential tools
     gh
-    power-profiles-daemon
 
     # Fonts
     nerd-fonts.jetbrains-mono
@@ -57,6 +55,8 @@ in
     amazon-q-cli
     gitlab-ci-local
     awscli2
+  ] ++ lib.optionals (llm-agents ? coderabbit-cli) [
+    llm-agents.coderabbit-cli
   ] ++ lib.optionals isDarwin [
     # macOS-specific packages can go here
   ];

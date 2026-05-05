@@ -5,6 +5,5 @@
     ./cli
     ./gui
     ./neovim.nix
-    ./zellij-layout.nix
   ];
 }

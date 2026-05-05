@@ -31,15 +31,12 @@
     tealdeer        # Better man pages
     fend            # Calculator
     
-    # Clipboard utilities (Linux only)
+    # Clipboard and screenshot utilities (Linux only)
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     xclip
     wl-clipboard
     wayshot
     slurp
-    strace
-    binutils
-    wdisplays
   ] ++ lib.optionals pkgs.stdenv.isDarwin [
     # macOS specific utilities
     pbcopy
