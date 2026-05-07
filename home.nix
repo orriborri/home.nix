@@ -1,4 +1,4 @@
-{ pkgs, lib, config, pkgs-stable ? pkgs, llm-agents ? {}, ... }:
+{ pkgs, lib, config, pkgs-stable ? pkgs, ... }:
 
 let
   # Configuration variables
@@ -35,13 +35,6 @@ in
   # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
-  } // lib.optionalAttrs isLinux {
-    LD_LIBRARY_PATH = "${lib.makeLibraryPath (with pkgs; [
-      mesa
-      libglvnd
-      libGL
-      libGLU
-    ])}:$LD_LIBRARY_PATH";
   };
 
   # System packages
@@ -63,19 +56,6 @@ in
     amazon-q-cli
     gitlab-ci-local
     awscli2
-  ] ++ lib.optionals (llm-agents ? coderabbit-cli) [
-    llm-agents.coderabbit-cli
-    # Graphics and Wayland support (Linux only)
-  ] ++ lib.optionals isLinux [
-    mesa
-    libglvnd
-    libGL
-    libGLU
-    vulkan-loader
-    vulkan-headers
-    vulkan-tools
-    libva
-    libva-utils
   ] ++ lib.optionals isDarwin [
     # macOS-specific packages can go here
   ];
