@@ -77,8 +77,14 @@
 
     # Rename zellij session on directory change (keeps creation timestamp prefix)
     _zellij_rename_session() {
-      if [[ -n "$ZELLIJ" ]]; then
-        zellij action rename-session -- "$_ZELLIJ_SESSION_PREFIX-$(basename "$PWD")"
+      if [[ -n "$ZELLIJ" && -n "$ZELLIJ_SESSION_NAME" ]]; then
+        # Extract the timestamp prefix (HH:MM) from the current session name
+        local prefix="''${ZELLIJ_SESSION_NAME%%-*}"
+        local new_name="$prefix-$(basename "$PWD")"
+        # Skip if name is already correct
+        [[ "$ZELLIJ_SESSION_NAME" == "$new_name" ]] && return
+        # Run async so cd is never blocked by zellij IPC
+        (zellij action rename-session -- "$new_name" >/dev/null 2>&1 &) &!
       fi
     }
     chpwd_functions+=(_zellij_rename_session)

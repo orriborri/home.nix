@@ -27,7 +27,7 @@ if [[ "$1" == "-u" || "$1" == "--kiro" ]]; then
         echo "  Updating Kiro: $CURRENT_VERSION → $LATEST_VERSION"
         KIRO_URL="https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed/${LATEST_VERSION}/tar/kiro-ide-${LATEST_VERSION}-stable-linux-x64.tar.gz"
         NEW_HASH=$(nix-prefetch-url --unpack "$KIRO_URL" 2>/dev/null | tail -1)
-        NEW_SRI=$(nix hash to-sri --type sha256 "$NEW_HASH")
+        NEW_SRI=$(nix hash convert --hash-algo sha256 --to sri "$NEW_HASH")
 
         sed -i "s|version = \"$CURRENT_VERSION\"|version = \"$LATEST_VERSION\"|g" packages/kiro.nix packages/kiro-package.nix
         sed -i "s|sha256 = \".*\"|sha256 = \"$NEW_SRI\"|" packages/kiro.nix
