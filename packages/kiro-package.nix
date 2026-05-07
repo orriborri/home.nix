@@ -28,7 +28,6 @@ stdenv.mkDerivation rec {
     libdrm
     libxkbcommon
     libxkbfile
-    mesa
     nspr
     nss
     pango
@@ -40,11 +39,18 @@ stdenv.mkDerivation rec {
     libXrandr
     libxcb
     libsecret
+    curl
+    openssl
   ];
 
   autoPatchelfIgnoreMissingDeps = [ 
     "libwebkit2gtk-4.1.so.0"
     "libsoup-3.0.so.0"
+    "libgbm.so.1"
+    "libEGL.so.1"
+    "libGLESv2.so.2"
+    "libGLX.so.0"
+    "libOpenGL.so.0"
   ];
 
   sourceRoot = "Kiro";
@@ -58,6 +64,9 @@ stdenv.mkDerivation rec {
     mkdir -p $out/bin
     makeWrapper $out/opt/kiro/kiro $out/bin/kiro-ide \
       --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath buildInputs}" \
+      --prefix LD_LIBRARY_PATH : "/usr/lib64:/usr/lib64/dri" \
+      --set-default LIBGL_DRIVERS_PATH "/usr/lib64/dri:/usr/lib/dri" \
+      --set-default LIBVA_DRIVERS_PATH "/usr/lib64/dri:/usr/lib/dri" \
       --add-flags "--no-sandbox" \
       --add-flags "''${NIXOS_OZONE_WL:+''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations}}"
 
