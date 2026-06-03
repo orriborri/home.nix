@@ -1,0 +1,222 @@
+[apps/seahorse/listing]
+item-filter='any'
+keyrings-selected=['gnupg://']
+
+[apps/seahorse/windows/key-manager]
+height=1121
+width=960
+
+[org/gnome/Ptyxis]
+default-profile-uuid='9d4ba33d99c9ea52c63a95f169eafcb3'
+profile-uuids=['9d4ba33d99c9ea52c63a95f169eafcb3']
+window-size=(uint32 84, uint32 43)
+
+[org/gnome/calendar]
+active-view='month'
+window-maximized=true
+window-size=(768, 600)
+
+[org/gnome/control-center]
+last-panel='display'
+window-state=(980, 640, false)
+
+[org/gnome/desktop/app-folders]
+folder-children=['System', 'Utilities', 'YaST', 'Pardus']
+
+[org/gnome/desktop/app-folders/folders/Pardus]
+categories=['X-Pardus-Apps']
+name='X-Pardus-Apps.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/System]
+apps=['org.gnome.baobab.desktop', 'org.gnome.DiskUtility.desktop', 'org.gnome.Logs.desktop', 'org.freedesktop.MalcontentControl.desktop', 'org.freedesktop.GnomeAbrt.desktop', 'org.gnome.SystemMonitor.desktop']
+name='X-GNOME-Shell-System.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/Utilities]
+apps=['org.gnome.Decibels.desktop', 'org.gnome.Connections.desktop', 'org.gnome.Papers.desktop', 'org.gnome.font-viewer.desktop', 'org.gnome.Loupe.desktop']
+name='X-GNOME-Shell-Utilities.directory'
+translate=true
+
+[org/gnome/desktop/app-folders/folders/YaST]
+categories=['X-SuSE-YaST']
+name='suse-yast.directory'
+translate=true
+
+[org/gnome/desktop/break-reminders/eyesight]
+play-sound=true
+
+[org/gnome/desktop/break-reminders/movement]
+duration-seconds=uint32 300
+interval-seconds=uint32 1800
+play-sound=true
+
+[org/gnome/desktop/input-sources]
+sources=[('xkb', 'fi')]
+xkb-options=['terminate:ctrl_alt_bksp']
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+show-battery-percentage=true
+toolkit-accessibility=false
+
+[org/gnome/desktop/notifications]
+application-children=['org-gnome-ptyxis', 'gnome-about-panel', 'slack', 'gnome-power-panel', 'org-mozilla-firefox', 'org-freedesktop-problems-applet', 'org-gnome-software', 'org-gnome-nautilus', 'dev-zed-zed', 'org-gnome-baobab']
+
+[org/gnome/desktop/notifications/application/dev-zed-zed]
+application-id='dev.zed.Zed.desktop'
+
+[org/gnome/desktop/notifications/application/gnome-about-panel]
+application-id='gnome-about-panel.desktop'
+
+[org/gnome/desktop/notifications/application/gnome-power-panel]
+application-id='gnome-power-panel.desktop'
+
+[org/gnome/desktop/notifications/application/org-freedesktop-problems-applet]
+application-id='org.freedesktop.problems.applet.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-baobab]
+application-id='org.gnome.baobab.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-nautilus]
+application-id='org.gnome.Nautilus.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-ptyxis]
+application-id='org.gnome.Ptyxis.desktop'
+
+[org/gnome/desktop/notifications/application/org-gnome-software]
+application-id='org.gnome.Software.desktop'
+
+[org/gnome/desktop/notifications/application/org-mozilla-firefox]
+application-id='org.mozilla.firefox.desktop'
+
+[org/gnome/desktop/notifications/application/slack]
+application-id='slack.desktop'
+
+[org/gnome/desktop/wm/keybindings]
+close=['<Shift><Super>q']
+switch-to-workspace-1=['<Super>1']
+switch-to-workspace-2=['<Super>2']
+switch-to-workspace-3=['<Super>3']
+switch-to-workspace-4=['<Super>4']
+switch-to-workspace-5=['<Super>5']
+switch-to-workspace-6=['<Super>6']
+switch-to-workspace-7=['<Super>7']
+switch-to-workspace-8=['<Super>8']
+switch-to-workspace-9=['<Super>9']
+
+[org/gnome/desktop/wm/preferences]
+num-workspaces=9
+
+[org/gnome/evolution-data-server]
+migrated=true
+
+[org/gnome/login-screen]
+enable-fingerprint-authentication=true
+enable-password-authentication=true
+enable-smartcard-authentication=false
+enable-switchable-authentication=false
+
+[org/gnome/mutter]
+dynamic-workspaces=true
+experimental-features=@as []
+overlay-key=''
+workspaces-only-on-primary=true
+
+[org/gnome/mutter/keybindings]
+toggle-tiled-left=['<Super>Left']
+toggle-tiled-right=['<Super>Right']
+
+[org/gnome/nautilus/preferences]
+default-folder-viewer='icon-view'
+migrated-gtk-settings=true
+
+[org/gnome/nautilus/window-state]
+initial-size=(890, 550)
+initial-size-file-chooser=(890, 550)
+
+[org/gnome/nm-applet/eap/9e4ebbf1-466b-4527-81e9-c82a02f28f2d]
+ignore-ca-cert=false
+ignore-phase2-ca-cert=false
+
+[org/gnome/nm-applet/eap/b1d48c03-d1c1-4845-b0d2-531a92414159]
+ignore-ca-cert=false
+ignore-phase2-ca-cert=false
+
+[org/gnome/portal/filechooser/md.obsidian.Obsidian]
+last-folder-path='/home/orre/readpeak-drive/ReadpeakObsidian'
+
+[org/gnome/portal/filechooser/org.mozilla.firefox]
+last-folder-path='/home/orre/Downloads'
+
+[org/gnome/settings-daemon/plugins/color]
+night-light-enabled=true
+night-light-schedule-automatic=false
+
+[org/gnome/settings-daemon/plugins/housekeeping]
+donation-reminder-last-shown=int64 1777009558863109
+
+[org/gnome/settings-daemon/plugins/media-keys]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/']
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0]
+binding='<Super>Return'
+command='/nix/store/z548qfspy35kbmvd4k8a9j2zky7cky6n-gnome-focus-terminal/bin/gnome-focus-terminal'
+name='Focus Terminal'
+
+[org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1]
+binding='<Ctrl><Super>Return'
+command='foot'
+name='New Terminal'
+
+[org/gnome/shell]
+app-picker-layout=[{'org.gnome.Contacts.desktop': <{'position': <0>}>, 'org.gnome.Weather.desktop': <{'position': <1>}>, 'org.gnome.clocks.desktop': <{'position': <2>}>, 'org.gnome.Maps.desktop': <{'position': <3>}>, 'org.gnome.SimpleScan.desktop': <{'position': <4>}>, 'org.gnome.Settings.desktop': <{'position': <5>}>, 'org.gnome.Boxes.desktop': <{'position': <6>}>, 'org.gnome.Showtime.desktop': <{'position': <7>}>, '1password.desktop': <{'position': <8>}>, 'org.gnome.Snapshot.desktop': <{'position': <9>}>, 'org.gnome.Characters.desktop': <{'position': <10>}>, 'com.bitwarden.desktop.desktop': <{'position': <11>}>, 'Utilities': <{'position': <12>}>, 'System': <{'position': <13>}>, 'chromium-browser.desktop': <{'position': <14>}>, 'org.gnome.Tour.desktop': <{'position': <15>}>, 'org.gnome.Yelp.desktop': <{'position': <16>}>, 'io.dbeaver.DBeaverCommunity.desktop': <{'position': <17>}>, 'network.cycles.wdisplays.desktop': <{'position': <18>}>, 'org.gnome.Evince.desktop': <{'position': <19>}>, 'dyalog-tty.desktop': <{'position': <20>}>, 'Factorio.desktop': <{'position': <21>}>, 'org.fedoraproject.MediaWriter.desktop': <{'position': <22>}>, 'foot.desktop': <{'position': <23>}>}, {'footclient.desktop': <{'position': <0>}>, 'foot-server.desktop': <{'position': <1>}>, 'org.gnome.NetworkDisplays.desktop': <{'position': <2>}>, 'gparted.desktop': <{'position': <3>}>, 'htop.desktop': <{'position': <4>}>, 'kitty.desktop': <{'position': <5>}>, 'libreoffice-calc.desktop': <{'position': <6>}>, 'libreoffice-impress.desktop': <{'position': <7>}>, 'libreoffice-writer.desktop': <{'position': <8>}>, 'md.obsidian.Obsidian.desktop': <{'position': <9>}>, 'org.gnome.seahorse.Application.desktop': <{'position': <10>}>, 'org.gnome.Rhythmbox3.desktop': <{'position': <11>}>, 'slack.desktop': <{'position': <12>}>, 'steam.desktop': <{'position': <13>}>, 'org.gnome.Ptyxis.desktop': <{'position': <14>}>, 'The Farmer Was Replaced.desktop': <{'position': <15>}>, 'vncviewer.desktop': <{'position': <16>}>, 'Timberborn.desktop': <{'position': <17>}>, 'org.gnome.Totem.desktop': <{'position': <18>}>, 'code-insiders.desktop': <{'position': <19>}>, 'vlc.desktop': <{'position': <20>}>, 'dev.zed.Zed.desktop': <{'position': <21>}>, 'org.gnome.Adwaita1.Demo.desktop': <{'position': <22>}>, 'wine-Programs-Amazon Quick.desktop': <{'position': <23>}>}, {'calibre-gui.desktop': <{'position': <0>}>, 'claude.desktop': <{'position': <1>}>, 'org.dosbox-staging.dosbox-staging.desktop': <{'position': <2>}>, 'calibre-ebook-edit.desktop': <{'position': <3>}>, 'calibre-ebook-viewer.desktop': <{'position': <4>}>, 'calibre-lrfviewer.desktop': <{'position': <5>}>, 'wine-notepad.desktop': <{'position': <6>}>, 'wine-regedit.desktop': <{'position': <7>}>, 'Victoria 3.desktop': <{'position': <8>}>, 'wine-wineboot.desktop': <{'position': <9>}>, 'wine-winecfg.desktop': <{'position': <10>}>, 'wine-winefile.desktop': <{'position': <11>}>, 'wine-winhelp.desktop': <{'position': <12>}>, 'wine-oleview.desktop': <{'position': <13>}>, 'wine-uninstaller.desktop': <{'position': <14>}>, 'wine-wordpad.desktop': <{'position': <15>}>, 'wine-winemine.desktop': <{'position': <16>}>}]
+favorite-apps=['org.gnome.Calendar.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']
+last-selected-power-profile='performance'
+welcome-dialog-last-shown-version='49.6'
+
+[org/gnome/shell/app-switcher]
+current-workspace-only=false
+
+[org/gnome/shell/keybindings]
+show-screenshot-ui=['<Super>p']
+switch-to-application-1=@as []
+switch-to-application-2=@as []
+switch-to-application-3=@as []
+switch-to-application-4=@as []
+switch-to-application-5=@as []
+switch-to-application-6=@as []
+switch-to-application-7=@as []
+switch-to-application-8=@as []
+switch-to-application-9=@as []
+toggle-overview=['<Super>d']
+
+[org/gnome/shell/world-clocks]
+locations=@av []
+
+[org/gnome/software]
+check-timestamp=int64 1780461299
+first-run=false
+flatpak-purge-timestamp=int64 1780375097
+install-timestamp=int64 1778129391
+security-timestamp=int64 1780461301713175
+update-notification-timestamp=int64 1780388912
+upgrade-notification-timestamp=int64 1778129467
+
+[org/gtk/gtk4/settings/file-chooser]
+show-hidden=true
+sort-directories-first=false
+
+[org/gtk/settings/file-chooser]
+date-format='regular'
+location-mode='path-bar'
+show-hidden=true
+show-size-column=true
+show-type-column=true
+sidebar-width=167
+sort-column='modified'
+sort-directories-first=false
+sort-order='descending'
+type-format='category'
+window-position=(26, 23)
+window-size=(1066, 1121)

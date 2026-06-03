@@ -38,6 +38,10 @@ if [[ "$1" == "-u" || "$1" == "--kiro" ]]; then
 fi
 
 echo "🏠 Switching to configuration..."
+if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
+    echo "🖥️  Syncing GNOME dconf settings..."
+    "$(dirname "$0")/scripts/sync-gnome-settings.sh"
+fi
 home-manager switch -b backup --flake .#orre
 pkill waybar
 swaymsg reload

@@ -606,6 +606,10 @@ in
 
   # Kanshi display profile management (config at ~/.config/kanshi/config)
   services.kanshi.enable = true;
+  systemd.user.services.kanshi.Unit.ConditionEnvironment = lib.mkForce [
+    "WAYLAND_DISPLAY"
+    "XDG_CURRENT_DESKTOP=sway"
+  ];
 
   # Notification daemon
   services.mako = {

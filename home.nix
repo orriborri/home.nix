@@ -84,6 +84,7 @@ in
     ./modules/applications
     ./modules/feature
     ./modules/service
+    ./modules/desktop/gnome/dconf.nix
     ./packages/kiro.nix
   ] ++ lib.optionals (windowManager == "sway") [
     ./modules/desktop/windowManager/sway
