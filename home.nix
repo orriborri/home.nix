@@ -55,8 +55,6 @@ in
     amazon-q-cli
     gitlab-ci-local
     awscli2
-  ] ++ lib.optionals (llm-agents ? coderabbit-cli) [
-    llm-agents.coderabbit-cli
   ] ++ lib.optionals isDarwin [
     # macOS-specific packages can go here
   ];
