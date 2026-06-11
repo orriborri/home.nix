@@ -13,6 +13,7 @@
     xh             # HTTP client
     pre-commit     # Git hooks
     lazyworktree   # Git worktree TUI
+    glab           # GitLab CLI
     uv             # Python package manager
     
     # Nix development tools

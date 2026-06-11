@@ -67,6 +67,7 @@ stdenv.mkDerivation rec {
       --prefix LD_LIBRARY_PATH : "/usr/lib64:/usr/lib64/dri" \
       --set-default LIBGL_DRIVERS_PATH "/usr/lib64/dri:/usr/lib/dri" \
       --set-default LIBVA_DRIVERS_PATH "/usr/lib64/dri:/usr/lib/dri" \
+      --set-default GRPC_VERBOSITY "ERROR" \
       --add-flags "--no-sandbox" \
       --add-flags "''${NIXOS_OZONE_WL:+''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations}}"
 

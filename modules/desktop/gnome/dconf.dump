@@ -61,7 +61,10 @@ show-battery-percentage=true
 toolkit-accessibility=false
 
 [org/gnome/desktop/notifications]
-application-children=['org-gnome-ptyxis', 'gnome-about-panel', 'slack', 'gnome-power-panel', 'org-mozilla-firefox', 'org-freedesktop-problems-applet', 'org-gnome-software', 'org-gnome-nautilus', 'dev-zed-zed', 'org-gnome-baobab']
+application-children=['org-gnome-ptyxis', 'gnome-about-panel', 'slack', 'gnome-power-panel', 'org-mozilla-firefox', 'org-freedesktop-problems-applet', 'org-gnome-software', 'org-gnome-nautilus', 'dev-zed-zed', 'org-gnome-baobab', 'chromium-browser']
+
+[org/gnome/desktop/notifications/application/chromium-browser]
+application-id='chromium-browser.desktop'
 
 [org/gnome/desktop/notifications/application/dev-zed-zed]
 application-id='dev.zed.Zed.desktop'
@@ -128,7 +131,7 @@ toggle-tiled-left=['<Super>Left']
 toggle-tiled-right=['<Super>Right']
 
 [org/gnome/nautilus/preferences]
-default-folder-viewer='icon-view'
+default-folder-viewer='list-view'
 migrated-gtk-settings=true
 
 [org/gnome/nautilus/window-state]
@@ -143,14 +146,30 @@ ignore-phase2-ca-cert=false
 ignore-ca-cert=false
 ignore-phase2-ca-cert=false
 
+[org/gnome/papers]
+night-mode=false
+
+[org/gnome/papers/default]
+annot-color='yellow'
+continuous=true
+dual-page=false
+dual-page-odd-left=false
+enable-spellchecking=true
+show-sidebar=true
+sizing-mode='automatic'
+window-height=1168
+
 [org/gnome/portal/filechooser/md.obsidian.Obsidian]
 last-folder-path='/home/orre/readpeak-drive/ReadpeakObsidian'
+
+[org/gnome/portal/filechooser/org.gnome.Nautilus]
+last-folder-path='/home/orre/empyMeriPäivä'
 
 [org/gnome/portal/filechooser/org.mozilla.firefox]
 last-folder-path='/home/orre/Downloads'
 
 [org/gnome/settings-daemon/plugins/color]
-night-light-enabled=true
+night-light-enabled=false
 night-light-schedule-automatic=false
 
 [org/gnome/settings-daemon/plugins/housekeeping]
@@ -170,7 +189,7 @@ command='foot'
 name='New Terminal'
 
 [org/gnome/shell]
-app-picker-layout=[{'org.gnome.Contacts.desktop': <{'position': <0>}>, 'org.gnome.Weather.desktop': <{'position': <1>}>, 'org.gnome.clocks.desktop': <{'position': <2>}>, 'org.gnome.Maps.desktop': <{'position': <3>}>, 'org.gnome.SimpleScan.desktop': <{'position': <4>}>, 'org.gnome.Settings.desktop': <{'position': <5>}>, 'org.gnome.Boxes.desktop': <{'position': <6>}>, 'org.gnome.Showtime.desktop': <{'position': <7>}>, '1password.desktop': <{'position': <8>}>, 'org.gnome.Snapshot.desktop': <{'position': <9>}>, 'org.gnome.Characters.desktop': <{'position': <10>}>, 'com.bitwarden.desktop.desktop': <{'position': <11>}>, 'Utilities': <{'position': <12>}>, 'System': <{'position': <13>}>, 'chromium-browser.desktop': <{'position': <14>}>, 'org.gnome.Tour.desktop': <{'position': <15>}>, 'org.gnome.Yelp.desktop': <{'position': <16>}>, 'io.dbeaver.DBeaverCommunity.desktop': <{'position': <17>}>, 'network.cycles.wdisplays.desktop': <{'position': <18>}>, 'org.gnome.Evince.desktop': <{'position': <19>}>, 'dyalog-tty.desktop': <{'position': <20>}>, 'Factorio.desktop': <{'position': <21>}>, 'org.fedoraproject.MediaWriter.desktop': <{'position': <22>}>, 'foot.desktop': <{'position': <23>}>}, {'footclient.desktop': <{'position': <0>}>, 'foot-server.desktop': <{'position': <1>}>, 'org.gnome.NetworkDisplays.desktop': <{'position': <2>}>, 'gparted.desktop': <{'position': <3>}>, 'htop.desktop': <{'position': <4>}>, 'kitty.desktop': <{'position': <5>}>, 'libreoffice-calc.desktop': <{'position': <6>}>, 'libreoffice-impress.desktop': <{'position': <7>}>, 'libreoffice-writer.desktop': <{'position': <8>}>, 'md.obsidian.Obsidian.desktop': <{'position': <9>}>, 'org.gnome.seahorse.Application.desktop': <{'position': <10>}>, 'org.gnome.Rhythmbox3.desktop': <{'position': <11>}>, 'slack.desktop': <{'position': <12>}>, 'steam.desktop': <{'position': <13>}>, 'org.gnome.Ptyxis.desktop': <{'position': <14>}>, 'The Farmer Was Replaced.desktop': <{'position': <15>}>, 'vncviewer.desktop': <{'position': <16>}>, 'Timberborn.desktop': <{'position': <17>}>, 'org.gnome.Totem.desktop': <{'position': <18>}>, 'code-insiders.desktop': <{'position': <19>}>, 'vlc.desktop': <{'position': <20>}>, 'dev.zed.Zed.desktop': <{'position': <21>}>, 'org.gnome.Adwaita1.Demo.desktop': <{'position': <22>}>, 'wine-Programs-Amazon Quick.desktop': <{'position': <23>}>}, {'calibre-gui.desktop': <{'position': <0>}>, 'claude.desktop': <{'position': <1>}>, 'org.dosbox-staging.dosbox-staging.desktop': <{'position': <2>}>, 'calibre-ebook-edit.desktop': <{'position': <3>}>, 'calibre-ebook-viewer.desktop': <{'position': <4>}>, 'calibre-lrfviewer.desktop': <{'position': <5>}>, 'wine-notepad.desktop': <{'position': <6>}>, 'wine-regedit.desktop': <{'position': <7>}>, 'Victoria 3.desktop': <{'position': <8>}>, 'wine-wineboot.desktop': <{'position': <9>}>, 'wine-winecfg.desktop': <{'position': <10>}>, 'wine-winefile.desktop': <{'position': <11>}>, 'wine-winhelp.desktop': <{'position': <12>}>, 'wine-oleview.desktop': <{'position': <13>}>, 'wine-uninstaller.desktop': <{'position': <14>}>, 'wine-wordpad.desktop': <{'position': <15>}>, 'wine-winemine.desktop': <{'position': <16>}>}]
+app-picker-layout=[{'org.gnome.Contacts.desktop': <{'position': <0>}>, 'org.gnome.Weather.desktop': <{'position': <1>}>, 'org.gnome.clocks.desktop': <{'position': <2>}>, 'org.gnome.Maps.desktop': <{'position': <3>}>, 'org.gnome.SimpleScan.desktop': <{'position': <4>}>, 'org.gnome.Settings.desktop': <{'position': <5>}>, 'org.gnome.Boxes.desktop': <{'position': <6>}>, 'org.gnome.Showtime.desktop': <{'position': <7>}>, '1password.desktop': <{'position': <8>}>, 'org.gnome.Snapshot.desktop': <{'position': <9>}>, 'org.gnome.Characters.desktop': <{'position': <10>}>, 'com.bitwarden.desktop.desktop': <{'position': <11>}>, 'Utilities': <{'position': <12>}>, 'System': <{'position': <13>}>, 'chromium-browser.desktop': <{'position': <14>}>, 'org.gnome.Tour.desktop': <{'position': <15>}>, 'org.gnome.Yelp.desktop': <{'position': <16>}>, 'io.dbeaver.DBeaverCommunity.desktop': <{'position': <17>}>, 'network.cycles.wdisplays.desktop': <{'position': <18>}>, 'org.gnome.Evince.desktop': <{'position': <19>}>, 'dyalog-tty.desktop': <{'position': <20>}>, 'Factorio.desktop': <{'position': <21>}>, 'org.fedoraproject.MediaWriter.desktop': <{'position': <22>}>, 'foot.desktop': <{'position': <23>}>}, {'footclient.desktop': <{'position': <0>}>, 'foot-server.desktop': <{'position': <1>}>, 'org.gnome.NetworkDisplays.desktop': <{'position': <2>}>, 'gparted.desktop': <{'position': <3>}>, 'htop.desktop': <{'position': <4>}>, 'kitty.desktop': <{'position': <5>}>, 'libreoffice-calc.desktop': <{'position': <6>}>, 'libreoffice-impress.desktop': <{'position': <7>}>, 'libreoffice-writer.desktop': <{'position': <8>}>, 'md.obsidian.Obsidian.desktop': <{'position': <9>}>, 'org.gnome.seahorse.Application.desktop': <{'position': <10>}>, 'org.gnome.Rhythmbox3.desktop': <{'position': <11>}>, 'slack.desktop': <{'position': <12>}>, 'steam.desktop': <{'position': <13>}>, 'org.gnome.Ptyxis.desktop': <{'position': <14>}>, 'The Farmer Was Replaced.desktop': <{'position': <15>}>, 'vncviewer.desktop': <{'position': <16>}>, 'Timberborn.desktop': <{'position': <17>}>, 'org.gnome.Totem.desktop': <{'position': <18>}>, 'code-insiders.desktop': <{'position': <19>}>, 'vlc.desktop': <{'position': <20>}>, 'dev.zed.Zed.desktop': <{'position': <21>}>, 'org.gnome.Adwaita1.Demo.desktop': <{'position': <22>}>, 'wine-Programs-Amazon Quick.desktop': <{'position': <23>}>}, {'calibre-gui.desktop': <{'position': <0>}>, 'claude.desktop': <{'position': <1>}>, 'org.dosbox-staging.dosbox-staging.desktop': <{'position': <2>}>, 'calibre-ebook-edit.desktop': <{'position': <3>}>, 'calibre-ebook-viewer.desktop': <{'position': <4>}>, 'calibre-lrfviewer.desktop': <{'position': <5>}>, 'wine-notepad.desktop': <{'position': <6>}>, 'wine-regedit.desktop': <{'position': <7>}>, 'Victoria 3.desktop': <{'position': <8>}>, 'wine-wineboot.desktop': <{'position': <9>}>, 'wine-winecfg.desktop': <{'position': <10>}>, 'wine-winefile.desktop': <{'position': <11>}>, 'wine-winhelp.desktop': <{'position': <12>}>, 'wine-oleview.desktop': <{'position': <13>}>, 'wine-uninstaller.desktop': <{'position': <14>}>, 'wine-wordpad.desktop': <{'position': <15>}>, 'wine-winemine.desktop': <{'position': <16>}>, 'lftp.desktop': <{'position': <17>}>}]
 favorite-apps=['org.gnome.Calendar.desktop', 'org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']
 last-selected-power-profile='performance'
 welcome-dialog-last-shown-version='49.6'
@@ -195,12 +214,12 @@ toggle-overview=['<Super>d']
 locations=@av []
 
 [org/gnome/software]
-check-timestamp=int64 1780461299
+check-timestamp=int64 1781074931
 first-run=false
-flatpak-purge-timestamp=int64 1780375097
+flatpak-purge-timestamp=int64 1781065538
 install-timestamp=int64 1778129391
-security-timestamp=int64 1780461301713175
-update-notification-timestamp=int64 1780388912
+security-timestamp=int64 1781074945853850
+update-notification-timestamp=int64 1781074944
 upgrade-notification-timestamp=int64 1778129467
 
 [org/gtk/gtk4/settings/file-chooser]

@@ -10,7 +10,7 @@
     };
 
     "org/gnome/desktop/input-sources" = {
-      sources = [ (lib.hm.gvariant.mkTuple [ "xkb" "fi" ]) ];
+      # sources = [('xkb', 'fi')]  # TODO: manual conversion needed
       xkb-options = [ "terminate:ctrl_alt_bksp" ];
     };
 
@@ -72,7 +72,7 @@
     };
 
     "org/gnome/settings-daemon/plugins/color" = {
-      night-light-enabled = true;
+      night-light-enabled = false;
       night-light-schedule-automatic = false;
     };
 
@@ -82,7 +82,7 @@
 
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
       binding = "<Super>Return";
-      command = "gnome-focus-terminal";
+      command = "/nix/store/z548qfspy35kbmvd4k8a9j2zky7cky6n-gnome-focus-terminal/bin/gnome-focus-terminal";
       name = "Focus Terminal";
     };
 
@@ -93,7 +93,7 @@
     };
 
     "org/gnome/nautilus/preferences" = {
-      default-folder-viewer = "icon-view";
+      default-folder-viewer = "list-view";
       migrated-gtk-settings = true;
     };
 
