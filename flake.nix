@@ -13,13 +13,10 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    llm-agents = {
-      url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, llm-agents, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -66,7 +63,19 @@
             powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
             nixgl = nixgl.packages.x86_64-linux;
-            llm-agents = llm-agents.packages.x86_64-linux;
+          };
+          modules = [
+            ./home.nix
+          ];
+        };
+
+        # ARM Linux configuration (EC2 Graviton / Silverblue test)
+        "orre@aarch64" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.aarch64-linux;
+          extraSpecialArgs = { 
+            powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.aarch64-linux;
+            pkgs-stable = nixpkgs-stable.legacyPackages.aarch64-linux;
+            nixgl = nixgl.packages.aarch64-linux;
           };
           modules = [
             ./home.nix
