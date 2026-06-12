@@ -105,6 +105,17 @@
     setopt APPEND_HISTORY
   '';
 
+  # Environment for every zsh (interactive or not). hm-session-vars.sh has a
+  # source-once guard (__HM_SESS_VARS_SOURCED) that can leak into the desktop
+  # session while Fedora rebuilds PATH without the nix entries — so ensure the
+  # nix profile paths are always present, independent of that guard.
+  envExtra = ''
+    case ":$PATH:" in
+      *":$HOME/.nix-profile/bin:"*) ;;
+      *) export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ;;
+    esac
+  '';
+
   # Profile configuration
   profileExtra = ''
     # Development paths
