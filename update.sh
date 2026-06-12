@@ -44,12 +44,35 @@ if command -v flatpak &>/dev/null; then
 fi
 
 if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
-    # Check for dconf drift between live GNOME and nix-managed config
-    LIVE_DUMP=$(mktemp)
-    dconf dump / > "$LIVE_DUMP"
-    NIX_DUMP="$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+    # Check for dconf drift only on paths we manage
+    MANAGED_PATHS=(
+      /org/gnome/desktop/interface/
+      /org/gnome/desktop/input-sources/
+      /org/gnome/desktop/wm/keybindings/
+      /org/gnome/desktop/wm/preferences/
+      /org/gnome/mutter/
+      /org/gnome/mutter/keybindings/
+      /org/gnome/shell/keybindings/
+      /org/gnome/shell/app-switcher/
+      /org/gnome/shell/enabled-extensions
+      /org/gnome/settings-daemon/plugins/color/
+      /org/gnome/settings-daemon/plugins/media-keys/
+    )
 
-    if [ -f "$NIX_DUMP" ] && ! diff -q "$LIVE_DUMP" "$NIX_DUMP" &>/dev/null; then
+    LIVE_DUMP=$(mktemp)
+    NIX_DUMP=$(mktemp)
+    for path in "${MANAGED_PATHS[@]}"; do
+      dconf dump "$path" >> "$LIVE_DUMP" 2>/dev/null
+    done
+
+    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+    if [ -f "$STORED_DUMP" ]; then
+      for path in "${MANAGED_PATHS[@]}"; do
+        grep -A 100 "^\[${path#/}" "$STORED_DUMP" 2>/dev/null >> "$NIX_DUMP" || true
+      done
+    fi
+
+    if [ -f "$STORED_DUMP" ] && ! diff -q "$LIVE_DUMP" "$NIX_DUMP" &>/dev/null; then
         echo "⚠️  GNOME dconf has drifted from nix config."
         echo "  [s] Save live settings → nix (overwrite nix with current GNOME)"
         echo "  [r] Restore nix → GNOME (discard live changes, apply nix)"
@@ -72,11 +95,16 @@ if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
             *) echo "  Skipping." ;;
         esac
     fi
-    rm -f "$LIVE_DUMP"
+    rm -f "$LIVE_DUMP" "$NIX_DUMP"
 fi
 
 echo "🏠 Switching to configuration..."
 home-manager switch -b backup --flake .#orre
+
+# Update stored dconf dump after successful switch
+if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
+    dconf dump / > "$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+fi
 pkill waybar
 swaymsg reload
 kanshi status &

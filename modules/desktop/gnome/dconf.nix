@@ -17,10 +17,14 @@ in
 {
   home.packages = [
     pkgs.gnomeExtensions.activate-window-by-title
+    pkgs.gnomeExtensions.tiling-shell
   ];
   dconf.settings = {
     "org/gnome/shell" = {
-      enabled-extensions = [ "activate-window-by-title@lucaswerkmeister.de" ];
+      enabled-extensions = [
+        "activate-window-by-title@lucaswerkmeister.de"
+        "tilingshell@ferrarodomenico.com"
+      ];
     };
 
     "org/gnome/desktop/interface" = {

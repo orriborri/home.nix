@@ -4,7 +4,7 @@
   enable = true;
   settings = {
     window = {
-      opacity = 0.9;
+      opacity = 0.95;
       decorations = "None";
     };
     
