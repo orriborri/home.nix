@@ -5,6 +5,7 @@
   settings = {
     window = {
       opacity = 0.9;
+      decorations = "None";
     };
     
     font = {

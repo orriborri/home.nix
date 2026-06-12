@@ -67,28 +67,13 @@
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
-    # Zellij auto-start (session named with creation timestamp prefix)
+    # Zellij auto-start
     if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" ]]; then
       export ZELLIJ_STARTING=1
-      export _ZELLIJ_SESSION_PREFIX="$(date +%H:%M)"
-      zellij attach -c "$_ZELLIJ_SESSION_PREFIX-$(basename "$PWD")" 2>/dev/null
+      zellij attach --create main 2>/dev/null
       unset ZELLIJ_STARTING
     fi
 
-    # Rename zellij session on directory change (keeps creation timestamp prefix)
-    _zellij_rename_session() {
-      if [[ -n "$ZELLIJ" && -n "$ZELLIJ_SESSION_NAME" ]]; then
-        # Extract the timestamp prefix (HH:MM) from the current session name
-        local prefix="''${ZELLIJ_SESSION_NAME%%-*}"
-        local new_name="$prefix-$(basename "$PWD")"
-        # Skip if name is already correct
-        [[ "$ZELLIJ_SESSION_NAME" == "$new_name" ]] && return
-        # Run async so cd is never blocked by zellij IPC
-        (zellij action rename-session -- "$new_name" >/dev/null 2>&1 &) &!
-      fi
-    }
-    chpwd_functions+=(_zellij_rename_session)
-    
     # Vi mode keybindings
     bindkey -M viins 'jj' vi-cmd-mode
     
