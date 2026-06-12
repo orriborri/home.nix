@@ -8,6 +8,7 @@ let
 
   # System detection
   isSilverblue = builtins.pathExists /run/ostree-booted;
+  isNixOS = builtins.pathExists /etc/NIXOS;
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
 in
