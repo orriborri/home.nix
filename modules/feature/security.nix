@@ -67,15 +67,13 @@
       Compression yes
     '';
     
-    # Disable deprecated default config, use matchBlocks instead
+    # Disable deprecated default config, use settings instead
     enableDefaultConfig = false;
 
-    matchBlocks = {
-      "*" = {
-        controlMaster = "auto";
-        controlPath = "~/.ssh/master-%r@%n:%p";
-        controlPersist = "10m";
-      };
+    settings."*" = {
+      ControlMaster = "auto";
+      ControlPath = "~/.ssh/master-%r@%n:%p";
+      ControlPersist = "10m";
     };
   };
 

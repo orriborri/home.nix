@@ -7,17 +7,18 @@ set -e
 # --update: only update flake inputs
 # --upgrade: only dnf upgrade
 # --kiro: only update kiro
-if [[ "$1" == "-u" || "$1" == "--update" ]]; then
+# --gnome-save: save current GNOME dconf settings to nix
+if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     echo "🔄 Updating flake inputs..."
     nix flake update
 fi
 
-if [[ "$1" == "-u" || "$1" == "--upgrade" ]]; then
+if [[ "${1:-}" == "-u" || "${1:-}" == "--upgrade" ]]; then
     echo "⬆️  Upgrading system packages..."
     sudo dnf upgrade --allowerasing -y
 fi
 
-if [[ "$1" == "-u" || "$1" == "--kiro" ]]; then
+if [[ "${1:-}" == "-u" || "${1:-}" == "--kiro" ]]; then
     echo "🤖 Checking for Kiro IDE updates..."
     KIRO_META=$(curl -sL "https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-stable.json")
     LATEST_VERSION=$(echo "$KIRO_META" | jq -r '.releases[-1].version')
@@ -42,11 +43,39 @@ if command -v flatpak &>/dev/null; then
     flatpak update -y
 fi
 
-echo "🏠 Switching to configuration..."
 if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
-    echo "🖥️  Syncing GNOME dconf settings..."
-    "$(dirname "$0")/scripts/sync-gnome-settings.sh"
+    # Check for dconf drift between live GNOME and nix-managed config
+    LIVE_DUMP=$(mktemp)
+    dconf dump / > "$LIVE_DUMP"
+    NIX_DUMP="$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+
+    if [ -f "$NIX_DUMP" ] && ! diff -q "$LIVE_DUMP" "$NIX_DUMP" &>/dev/null; then
+        echo "⚠️  GNOME dconf has drifted from nix config."
+        echo "  [s] Save live settings → nix (overwrite nix with current GNOME)"
+        echo "  [r] Restore nix → GNOME (discard live changes, apply nix)"
+        echo "  [d] Show diff"
+        echo "  [n] Skip"
+        read -rp "  Choice [s/r/d/n]: " choice
+        case "$choice" in
+            s)
+                echo "🖥️  Saving GNOME dconf settings to nix..."
+                "$(dirname "$0")/scripts/sync-gnome-settings.sh"
+                ;;
+            r)
+                echo "🔄 Restoring nix settings to GNOME (will apply on switch)..."
+                ;;
+            d)
+                diff --color=auto "$NIX_DUMP" "$LIVE_DUMP" | head -50
+                read -rp "  Save live → nix? [y/N]: " save
+                [[ "$save" == "y" ]] && "$(dirname "$0")/scripts/sync-gnome-settings.sh"
+                ;;
+            *) echo "  Skipping." ;;
+        esac
+    fi
+    rm -f "$LIVE_DUMP"
 fi
+
+echo "🏠 Switching to configuration..."
 home-manager switch -b backup --flake .#orre
 pkill waybar
 swaymsg reload
