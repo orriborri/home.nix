@@ -37,6 +37,11 @@ if [[ "$1" == "-u" || "$1" == "--kiro" ]]; then
     fi
 fi
 
+if command -v flatpak &>/dev/null; then
+    echo "📦 Updating Flatpak packages..."
+    flatpak update -y
+fi
+
 echo "🏠 Switching to configuration..."
 if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
     echo "🖥️  Syncing GNOME dconf settings..."
