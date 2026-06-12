@@ -4,13 +4,14 @@ let
   # Import waybar configuration
   waybarConfig = import ../../utils/waybar/waybar.nix { inherit config pkgs lib powerlineLib; };
   
-  terminal = "foot";
+  terminal = "alacritty";
   modifier = "Mod4";
   
   # Key bindings configuration
   keybindings = {
     # Application shortcuts
-    "${modifier}+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal}";
+    "${modifier}+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal} -e zellij attach -c";
+    "${modifier}+Ctrl+Return" = "exec env WAYLAND_DISPLAY=wayland-1 ~/.nix-profile/bin/${terminal} -e zellij";
     "${modifier}+d" = "exec ~/.nix-profile/bin/wofi --show drun";
     "${modifier}+period" = "exec ~/.nix-profile/bin/wofi-emoji";
     "${modifier}+Shift+period" = "exec ~/.nix-profile/bin/gif-picker";
