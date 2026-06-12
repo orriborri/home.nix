@@ -79,6 +79,9 @@ in
   };
 
 
+  # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS
+  targets.genericLinux.enable = isLinux && !isNixOS;
+
   # Import modules
   imports = [
     ./modules/applications
