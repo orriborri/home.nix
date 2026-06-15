@@ -65,7 +65,7 @@ if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
       dconf dump "$path" >> "$LIVE_DUMP" 2>/dev/null
     done
 
-    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome-dconf.dump"
     if [ -f "$STORED_DUMP" ]; then
       for path in "${MANAGED_PATHS[@]}"; do
         grep -A 100 "^\[${path#/}" "$STORED_DUMP" 2>/dev/null >> "$NIX_DUMP" || true

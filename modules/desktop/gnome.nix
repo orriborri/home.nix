@@ -1,26 +1,32 @@
-{ pkgs, lib, ... }:
-
+{ lib, pkgs, ... }:
 let
-  # Script to focus/move existing foot window to current workspace, or launch new one
-  focus-terminal = pkgs.writeShellScriptBin "gnome-focus-terminal" ''
-    # Find an existing foot window
-    FOOT_WIN=$(${pkgs.xdotool}/bin/xdotool search --class foot | head -1)
+  focusTerminal = pkgs.writeShellScriptBin "gnome-focus-terminal" ''
+    # Try to focus existing Alacritty window via GNOME extension D-Bus
+    result=$(gdbus call --session \
+      --dest org.gnome.Shell \
+      --object-path /de/lucaswerkmeister/ActivateWindowByTitle \
+      --method de.lucaswerkmeister.ActivateWindowByTitle.ActivateByWmClass "Alacritty" 2>/dev/null)
 
-    if [ -n "$FOOT_WIN" ]; then
-      # Get current desktop
-      CURRENT_WS=$(${pkgs.xdotool}/bin/xdotool get-desktop)
-      # Move the window to current workspace and focus it
-      ${pkgs.xdotool}/bin/xdotool set-desktop-for-window "$FOOT_WIN" "$CURRENT_WS"
-      ${pkgs.xdotool}/bin/xdotool windowactivate "$FOOT_WIN"
-    else
-      foot &
+    if [[ "$result" != *"true"* ]]; then
+      /home/orre/.nix-profile/bin/alacritty -e /home/orre/.nix-profile/bin/zellij attach --create main &
     fi
   '';
 in
 {
-  home.packages = [ pkgs.xdotool ];
+  home.packages = [
+    pkgs.gnomeExtensions.activate-window-by-title
+    pkgs.gnomeExtensions.tiling-shell
+  ];
 
   dconf.settings = {
+    # Shell extensions
+    "org/gnome/shell" = {
+      enabled-extensions = [
+        "activate-window-by-title@lucaswerkmeister.de"
+        "tilingshell@ferrarodomenico.com"
+      ];
+    };
+
     # Input sources
     "org/gnome/desktop/input-sources" = {
       sources = [ (lib.hm.gvariant.mkTuple [ "xkb" "fi" ]) ];
@@ -31,6 +37,7 @@ in
     "org/gnome/desktop/interface" = {
       color-scheme = "prefer-dark";
       show-battery-percentage = true;
+      toolkit-accessibility = false;
     };
 
     # Night light
@@ -42,6 +49,7 @@ in
     # Mutter
     "org/gnome/mutter" = {
       dynamic-workspaces = true;
+      experimental-features = [ ];
       overlay-key = "";
       workspaces-only-on-primary = true;
     };
@@ -52,7 +60,7 @@ in
       toggle-tiled-right = [ "<Super>Right" ];
     };
 
-    # 9 static workspaces
+    # Workspaces
     "org/gnome/desktop/wm/preferences" = {
       num-workspaces = 9;
     };
@@ -86,7 +94,7 @@ in
       switch-to-application-9 = [ ];
     };
 
-    # App switcher — NOT scoped to current workspace (matches your setting)
+    # App switcher
     "org/gnome/shell/app-switcher" = {
       current-workspace-only = false;
     };
@@ -99,21 +107,27 @@ in
       ];
     };
 
-    # Super+Return → focus/move existing terminal to current workspace
+    # Super+Return → focus existing terminal or launch alacritty+zellij
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0" = {
       name = "Focus Terminal";
-      command = "${focus-terminal}/bin/gnome-focus-terminal";
+      command = "${focusTerminal}/bin/gnome-focus-terminal";
       binding = "<Super>Return";
     };
 
     # Ctrl+Super+Return → always open new terminal
     "org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1" = {
       name = "New Terminal";
-      command = "foot";
+      command = "/home/orre/.nix-profile/bin/alacritty -e /home/orre/.nix-profile/bin/zellij";
       binding = "<Ctrl><Super>Return";
     };
 
-    # File chooser preferences
+    # Nautilus
+    "org/gnome/nautilus/preferences" = {
+      default-folder-viewer = "list-view";
+      migrated-gtk-settings = true;
+    };
+
+    # File chooser
     "org/gtk/gtk4/settings/file-chooser" = {
       show-hidden = true;
     };
