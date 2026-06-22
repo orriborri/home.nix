@@ -62,14 +62,12 @@ if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
     LIVE_DUMP=$(mktemp)
     NIX_DUMP=$(mktemp)
     for path in "${MANAGED_PATHS[@]}"; do
-      dconf dump "$path" >> "$LIVE_DUMP" 2>/dev/null
+      dconf dump "$path" >> "$LIVE_DUMP" 2>/dev/null || true
     done
 
     STORED_DUMP="$(dirname "$0")/modules/desktop/gnome-dconf.dump"
     if [ -f "$STORED_DUMP" ]; then
-      for path in "${MANAGED_PATHS[@]}"; do
-        grep -A 100 "^\[${path#/}" "$STORED_DUMP" 2>/dev/null >> "$NIX_DUMP" || true
-      done
+      cp "$STORED_DUMP" "$NIX_DUMP"
     fi
 
     if [ -f "$STORED_DUMP" ] && ! diff -q "$LIVE_DUMP" "$NIX_DUMP" &>/dev/null; then
@@ -103,11 +101,16 @@ home-manager switch -b backup --flake .#orre
 
 # Update stored dconf dump after successful switch
 if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
-    dconf dump / > "$(dirname "$0")/modules/desktop/gnome/dconf.dump"
+    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome-dconf.dump"
+    : > "$STORED_DUMP"
+    for path in "${MANAGED_PATHS[@]}"; do
+      dconf dump "$path" >> "$STORED_DUMP" 2>/dev/null || true
+    done
+elif command -v swaymsg &>/dev/null && pgrep -x sway &>/dev/null; then
+    pkill waybar || true
+    swaymsg reload || true
+    kanshi status &>/dev/null &
 fi
-pkill waybar
-swaymsg reload
-kanshi status &
 
 echo "🧹 Garbage collecting old generations (>7d) and optimising Nix store..."
 nix-collect-garbage --delete-older-than 7d

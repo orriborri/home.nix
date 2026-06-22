@@ -9,11 +9,11 @@
 
 stdenv.mkDerivation rec {
   pname = "kiro-cli";
-  version = "2.0.0";
+  version = "2.8.1";
 
   src = fetchurl {
-    url = "https://desktop-release.q.us-east-1.amazonaws.com/${version}/kirocli-x86_64-linux.tar.gz";
-    hash = "sha256-SNDsdF45BfrokL/6ZCl4u+AX5uUC90b2cyPurlPiiG8=";
+    url = "https://desktop-release.q.us-east-1.amazonaws.com/latest/kirocli-x86_64-linux.tar.gz";
+    hash = "sha256-6HAczZP8cCChkZ4rN3I+15vwABHm1LvSu+CKgIbNqRM=";
   };
 
   sourceRoot = "kirocli";
@@ -36,6 +36,8 @@ stdenv.mkDerivation rec {
     install -Dm755 bin/kiro-cli -t $out/bin
     install -Dm755 bin/kiro-cli-chat $out/bin/kiro-cli-chat
     install -Dm755 bin/kiro-cli-term $out/bin/kiro-cli-term
+    install -Dm755 bin/q $out/bin/q
+    install -Dm755 bin/qchat $out/bin/qchat
     runHook postInstall
   '';
 

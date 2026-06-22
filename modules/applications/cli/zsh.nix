@@ -124,6 +124,9 @@
     export PATH="$HOME/.local/bin:$PATH"
     export PATH="$HOME/.cargo/bin:$PATH"
 
+    # Flatpak applications
+    export PATH="/var/lib/flatpak/exports/bin:$PATH"
+
     # Load cargo environment if available
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
   ''

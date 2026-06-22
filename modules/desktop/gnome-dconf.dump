@@ -1,0 +1,64 @@
+[/]
+color-scheme='prefer-dark'
+show-battery-percentage=true
+toolkit-accessibility=false
+[/]
+sources=[('xkb', 'fi')]
+xkb-options=['terminate:ctrl_alt_bksp']
+[/]
+close=['<Shift><Super>q']
+maximize=@as []
+switch-to-workspace-1=['<Super>1']
+switch-to-workspace-2=['<Super>2']
+switch-to-workspace-3=['<Super>3']
+switch-to-workspace-4=['<Super>4']
+switch-to-workspace-5=['<Super>5']
+switch-to-workspace-6=['<Super>6']
+switch-to-workspace-7=['<Super>7']
+switch-to-workspace-8=['<Super>8']
+switch-to-workspace-9=['<Super>9']
+unmaximize=@as []
+[/]
+num-workspaces=9
+[/]
+dynamic-workspaces=true
+edge-tiling=false
+experimental-features=@as []
+overlay-key=''
+workspaces-only-on-primary=true
+
+[keybindings]
+toggle-tiled-left=['<Super>Left']
+toggle-tiled-right=['<Super>Right']
+[/]
+toggle-tiled-left=['<Super>Left']
+toggle-tiled-right=['<Super>Right']
+[/]
+show-screenshot-ui=['<Super>p']
+switch-to-application-1=@as []
+switch-to-application-2=@as []
+switch-to-application-3=@as []
+switch-to-application-4=@as []
+switch-to-application-5=@as []
+switch-to-application-6=@as []
+switch-to-application-7=@as []
+switch-to-application-8=@as []
+switch-to-application-9=@as []
+toggle-overview=['<Super>d']
+[/]
+current-workspace-only=false
+[/]
+night-light-enabled=true
+night-light-schedule-automatic=false
+[/]
+custom-keybindings=['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom1/']
+
+[custom-keybindings/custom0]
+binding='<Super>Return'
+command='/nix/store/wzp563dz9i948yac7zfmg1xmhba1bbfs-gnome-focus-terminal/bin/gnome-focus-terminal'
+name='Focus Terminal'
+
+[custom-keybindings/custom1]
+binding='<Ctrl><Super>Return'
+command='/home/orre/.nix-profile/bin/alacritty -e /home/orre/.nix-profile/bin/zellij'
+name='New Terminal'
