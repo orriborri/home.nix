@@ -48,9 +48,8 @@
   ];
   
   # Shell aliases for utilities (using mkDefault to allow override)
-  home.shellAliases = lib.mkDefault {
+  home.shellAliases = {
     cat = "bat";
-    ls = "lsd";
     find = "fd";
     grep = "rg";
     du = "dust";
