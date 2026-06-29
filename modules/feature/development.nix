@@ -1,4 +1,4 @@
-{ pkgs, lib, pkgs-stable ? pkgs, ... }:
+{ pkgs, lib, pkgs-stable ? pkgs, nanocoder ? null, ... }:
 
 {
   # Development packages organized by category
@@ -23,6 +23,10 @@
     
     # Shell utilities
     zsh
+
+    # AI coding tools
+  ] ++ lib.optionals (nanocoder != null) [
+    nanocoder.packages.${pkgs.stdenv.system}.default
   ];
 
   # Development environment variables

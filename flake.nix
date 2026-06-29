@@ -13,10 +13,18 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    claude-desktop = {
+      url = "github:Reginleif88/claude-cowork-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nanocoder = {
+      url = "github:Nano-Collective/nanocoder";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nanocoder, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -63,6 +71,7 @@
             powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
             nixgl = nixgl.packages.x86_64-linux;
+            inherit claude-desktop nanocoder;
           };
           modules = [
             ./home.nix
