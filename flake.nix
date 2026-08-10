@@ -17,11 +17,6 @@
       url = "github:Reginleif88/claude-cowork-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nanocoder = {
-      url = "github:Nano-Collective/nanocoder";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Declarative Flatpak management (pinned; see README for the convergent model)
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
 
@@ -33,7 +28,7 @@
 
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nanocoder, nix-flatpak, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nix-flatpak, nixos-generators, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -54,7 +49,7 @@
           inherit pkgs;
           extraSpecialArgs = {
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
-            inherit claude-desktop nanocoder;
+            inherit claude-desktop;
           } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             nixgl = nixgl.packages.${system};
           };
@@ -188,7 +183,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit claude-desktop nanocoder;
+              inherit claude-desktop;
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
@@ -214,7 +209,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit claude-desktop nanocoder;
+              inherit claude-desktop;
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
