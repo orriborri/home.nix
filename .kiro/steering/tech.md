@@ -34,8 +34,7 @@
 - fzf (fuzzy finder)
 
 ### Desktop Environment (Linux)
-- Sway (Wayland compositor)
-- Waybar (status bar)
+- COSMIC (Wayland desktop environment)
 - Alacritty/Wezterm (terminals)
 - Zellij (terminal multiplexer)
 

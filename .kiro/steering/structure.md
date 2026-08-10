@@ -6,62 +6,37 @@
 .
 ├── flake.nix              # Flake configuration with multi-system support
 ├── flake.lock             # Lockfile for reproducible builds
-├── home.nix               # Main Home Manager configuration entry point
+├── home.nix               # Main entry point: imports all tool files + program config
+├── home-cosmic.nix        # COSMIC profile = home.nix + cosmic.nix
 ├── setup.sh               # One-line installation script
 ├── update.sh              # Update script
 ├── .editorconfig          # Editor configuration for consistent formatting
 │
-├── modules/               # Modular configuration components
-│   ├── default.nix       # Module aggregator (imports applications, feature, service)
-│   │
-│   ├── applications/     # Application configurations
-│   │   ├── default.nix   # Imports cli/ and gui/
-│   │   ├── cli/          # Command-line tools
-│   │   │   ├── default.nix   # CLI module entry point (programs config)
-│   │   │   ├── zsh.nix       # Zsh shell configuration
-│   │   │   ├── starship.nix  # Starship prompt
-│   │   │   ├── atuin.nix     # Shell history
-│   │   │   ├── zoxide.nix    # Directory navigation
-│   │   │   ├── carapace.nix  # Completion generator
-│   │   │   ├── direnv.nix    # Environment loader
-│   │   │   ├── git.nix       # Git configuration
-│   │   │   ├── gitui.nix     # Git TUI
-│   │   │   ├── neovim.nix    # Neovim editor
-│   │   │   ├── lsd.nix       # Better ls
-│   │   │   └── htop.nix      # Process viewer
-│   │   └── gui/          # Graphical applications
-│   │       ├── default.nix   # GUI module entry point
-│   │       ├── alacritty.nix # Alacritty terminal
-│   │       ├── wezterm.nix   # Wezterm terminal
-│   │       └── zellij.nix    # Terminal multiplexer
-│   │
-│   ├── desktop/          # Desktop environment configuration
-│   │   ├── default.nix   # Desktop module entry point
-│   │   ├── utils/        # Desktop utilities
-│   │   │   ├── default.nix
-│   │   │   └── waybar/   # Waybar status bar configurations
-│   │   │       ├── waybar.nix
-│   │   │       ├── powerline.nix
-│   │   │       ├── mechabar.nix
-│   │   │       ├── waybar-backup.nix
-│   │   │       └── *.jsonc, *.css, *.sh
-│   │   └── windowManager/  # Window manager configurations
-│   │       └── sway/       # Sway window manager
-│   │           ├── default.nix
-│   │           └── swaysome.py
-│   │
-│   ├── feature/          # Switchable features (packages, env vars, config)
-│   │   ├── default.nix   # Imports all features
-│   │   ├── development.nix  # Dev packages and environment
-│   │   ├── utilities.nix    # System utility packages and aliases
-│   │   └── security.nix     # GPG, SSH, password management
-│   │
-│   └── service/          # Daemons and services
-│       ├── default.nix   # Service module entry point
-│       └── gpg-agent.nix # GPG agent service
-│
-├── lib/                  # Custom library functions
-│   └── powerline.nix     # Powerline helpers for Waybar
+│   # Per-tool configs live flat at the repo root (FruitieX-style) and are
+│   # imported directly by home.nix — no modules/ hierarchy, no aggregators.
+├── zsh.nix                # Zsh shell configuration
+├── starship.nix           # Starship prompt
+├── atuin.nix              # Shell history
+├── zoxide.nix             # Directory navigation
+├── carapace.nix           # Completion generator
+├── direnv.nix             # Environment loader
+├── git.nix                # Git configuration
+├── gitui.nix              # Git TUI
+├── lazygit.nix            # Git TUI
+├── neovim.nix             # Neovim editor (module)
+├── neovim-config.nix      # Neovim programs config (function, assigned in home.nix)
+├── lsd.nix                # Better ls
+├── htop.nix               # Process viewer
+├── zellij.nix             # Terminal multiplexer
+├── zellij-layout.nix      # Zellij layout (module)
+├── alacritty.nix          # Alacritty terminal
+├── wezterm.nix            # Wezterm terminal
+├── foot.nix               # Foot terminal (module)
+├── cosmic.nix             # COSMIC desktop integration
+├── development.nix        # Dev packages and environment
+├── utilities.nix          # System utility packages and aliases
+├── security.nix           # GPG, SSH, password management
+├── gpg-agent.nix          # GPG agent service
 │
 ├── overlays/             # Nixpkgs overlays
 │   └── nodejs.nix        # Node.js version override
@@ -83,27 +58,31 @@
 
 ## Architecture Patterns
 
-### Module Organization (tiredofit-inspired)
+### Layout (flat, FruitieX-style)
 
-Modules are organized by concern:
-- `applications/`: Per-program configurations split into `cli/` and `gui/`
-- `feature/`: Cross-cutting features (dev tools, utilities, security)
-- `service/`: System services and daemons
-- `desktop/`: Desktop environment (utils, window managers)
+Per-tool configs live as individual `.nix` files at the repo root — no
+`modules/` tree and no `default.nix` aggregators. `home.nix` is the single
+aggregation point: it imports the module-style files and assigns the
+function-style ones under `programs`.
 
-### Module Structure
+- Program configs: one file per tool (`zsh.nix`, `git.nix`, `neovim.nix`, …)
+- Cross-cutting features: `development.nix`, `utilities.nix`, `security.nix`
+- Services/daemons: `gpg-agent.nix`
+- Desktop: `cosmic.nix` (pulled in by the `orre@cosmic` profile)
 
-Each module follows a consistent pattern:
-- `default.nix`: Entry point that imports and configures sub-modules
-- Individual `.nix` files for specific tools/programs
-- Modules are imported via `imports = [ ./modules/... ]` in `home.nix`
+### Two file idioms
 
-### Configuration Imports
+- **Function-style** (most CLI/GUI tools): the file is a function returning a
+  `programs.<name>` value, assigned in `home.nix`:
+  ```nix
+  programs.zsh = (import ./zsh.nix { inherit pkgs lib config; });
+  ```
+- **Module-style** (`neovim.nix`, `foot.nix`, `zellij-layout.nix`, the feature
+  and service files): a normal Home Manager module, pulled in via `home.nix`'s
+  `imports = [ ./neovim.nix ./development.nix … ]`.
 
-Modules use explicit imports with attribute passing:
-```nix
-programs.zsh = (import ./zsh.nix { inherit pkgs lib config; });
-```
+The `orre@cosmic` profile is `home-cosmic.nix`, which simply composes
+`imports = [ ./home.nix ./cosmic.nix ]`.
 
 ### System Detection
 
@@ -136,7 +115,6 @@ The flake exports multiple outputs:
 ### Special Arguments
 
 Custom arguments passed to modules:
-- `powerlineLib`: Custom library for Waybar powerline styling
 - `pkgs-stable`: Stable channel packages alongside unstable
 
 ## Naming Conventions
@@ -159,14 +137,14 @@ Custom arguments passed to modules:
 ## Configuration Flow
 
 1. `flake.nix` defines inputs and outputs
-2. `home.nix` is the main entry point
+2. `home.nix` is the main entry point — imports the flat module files and
+   assigns the function-style tool configs under `programs`
 3. System detection determines platform-specific behavior
-4. `modules/applications/` configures individual programs (cli + gui)
-5. `modules/feature/` adds cross-cutting packages and environment config
-6. `modules/service/` manages daemons (gpg-agent, etc.)
-7. `modules/desktop/windowManager/sway/` is conditionally imported for Sway
+4. Per-tool files at the repo root configure individual programs
+5. `development.nix` / `utilities.nix` add cross-cutting packages and env config
+6. `gpg-agent.nix` manages the GPG agent daemon
+7. `cosmic.nix` adds COSMIC desktop integration (used by the `orre@cosmic` profile)
 8. Overlays modify package versions (e.g., Node.js)
-9. Custom libraries provide helper functions (e.g., powerline)
 
 ## Best Practices
 
@@ -177,6 +155,8 @@ Custom arguments passed to modules:
 - Use `lib.optionals` for conditional lists
 - Export reusable modules via flake outputs
 - Maintain consistent formatting with `nix fmt`
-- Place program configs in `applications/cli/` or `applications/gui/`
-- Place package lists and env vars in `feature/`
-- Place services/daemons in `service/`
+- Place each program's config in its own root-level `<tool>.nix`
+- Add it to `home.nix` (assign under `programs` for function-style, or to the
+  `imports` list for module-style)
+- Place package lists and env vars in `development.nix` / `utilities.nix`
+- Place services/daemons in their own root file (e.g., `gpg-agent.nix`)

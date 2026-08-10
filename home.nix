@@ -1,11 +1,6 @@
 { pkgs, lib, config, pkgs-stable ? pkgs, ... }:
 
 let
-  # Configuration variables
-  username = "orre";
-  homeDirectory = "/home/${username}";
-  windowManager = "sway"; # Using Sway as the window manager
-
   # System detection
   isSilverblue = builtins.pathExists /run/ostree-booted;
   isNixOS = builtins.pathExists /etc/NIXOS;
@@ -14,9 +9,14 @@ let
 in
 {
   # Home Manager needs a bit of information about you and the
-  # paths it should manage.
+  # paths it should manage. username / homeDirectory are set per-profile
+  # by the mkHome builder in flake.nix; these mkDefault values are the
+  # fallback for a bare `nix run .#<user>`.
   home = {
-    inherit username homeDirectory;
+    username = lib.mkDefault "orre";
+    homeDirectory = lib.mkDefault (
+      if isDarwin then "/Users/${config.home.username}" else "/home/${config.home.username}"
+    );
     stateVersion = "26.05";
   };
 
@@ -42,6 +42,7 @@ in
   home.packages = with pkgs; [
     # Essential tools
     gh
+    fx
 
     # Fonts
     nerd-fonts.jetbrains-mono
@@ -51,11 +52,12 @@ in
     liberation_ttf
 
     # Applications
-    emote
     devbox
     amazon-q-cli
     gitlab-ci-local
     awscli2
+  ] ++ lib.optionals isLinux [
+    emote          # GTK emoji picker (Linux-only)
   ] ++ lib.optionals isDarwin [
     # macOS-specific packages can go here
   ];
@@ -63,12 +65,68 @@ in
   # Programs
   programs = {
     home-manager.enable = true;
+
+    # CLI tools (per-tool config in ./<tool>.nix)
+    zsh = (import ./zsh.nix { inherit pkgs lib config; });
+    starship = (import ./starship.nix { inherit pkgs; });
+    direnv = (import ./direnv.nix { inherit pkgs; });
+    zoxide = (import ./zoxide.nix { inherit pkgs; });
+    carapace = (import ./carapace.nix { inherit pkgs; });
+    atuin = (import ./atuin.nix { inherit pkgs; });
+    neovim = (import ./neovim-config.nix { inherit pkgs; });
+    git = (import ./git.nix { inherit pkgs lib; });
+    gitui = (import ./gitui.nix { inherit pkgs; });
+    lazygit = (import ./lazygit.nix { inherit pkgs; });
+    lsd = (import ./lsd.nix { inherit pkgs; });
+    htop = (import ./htop.nix { inherit pkgs; });
+    zellij = (import ./zellij.nix { inherit pkgs; });
+
+    # Better git diff viewer
+    delta = {
+      enable = true;
+      enableGitIntegration = true;
+      options = {
+        line-numbers = true;
+        side-by-side = true;
+        syntax-theme = "Dracula";
+      };
+    };
+
+    # Fuzzy finder with shell integration
+    fzf = {
+      enable = true;
+      enableZshIntegration = true;
+      defaultCommand = "fd --type f --hidden --follow --exclude .git";
+      defaultOptions = [
+        "--height 40%"
+        "--layout=reverse"
+        "--border"
+        "--inline-info"
+      ];
+    };
+
+    # Better file manager
+    yazi = {
+      enable = true;
+      enableZshIntegration = true;
+      shellWrapperName = "yy";
+    };
+
+    # Better cat alternative
+    bat = {
+      enable = true;
+      config = {
+        theme = "TwoDark";
+        style = "numbers,changes,header";
+      };
+    };
   };
 
   # XDG configuration
   xdg = {
     enable = true;
-    mimeApps = {
+    # mimeApps is Linux-only in home-manager
+    mimeApps = lib.mkIf isLinux {
       enable = true;
       defaultApplications = {
         "text/html" = "org.mozilla.firefox.desktop";
@@ -82,14 +140,18 @@ in
   # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS
   targets.genericLinux.enable = isLinux && !isNixOS;
 
-  # Import modules
+  # Flat modules imported directly (FruitieX-style layout).
+  # Platform-/host-specific modules (kiro-ide, cosmic) are added per-profile
+  # by the mkHome builder in flake.nix — keep this list static and pure.
   imports = [
-    ./modules/applications
-    ./modules/feature
-    ./modules/service
-    ./modules/desktop/gnome.nix
-    ./packages/kiro.nix
-  ] ++ lib.optionals (windowManager == "sway") [
-    ./modules/desktop/windowManager/sway
+    # Module-style program configs
+    ./neovim.nix
+    ./zellij-layout.nix
+    # Features
+    ./development.nix
+    ./utilities.nix
+    ./security.nix
+    # Services
+    ./gpg-agent.nix
   ];
 }

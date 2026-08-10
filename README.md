@@ -9,7 +9,6 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 - **Modular architecture**: Clean separation of concerns with organized modules
 - **Security-focused**: GPG, SSH hardening, and secure defaults
 - **Development-ready**: Comprehensive tooling for modern development workflows
-- **Window manager support**: Sway configuration with structured configs
 - **Reusable**: Export modules, overlays, and packages for use in other flakes
 - **Cross-platform compatibility**: Adapts to different operating systems automatically
 
@@ -54,19 +53,18 @@ home-manager switch --flake .
 ```
 ├── flake.nix                 # Flake configuration with multi-system support
 ├── flake.lock                # Lockfile for reproducible builds
-├── home.nix                  # Main configuration entry point
+├── home.nix                  # Main entry point: imports all tool files
+├── home-cosmic.nix           # COSMIC profile = home.nix + cosmic.nix
 ├── FLAKES.md                 # Comprehensive flakes guide
-├── modules/
-│   ├── default.nix          # Module aggregator
-│   ├── development/         # Development tools and languages
-│   ├── shell/               # Shell configuration (zsh, starship, etc.)
-│   ├── security.nix         # Security tools and hardening
-│   ├── utilities.nix        # System utilities and tools
-│   ├── desktop/             # Desktop applications
-│   └── wm/                  # Window manager configurations
-│       └── sway/            # Sway window manager
-├── lib/                     # Custom library functions
-│   └── powerline.nix        # Powerline helpers for Waybar
+│
+│   # Per-tool configs live flat at the root (FruitieX-style), imported by home.nix
+├── zsh.nix  git.nix  neovim.nix  starship.nix  …   # one file per tool
+├── development.nix           # Dev packages and environment
+├── utilities.nix             # System utilities and aliases
+├── security.nix              # GPG, SSH, password management
+├── gpg-agent.nix             # GPG agent service
+├── cosmic.nix                # COSMIC desktop integration
+│
 ├── overlays/                # Nixpkgs overlays
 │   └── nodejs.nix           # Node.js version override
 ├── packages/                # Custom package definitions
@@ -95,15 +93,11 @@ This repository exports multiple outputs for reuse:
 - `desktop` - terminals, multiplexers
 - `security` - GPG, SSH hardening
 - `utilities` - system utilities
-- `sway` - Sway window manager
 - `kiro` - Kiro IDE
 
 ### Overlays
 - `nodejs` - Latest Node.js version
 - `default` - All overlays combined
-
-### Libraries
-- `powerline` - Waybar powerline helpers
 
 ### Templates
 - `minimal` - Bootstrap a new Home Manager config
@@ -162,7 +156,7 @@ Import modules, overlays, or packages:
 - Cross-platform package management
 - Proper XDG configuration
 - System detection and adaptive configuration
-- Structured window manager configurations
+- Structured, modular configuration
 
 ### Code Quality
 - EditorConfig for consistent formatting
@@ -170,21 +164,12 @@ Import modules, overlays, or packages:
 - Proper error handling and validation
 - Documentation and comments
 
-## Window Manager Support
-
-### Sway (Default)
-- Structured configuration with separate config modules
-- Multi-monitor support with Kanshi
-- Custom scripts for workspace management
-- Screenshot utilities and display management
-
-Switch between window managers by changing the `windowManager` variable in `home.nix` (currently supports Sway).
-
 ## Customization
 
 ### Adding New Modules
-1. Create your module in the appropriate directory
-2. Add it to `modules/default.nix`
+1. Create a `<tool>.nix` at the repo root
+2. Wire it into `home.nix` (assign under `programs` for function-style, or add
+   to the `imports` list for module-style)
 3. Configure any necessary options
 
 ### System-Specific Configuration
@@ -194,8 +179,8 @@ The configuration automatically detects your system and applies appropriate sett
 - NixOS integration
 
 ### Security Configuration
-- Configure GPG signing: Set your GPG key ID in `modules/development/git.nix`
-- SSH keys: Add your SSH configuration to `modules/security.nix`
+- Configure GPG signing: Set your GPG key ID in `git.nix`
+- SSH keys: Add your SSH configuration to `security.nix`
 - Password store: Initialize with `pass init <gpg-key-id>`
 
 ## Development
