@@ -21,9 +21,17 @@
 
     # Your GUI apps. Add more app IDs here (find them on flathub.org).
     packages = [
+      # Productivity
       "md.obsidian.Obsidian"
       "io.dbeaver.DBeaverCommunity"
       "com.bitwarden.desktop"
+
+      # Migrated from dnf (third-party apps; Fedora defaults stay as RPM)
+      "com.slack.Slack"
+      "com.google.Chrome"
+      "org.chromium.Chromium"
+      "im.nheko.Nheko"
+      "org.videolan.VLC"
     ];
 
     # NOTE: uninstallUnmanaged is intentionally left at its default (false) so
