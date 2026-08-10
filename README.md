@@ -53,15 +53,18 @@ home-manager switch --flake .
 ```
 ├── flake.nix                 # Flake configuration with multi-system support
 ├── flake.lock                # Lockfile for reproducible builds
-├── home.nix                  # Main configuration entry point
+├── home.nix                  # Main entry point: imports all tool files
+├── home-cosmic.nix           # COSMIC profile = home.nix + cosmic.nix
 ├── FLAKES.md                 # Comprehensive flakes guide
-├── modules/
-│   ├── default.nix          # Module aggregator
-│   ├── development/         # Development tools and languages
-│   ├── shell/               # Shell configuration (zsh, starship, etc.)
-│   ├── security.nix         # Security tools and hardening
-│   ├── utilities.nix        # System utilities and tools
-│   ├── desktop/             # Desktop applications
+│
+│   # Per-tool configs live flat at the root (FruitieX-style), imported by home.nix
+├── zsh.nix  git.nix  neovim.nix  starship.nix  …   # one file per tool
+├── development.nix           # Dev packages and environment
+├── utilities.nix             # System utilities and aliases
+├── security.nix              # GPG, SSH, password management
+├── gpg-agent.nix             # GPG agent service
+├── cosmic.nix                # COSMIC desktop integration
+│
 ├── overlays/                # Nixpkgs overlays
 │   └── nodejs.nix           # Node.js version override
 ├── packages/                # Custom package definitions
@@ -164,8 +167,9 @@ Import modules, overlays, or packages:
 ## Customization
 
 ### Adding New Modules
-1. Create your module in the appropriate directory
-2. Add it to `modules/default.nix`
+1. Create a `<tool>.nix` at the repo root
+2. Wire it into `home.nix` (assign under `programs` for function-style, or add
+   to the `imports` list for module-style)
 3. Configure any necessary options
 
 ### System-Specific Configuration
@@ -175,8 +179,8 @@ The configuration automatically detects your system and applies appropriate sett
 - NixOS integration
 
 ### Security Configuration
-- Configure GPG signing: Set your GPG key ID in `modules/development/git.nix`
-- SSH keys: Add your SSH configuration to `modules/security.nix`
+- Configure GPG signing: Set your GPG key ID in `git.nix`
+- SSH keys: Add your SSH configuration to `security.nix`
 - Password store: Initialize with `pass init <gpg-key-id>`
 
 ## Development

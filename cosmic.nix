@@ -23,11 +23,4 @@
     MOZ_ENABLE_WAYLAND = "1";
     NIXOS_OZONE_WL = "1";
   };
-
-  # Flatpak aliases for apps best installed via the system package manager on atomic distros
-  home.shellAliases = {
-    obsidian = "flatpak run md.obsidian.Obsidian";
-    dbeaver = "flatpak run io.dbeaver.DBeaverCommunity";
-    bitwarden = "flatpak run com.bitwarden.desktop";
-  };
 }

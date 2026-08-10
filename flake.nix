@@ -22,12 +22,53 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Declarative Flatpak management (pinned; see README for the convergent model)
+    nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
+
+    # Image builders (EC2 AMI etc.) for the KiroCrew NixOS system.
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nanocoder, ... }:
+  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nanocoder, nix-flatpak, nixos-generators, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+
+      # Single builder for every Home Manager profile. All profiles share the
+      # one CLI-only ./home.nix and differ only by system, username, home dir,
+      # and any extra modules (e.g. the COSMIC overlay).
+      mkHome =
+        { system
+        , username ? "orre"
+        , homeDirectory ? null
+        , extraModules ? [ ]
+        }:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          extraSpecialArgs = {
+            pkgs-stable = nixpkgs-stable.legacyPackages.${system};
+            inherit claude-desktop nanocoder;
+          } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            nixgl = nixgl.packages.${system};
+          };
+          modules = [
+            ./home.nix
+            {
+              home.username = username;
+              home.homeDirectory =
+                if homeDirectory != null then homeDirectory
+                else if pkgs.stdenv.isDarwin then "/Users/${username}"
+                else "/home/${username}";
+            }
+          ] ++ extraModules;
+        };
     in
     {
       # Export overlays for reuse in other flakes
@@ -42,88 +83,53 @@
       # Export Home Manager modules for reuse
       homeModules = {
         default = ./home.nix;
-        applications = ./modules/applications;
-        cli = ./modules/applications/cli;
-        gui = ./modules/applications/gui;
-        feature = ./modules/feature;
-        service = ./modules/service;
-        desktop = ./modules/desktop;
         kiro = ./packages/kiro.nix;
       };
 
-      # NixOS modules (not used on Silverblue)
-      # nixosModules = {
-      #   default = ./nixos/configuration.nix;
-      # };
+      # NixOS modules (reusable)
+      nixosModules = {
+        kirocrew = ./nixos/kirocrew.nix;
+      };
 
-      # Home Manager configurations
+      # Home Manager configurations (all generated from ./home.nix via mkHome)
       homeConfigurations = {
-        # Main configuration for user "orre" (Fedora Silverblue)
-        "orre" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { 
-            pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
-            nixgl = nixgl.packages.x86_64-linux;
-            inherit claude-desktop nanocoder;
-          };
-          modules = [
-            ./home.nix
+        # Fedora Silverblue daily driver (GNOME provided by the OS; home-manager is CLI-only)
+        "orre" = mkHome {
+          system = "x86_64-linux";
+          extraModules = [
+            nix-flatpak.homeManagerModules.nix-flatpak
+            ./flatpak.nix
+            ./packages/kiro.nix
           ];
         };
 
-        # ARM Linux configuration (EC2 Graviton / Silverblue test)
-        "orre@aarch64" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.aarch64-linux;
-          extraSpecialArgs = { 
-            pkgs-stable = nixpkgs-stable.legacyPackages.aarch64-linux;
-            nixgl = nixgl.packages.aarch64-linux;
-          };
-          modules = [
-            ./home.nix
+        # ARM Linux (EC2 Graviton / ARM workstation)
+        "orre@aarch64" = mkHome { system = "aarch64-linux"; };
+
+        # macOS (Apple Silicon)
+        "orre@darwin" = mkHome { system = "aarch64-darwin"; };
+
+        # Cosmic Atomic (ostree) VM = base + COSMIC desktop integration
+        "orre@cosmic" = mkHome {
+          system = "x86_64-linux";
+          extraModules = [
+            nix-flatpak.homeManagerModules.nix-flatpak
+            ./flatpak.nix
+            ./cosmic.nix
+            ./packages/kiro.nix
           ];
         };
 
-        # macOS configuration (if needed)
-        "orre@darwin" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.aarch64-darwin;
-          extraSpecialArgs = { 
-            pkgs-stable = nixpkgs-stable.legacyPackages.aarch64-darwin;
-          };
-          modules = [
-            ./home.nix
-          ];
+        # Devcontainers (VS Code / Codespaces; user is "vscode")
+        "devcontainer" = mkHome {
+          system = "x86_64-linux";
+          username = "vscode";
+          homeDirectory = "/home/vscode";
         };
-
-        # Cosmic Atomic (ostree) VM configuration
-        "orre@cosmic" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { 
-            pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
-            nixgl = nixgl.packages.x86_64-linux;
-            inherit nanocoder;
-          };
-          modules = [
-            ./home-cosmic.nix
-          ];
-        };
-
-        # Minimal configuration without desktop environment
-        "orre-minimal" = home-manager.lib.homeManagerConfiguration {
-          pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          extraSpecialArgs = { 
-            pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
-          };
-          modules = [
-            ./home.nix
-            { 
-              # Override to disable desktop modules
-              imports = nixpkgs.lib.mkForce [
-                ./modules/applications
-                ./modules/feature
-                ./modules/service
-              ];
-            }
-          ];
+        "devcontainer-arm" = mkHome {
+          system = "aarch64-linux";
+          username = "vscode";
+          homeDirectory = "/home/vscode";
         };
       };
 
@@ -169,8 +175,56 @@
         nixpkgs.legacyPackages.${system}.nixfmt
       );
 
-      # NixOS system configurations (example - requires proper hardware config)
-      # Uncomment and customize for your system
+      # NixOS system configurations
+      #   KiroCrew gateway VM: local QEMU now (`nixos-rebuild build-vm`), EC2 AMI later.
+      #   Reuses this repo's ./home.nix with the same specialArgs as mkHome.
+      nixosConfigurations.kirocrew = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./nixos/kirocrew-host.nix
+          ./nixos/kirocrew.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = {
+              pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
+              inherit claude-desktop nanocoder;
+              nixgl = nixgl.packages."x86_64-linux";
+            };
+            home-manager.users.orre = { ... }: {
+              imports = [ ./home.nix ];
+            };
+          }
+        ];
+      };
+
+      # EC2 AMI image built from the SAME container + home modules as the local
+      # VM (nixos-generators, amazon format). Swaps kirocrew-host.nix (QEMU) for
+      # kirocrew-ec2.nix (key-only SSH; amazon profile supplies boot/rootfs).
+      #   Build:  nix build .#packages.x86_64-linux.kirocrew-ami
+      #   Then upload + register — see nixos/kirocrew.md.
+      packages.x86_64-linux.kirocrew-ami = nixos-generators.nixosGenerate {
+        system = "x86_64-linux";
+        format = "amazon";
+        modules = [
+          ./nixos/kirocrew-ec2.nix
+          ./nixos/kirocrew.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = {
+              pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
+              inherit claude-desktop nanocoder;
+              nixgl = nixgl.packages."x86_64-linux";
+            };
+            home-manager.users.orre = { ... }: {
+              imports = [ ./home.nix ];
+            };
+          }
+        ];
+      };
+
+      # Legacy example retained for reference:
       # nixosConfigurations.default = nixpkgs.lib.nixosSystem {
       #   system = "x86_64-linux";
       #   modules = [

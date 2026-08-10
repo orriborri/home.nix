@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`flake.nix` exposes every output, while `home.nix` stitches together the default configuration. Daily work happens in `modules/`, organized by domain (`development/`, `shell/`, `desktop/`) and merged by `modules/default.nix`. Shared helpers stay in `lib/`, reusable packages live in `packages/`, overlays in `overlays/`, and host-specific glue in `nixos/`. Reach for `templates/minimal` when seeding a new profile.
+`flake.nix` exposes every output, while `home.nix` stitches together the default configuration by importing the per-tool `.nix` files that live flat at the repo root (FruitieX-style — no `modules/` tree, no `default.nix` aggregators). Reusable packages live in `packages/`, overlays in `overlays/`, and host-specific glue in `nixos/`. Reach for `templates/minimal` when seeding a new profile.
 
 ## Build, Test, & Development Commands
 - `nix develop` — launch the repo’s toolchain (formatter, hm, git helpers).

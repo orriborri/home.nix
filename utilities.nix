@@ -37,10 +37,6 @@
     wl-clipboard
     wayshot
     slurp
-  ] ++ lib.optionals pkgs.stdenv.isDarwin [
-    # macOS specific utilities
-    pbcopy
-    pbpaste
   ] ++ lib.optionals pkgs.stdenv.isLinux [
     # Network utilities (Linux only)
     bluetui
@@ -56,10 +52,5 @@
     top = "btm";
     htop = "btm";
     gwt = "lazyworktree";
-
-    # Flatpak apps
-    obsidian = "flatpak run md.obsidian.Obsidian";
-    dbeaver = "flatpak run io.dbeaver.DBeaverCommunity";
-    bitwarden = "flatpak run com.bitwarden.desktop";
   };
 }
