@@ -15,7 +15,6 @@ Provides a modular, portable, and reproducible development environment that work
 - **Cross-platform compatibility**: Automatically detects and adapts to different operating systems
 - **Security-focused**: Includes GPG, SSH hardening, and secure defaults
 - **Development-ready**: Comprehensive tooling for modern development workflows
-- **Window manager support**: Sway configuration with structured configs
 - **Reproducible**: Uses Nix flakes for deterministic builds
 
 ## Target Users

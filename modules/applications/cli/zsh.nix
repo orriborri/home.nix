@@ -43,6 +43,7 @@
     
     # Application shortcuts
     zed = "DISPLAY=:0 zed";
+    claude-cowork = "claude-desktop";
     
     # Worktree navigation
     lw = "lazyworktree --output-selection /tmp/lwt_path </dev/tty >/dev/tty && cd \"$(cat /tmp/lwt_path)\"";

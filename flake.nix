@@ -28,9 +28,6 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
-      
-      # Helper to create powerlineLib for any system
-      mkPowerlineLib = pkgs: import ./lib/powerline.nix { inherit (pkgs) lib; };
     in
     {
       # Export overlays for reuse in other flakes
@@ -40,9 +37,7 @@
       };
 
       # Export custom libraries
-      lib = {
-        powerline = import ./lib/powerline.nix;
-      };
+      lib = { };
 
       # Export Home Manager modules for reuse
       homeModules = {
@@ -54,7 +49,6 @@
         service = ./modules/service;
         desktop = ./modules/desktop;
         kiro = ./packages/kiro.nix;
-        sway = ./modules/desktop/windowManager/sway;
       };
 
       # NixOS modules (not used on Silverblue)
@@ -68,7 +62,6 @@
         "orre" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
           extraSpecialArgs = { 
-            powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
             nixgl = nixgl.packages.x86_64-linux;
             inherit claude-desktop nanocoder;
@@ -82,7 +75,6 @@
         "orre@aarch64" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-linux;
           extraSpecialArgs = { 
-            powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.aarch64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.aarch64-linux;
             nixgl = nixgl.packages.aarch64-linux;
           };
@@ -95,7 +87,6 @@
         "orre@darwin" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-darwin;
           extraSpecialArgs = { 
-            powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.aarch64-darwin;
             pkgs-stable = nixpkgs-stable.legacyPackages.aarch64-darwin;
           };
           modules = [
@@ -103,11 +94,23 @@
           ];
         };
 
+        # Cosmic Atomic (ostree) VM configuration
+        "orre@cosmic" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          extraSpecialArgs = { 
+            pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
+            nixgl = nixgl.packages.x86_64-linux;
+            inherit nanocoder;
+          };
+          modules = [
+            ./home-cosmic.nix
+          ];
+        };
+
         # Minimal configuration without desktop environment
         "orre-minimal" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
           extraSpecialArgs = { 
-            powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
             pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
           };
           modules = [

@@ -3,6 +3,12 @@
 {
   enable = true;
 
+  # Manage git-lfs declaratively. This writes the filter.lfs.* config into
+  # the Home Manager-managed gitconfig, so `git lfs install` is unnecessary
+  # (and would fail anyway, since ~/.config/git/config is a read-only symlink
+  # into the Nix store).
+  lfs.enable = true;
+
   ignores = [
     "target"
     "build"

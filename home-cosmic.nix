@@ -6,38 +6,31 @@ let
   homeDirectory = "/home/${username}";
 
   # System detection
-  isSilverblue = builtins.pathExists /run/ostree-booted;
   isNixOS = builtins.pathExists /etc/NIXOS;
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
 in
 {
-  # Home Manager needs a bit of information about you and the
-  # paths it should manage.
   home = {
     inherit username homeDirectory;
     stateVersion = "26.05";
   };
 
-  # Nixpkgs configuration
   nixpkgs = {
     config = {
       allowUnfree = true;
       allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
         "obsidian"
       ];
-      permittedInsecurePackages = [];
+      permittedInsecurePackages = [ ];
     };
-    overlays = [
-    ];
+    overlays = [ ];
   };
 
-  # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
   };
 
-  # System packages
   home.packages = with pkgs; [
     # Essential tools
     gh
@@ -55,16 +48,12 @@ in
     amazon-q-cli
     gitlab-ci-local
     awscli2
-  ] ++ lib.optionals isDarwin [
-    # macOS-specific packages can go here
   ];
 
-  # Programs
   programs = {
     home-manager.enable = true;
   };
 
-  # XDG configuration
   xdg = {
     enable = true;
     mimeApps = {
@@ -77,15 +66,15 @@ in
     };
   };
 
-
   # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS
   targets.genericLinux.enable = isLinux && !isNixOS;
 
-  # Import modules
+  # Cosmic Atomic: CLI apps, features, services, and Cosmic desktop module
   imports = [
     ./modules/applications
     ./modules/feature
     ./modules/service
+    ./modules/desktop/cosmic.nix
     ./packages/kiro.nix
   ];
 }

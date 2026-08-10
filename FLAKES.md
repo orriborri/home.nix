@@ -72,7 +72,6 @@ Available modules:
 - `utilities` - system utilities
 - `security` - GPG, SSH hardening
 - `kiro` - Kiro IDE
-- `sway` - Sway window manager
 
 ### Overlays
 
@@ -95,10 +94,9 @@ Access custom libraries:
 ```nix
 {
   inputs.home-nix.url = "github:orriborri/home.nix";
-  
+
   outputs = { home-nix, ... }: {
-    # Use powerline helpers
-    powerlineLib = home-nix.lib.powerline { inherit lib; };
+    # (no custom libraries are currently exported)
   };
 }
 ```
@@ -249,7 +247,6 @@ flake.nix
 └── outputs
     ├── packages    # Standalone packages (kiro-ide)
     ├── overlays    # Package modifications (nodejs)
-    ├── lib         # Custom libraries (powerline)
     ├── homeManagerModules  # Reusable modules
     ├── nixosModules        # NixOS modules
     ├── homeConfigurations  # Pre-built configs

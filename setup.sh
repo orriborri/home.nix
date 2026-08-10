@@ -1,10 +1,10 @@
 #!/bin/bash
-# Portable Sway Setup Script
+# Portable Home Manager Setup Script
 # Works on any Linux distribution
 
 set -e
 
-echo "🚀 Setting up Sway with Home Manager..."
+echo "🚀 Setting up Home Manager..."
 echo "This script will work on Fedora, Ubuntu, Arch, and other distributions"
 
 # Detect the distribution
@@ -21,7 +21,7 @@ elif command -v pacman &> /dev/null; then
     PKG_MANAGER="pacman"
     INSTALL_CMD="sudo pacman -S --noconfirm"
 else
-    echo "❌ Unsupported distribution. Please install Sway manually and then run:"
+    echo "❌ Unsupported distribution. Please install Nix manually and then run:"
     echo "   git clone https://github.com/orriborri/home.nix.git ~/.config/home-manager"
     echo "   home-manager switch"
     exit 1
@@ -33,15 +33,15 @@ echo "📋 Detected distribution: $DISTRO"
 echo "📦 Installing system packages..."
 case $DISTRO in
     "fedora")
-        $INSTALL_CMD sway kitty waybar wofi thunar brightnessctl playerctl
+        $INSTALL_CMD kitty thunar brightnessctl playerctl
         ;;
     "ubuntu")
-        # Install Sway for Ubuntu
+        # Install desktop utilities for Ubuntu
         sudo apt update
-        $INSTALL_CMD sway kitty waybar wofi thunar brightnessctl playerctl
+        $INSTALL_CMD kitty thunar brightnessctl playerctl
         ;;
     "arch")
-        $INSTALL_CMD sway kitty waybar wofi thunar brightnessctl playerctl
+        $INSTALL_CMD kitty thunar brightnessctl playerctl
         ;;
 esac
 
@@ -65,7 +65,7 @@ if ! command -v home-manager &> /dev/null; then
 fi
 
 # Clone configuration
-echo "📥 Downloading Sway configuration..."
+echo "📥 Downloading Home Manager configuration..."
 if [[ -d ~/.config/home-manager ]]; then
     echo "⚠️  ~/.config/home-manager already exists. Backing up..."
     mv ~/.config/home-manager ~/.config/home-manager.backup.$(date +%s)
@@ -82,10 +82,7 @@ echo "🎉 Setup complete!"
 echo ""
 echo "📝 Next steps:"
 echo "1. Log out of your current session"
-echo "2. At the login screen, select 'Sway' or 'Sway (Home Manager)'"
-echo "3. Log in and enjoy your consistent Sway environment!"
+echo "2. Log back in to your desktop environment"
+echo "3. Enjoy your consistent Home Manager environment!"
 echo ""
-echo "🛠️  If your config ever gets overwritten, run:"
-echo "   ~/.config/sway/restore-config.sh"
-echo ""
-echo "✨ Your Sway setup is now portable across all machines!"
+echo "✨ Your setup is now portable across all machines!"

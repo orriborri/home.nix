@@ -37,18 +37,7 @@
 │   │
 │   ├── desktop/          # Desktop environment configuration
 │   │   ├── default.nix   # Desktop module entry point
-│   │   ├── utils/        # Desktop utilities
-│   │   │   ├── default.nix
-│   │   │   └── waybar/   # Waybar status bar configurations
-│   │   │       ├── waybar.nix
-│   │   │       ├── powerline.nix
-│   │   │       ├── mechabar.nix
-│   │   │       ├── waybar-backup.nix
-│   │   │       └── *.jsonc, *.css, *.sh
-│   │   └── windowManager/  # Window manager configurations
-│   │       └── sway/       # Sway window manager
-│   │           ├── default.nix
-│   │           └── swaysome.py
+│   │   └── cosmic.nix    # COSMIC desktop configuration
 │   │
 │   ├── feature/          # Switchable features (packages, env vars, config)
 │   │   ├── default.nix   # Imports all features
@@ -59,9 +48,6 @@
 │   └── service/          # Daemons and services
 │       ├── default.nix   # Service module entry point
 │       └── gpg-agent.nix # GPG agent service
-│
-├── lib/                  # Custom library functions
-│   └── powerline.nix     # Powerline helpers for Waybar
 │
 ├── overlays/             # Nixpkgs overlays
 │   └── nodejs.nix        # Node.js version override
@@ -136,7 +122,6 @@ The flake exports multiple outputs:
 ### Special Arguments
 
 Custom arguments passed to modules:
-- `powerlineLib`: Custom library for Waybar powerline styling
 - `pkgs-stable`: Stable channel packages alongside unstable
 
 ## Naming Conventions
@@ -164,9 +149,8 @@ Custom arguments passed to modules:
 4. `modules/applications/` configures individual programs (cli + gui)
 5. `modules/feature/` adds cross-cutting packages and environment config
 6. `modules/service/` manages daemons (gpg-agent, etc.)
-7. `modules/desktop/windowManager/sway/` is conditionally imported for Sway
+7. `modules/desktop/cosmic.nix` adds COSMIC desktop integration (used by the `orre@cosmic` config)
 8. Overlays modify package versions (e.g., Node.js)
-9. Custom libraries provide helper functions (e.g., powerline)
 
 ## Best Practices
 

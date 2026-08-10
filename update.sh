@@ -7,7 +7,6 @@ set -e
 # --update: only update flake inputs
 # --upgrade: only dnf upgrade
 # --kiro: only update kiro
-# --gnome-save: save current GNOME dconf settings to nix
 if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     echo "🔄 Updating flake inputs..."
     nix flake update
@@ -43,74 +42,8 @@ if command -v flatpak &>/dev/null; then
     flatpak update -y
 fi
 
-if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
-    # Check for dconf drift only on paths we manage
-    MANAGED_PATHS=(
-      /org/gnome/desktop/interface/
-      /org/gnome/desktop/input-sources/
-      /org/gnome/desktop/wm/keybindings/
-      /org/gnome/desktop/wm/preferences/
-      /org/gnome/mutter/
-      /org/gnome/mutter/keybindings/
-      /org/gnome/shell/keybindings/
-      /org/gnome/shell/app-switcher/
-      /org/gnome/shell/enabled-extensions
-      /org/gnome/settings-daemon/plugins/color/
-      /org/gnome/settings-daemon/plugins/media-keys/
-    )
-
-    LIVE_DUMP=$(mktemp)
-    NIX_DUMP=$(mktemp)
-    for path in "${MANAGED_PATHS[@]}"; do
-      dconf dump "$path" >> "$LIVE_DUMP" 2>/dev/null || true
-    done
-
-    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome-dconf.dump"
-    if [ -f "$STORED_DUMP" ]; then
-      cp "$STORED_DUMP" "$NIX_DUMP"
-    fi
-
-    if [ -f "$STORED_DUMP" ] && ! diff -q "$LIVE_DUMP" "$NIX_DUMP" &>/dev/null; then
-        echo "⚠️  GNOME dconf has drifted from nix config."
-        echo "  [s] Save live settings → nix (overwrite nix with current GNOME)"
-        echo "  [r] Restore nix → GNOME (discard live changes, apply nix)"
-        echo "  [d] Show diff"
-        echo "  [n] Skip"
-        read -rp "  Choice [s/r/d/n]: " choice
-        case "$choice" in
-            s)
-                echo "🖥️  Saving GNOME dconf settings to nix..."
-                "$(dirname "$0")/scripts/sync-gnome-settings.sh"
-                ;;
-            r)
-                echo "🔄 Restoring nix settings to GNOME (will apply on switch)..."
-                ;;
-            d)
-                diff --color=auto "$NIX_DUMP" "$LIVE_DUMP" | head -50
-                read -rp "  Save live → nix? [y/N]: " save
-                [[ "$save" == "y" ]] && "$(dirname "$0")/scripts/sync-gnome-settings.sh"
-                ;;
-            *) echo "  Skipping." ;;
-        esac
-    fi
-    rm -f "$LIVE_DUMP" "$NIX_DUMP"
-fi
-
 echo "🏠 Switching to configuration..."
 home-manager switch -b backup --flake .#orre
-
-# Update stored dconf dump after successful switch
-if [[ "$XDG_CURRENT_DESKTOP" == "GNOME" ]]; then
-    STORED_DUMP="$(dirname "$0")/modules/desktop/gnome-dconf.dump"
-    : > "$STORED_DUMP"
-    for path in "${MANAGED_PATHS[@]}"; do
-      dconf dump "$path" >> "$STORED_DUMP" 2>/dev/null || true
-    done
-elif command -v swaymsg &>/dev/null && pgrep -x sway &>/dev/null; then
-    pkill waybar || true
-    swaymsg reload || true
-    kanshi status &>/dev/null &
-fi
 
 echo "🧹 Garbage collecting old generations (>7d) and optimising Nix store..."
 nix-collect-garbage --delete-older-than 7d
