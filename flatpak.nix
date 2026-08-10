@@ -34,10 +34,9 @@
       "org.videolan.VLC"
     ];
 
-    # NOTE: uninstallUnmanaged is intentionally left at its default (false) so
-    # this does NOT remove Flatpaks you installed by hand. Set it to true only
-    # once every GUI app you use is listed above, or it will uninstall the rest.
-    # uninstallUnmanaged = true;
+    # The Flatpak set is now fully declarative: this prunes any user-scope
+    # Flatpak not listed above. (System-scope Flatpaks are unaffected.)
+    uninstallUnmanaged = true;
 
     # Track upstream weekly (Flatpak's convergent model). Comment out to pin.
     update.auto = {
