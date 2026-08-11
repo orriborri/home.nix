@@ -36,6 +36,7 @@ in
   # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
+    TZDIR = "${pkgs.tzdata}/share/zoneinfo";
   };
 
   # System packages
@@ -43,6 +44,7 @@ in
     # Essential tools
     gh
     fx
+    tzdata
 
     # Fonts
     nerd-fonts.jetbrains-mono
@@ -52,6 +54,8 @@ in
     liberation_ttf
 
     # Applications
+    firefox
+    flatpak
     devbox
     amazon-q-cli
     gitlab-ci-local
@@ -124,6 +128,9 @@ in
       };
     };
   };
+
+  # Font configuration - make Nix-managed fonts visible to all apps (including Flatpak)
+  fonts.fontconfig.enable = true;
 
   # XDG configuration
   xdg = {
