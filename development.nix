@@ -6,8 +6,12 @@
     # Programming languages
     nodejs_latest
     pnpm
+    python3        # Python interpreter
+    pipx           # Install Python apps in isolated environments
     
     # Development tools
+    curl           # HTTP client (CLI)
+    openssl        # TLS/SSL toolkit
     tokei          # Code statistics
     jq             # JSON processor
     xh             # HTTP client
@@ -17,6 +21,7 @@
     uv             # Python package manager
     
     # Nix development tools
+    nix            # Nix CLI (nix-shell, nix-build, nix develop, etc.)
     nil            # Nix LSP
     nixd           # Alternative Nix LSP
     nixfmt         # Nix formatter (updated from nixfmt-rfc-style)

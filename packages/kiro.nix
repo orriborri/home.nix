@@ -1,18 +1,15 @@
 { pkgs, lib, config, ... }:
 
-let
-  kiro-ide = pkgs.callPackage ./kiro-package.nix {};
-  kiro-cli = pkgs.callPackage ./kiro-cli-package.nix {};
-in
 {
   home.packages = [ 
-    kiro-ide
-    kiro-cli
+    pkgs.kiro       # from nixpkgs (was ./kiro-package.nix; upstream-maintained, no hash drift)
+    pkgs.kiro-cli   # from nixpkgs (was ./kiro-cli-package.nix; upstream-maintained, no hash drift)
     pkgs.xdg-utils  # Required for browser-based authentication
   ];
 
-  # Shell alias to default to current directory, run in background
+  # Shell alias to default to current directory, run in background.
+  # `command` prevents the alias from recursing into itself.
   programs.zsh.shellAliases = {
-    kiro = "kiro-ide . > /dev/null 2>&1 &";
+    kiro = "command kiro . > /dev/null 2>&1 &";
   };
 }

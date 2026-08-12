@@ -193,6 +193,31 @@
         ];
       };
 
+      # Live-managed EC2 box (aarch64 / Graviton). Launch the official NixOS AMI,
+      # then drive it declaratively:
+      #   nixos-rebuild switch --flake .#kirocrew-ec2 \
+      #     --target-host root@<ip> --build-host root@<ip>
+      # The box builds itself (no cross-compile, no heavy local build, no AMI
+      # import), and reuses this repo's ./home.nix for the operator user.
+      nixosConfigurations.kirocrew-ec2 = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        modules = [
+          ./nixos/kirocrew-ec2.nix
+          ./nixos/kirocrew.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = {
+              pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
+              inherit claude-desktop;
+            };
+            home-manager.users.orre = { ... }: {
+              imports = [ ./home.nix ];
+            };
+          }
+        ];
+      };
+
       # EC2 AMI image built from the SAME container + home modules as the local
       # VM (nixos-generators, amazon format). Swaps kirocrew-host.nix (QEMU) for
       # kirocrew-ec2.nix (key-only SSH; amazon profile supplies boot/rootfs).
