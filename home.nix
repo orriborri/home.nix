@@ -1,4 +1,10 @@
-{ pkgs, lib, config, pkgs-stable ? pkgs, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  pkgs-stable ? pkgs,
+  ...
+}:
 
 let
   # System detection
@@ -24,10 +30,15 @@ in
   nixpkgs = {
     config = {
       allowUnfree = true;
-      allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
-        "obsidian"
-      ];
-      permittedInsecurePackages = [];
+      allowUnfreePredicate =
+        pkg:
+        builtins.elem (lib.getName pkg) [
+          "obsidian"
+          "kiro"
+          "kiro-cli"
+          "kiro-cli-unwrapped"
+        ];
+      permittedInsecurePackages = [ ];
     };
     overlays = [
     ];
@@ -36,35 +47,44 @@ in
   # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
-    TZDIR = "${pkgs.tzdata}/share/zoneinfo";
+    PYTHONTZPATH = "${pkgs.tzdata}/share/zoneinfo";
+  }
+  // lib.optionalAttrs isLinux {
+    LD_LIBRARY_PATH = lib.makeLibraryPath [
+      pkgs.stdenv.cc.cc.lib
+      pkgs.zlib
+    ];
   };
 
   # System packages
-  home.packages = with pkgs; [
-    # Essential tools
-    gh
-    fx
-    tzdata
+  home.packages =
+    with pkgs;
+    [
+      # Essential tools
+      gh
+      fx
+      tzdata
 
-    # Fonts
-    nerd-fonts.jetbrains-mono
-    nerd-fonts.hack
-    powerline-fonts
-    font-awesome
-    liberation_ttf
+      # Fonts
+      nerd-fonts.jetbrains-mono
+      nerd-fonts.hack
+      powerline-fonts
+      font-awesome
+      liberation_ttf
 
-    # Applications
-    firefox
-    flatpak
-    devbox
-    amazon-q-cli
-    gitlab-ci-local
-    awscli2
-  ] ++ lib.optionals isLinux [
-    emote          # GTK emoji picker (Linux-only)
-  ] ++ lib.optionals isDarwin [
-    # macOS-specific packages can go here
-  ];
+      # Applications
+      firefox
+      devbox
+      amazon-q-cli
+      gitlab-ci-local
+      awscli2
+    ]
+    ++ lib.optionals isLinux [
+      emote # GTK emoji picker (Linux-only)
+    ]
+    ++ lib.optionals isDarwin [
+      # macOS-specific packages can go here
+    ];
 
   # Programs
   programs = {
@@ -139,13 +159,12 @@ in
     mimeApps = lib.mkIf isLinux {
       enable = true;
       defaultApplications = {
-        "text/html" = "org.mozilla.firefox.desktop";
-        "x-scheme-handler/http" = "org.mozilla.firefox.desktop";
-        "x-scheme-handler/https" = "org.mozilla.firefox.desktop";
+        "text/html" = "firefox.desktop";
+        "x-scheme-handler/http" = "firefox.desktop";
+        "x-scheme-handler/https" = "firefox.desktop";
       };
     };
   };
-
 
   # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS
   targets.genericLinux.enable = isLinux && !isNixOS;

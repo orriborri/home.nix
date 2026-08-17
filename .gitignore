@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 silverblue.raw
 .nanocoder/
+nixos/.kirocrew-ec2.json

@@ -17,30 +17,51 @@
       url = "github:Reginleif88/claude-cowork-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Declarative Flatpak management (pinned; see README for the convergent model)
-    nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
-
     # Image builders (EC2 AMI etc.) for the KiroCrew NixOS system.
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Secrets management (age-encrypted, decrypted at activation)
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
-  outputs = { self, nixpkgs, nixpkgs-stable, home-manager, flake-utils, nixgl, claude-desktop, nix-flatpak, nixos-generators, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nixpkgs-stable,
+      home-manager,
+      flake-utils,
+      nixgl,
+      claude-desktop,
+      nixos-generators,
+      sops-nix,
+      ...
+    }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
       # Single builder for every Home Manager profile. All profiles share the
       # one CLI-only ./home.nix and differ only by system, username, home dir,
       # and any extra modules (e.g. the COSMIC overlay).
       mkHome =
-        { system
-        , username ? "orre"
-        , homeDirectory ? null
-        , extraModules ? [ ]
+        {
+          system,
+          username ? "orre",
+          homeDirectory ? null,
+          extraModules ? [ ],
         }:
         let
           pkgs = nixpkgs.legacyPackages.${system};
@@ -50,7 +71,8 @@
           extraSpecialArgs = {
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
             inherit claude-desktop;
-          } // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+          }
+          // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             nixgl = nixgl.packages.${system};
           };
           modules = [
@@ -58,11 +80,15 @@
             {
               home.username = username;
               home.homeDirectory =
-                if homeDirectory != null then homeDirectory
-                else if pkgs.stdenv.isDarwin then "/Users/${username}"
-                else "/home/${username}";
+                if homeDirectory != null then
+                  homeDirectory
+                else if pkgs.stdenv.isDarwin then
+                  "/Users/${username}"
+                else
+                  "/home/${username}";
             }
-          ] ++ extraModules;
+          ]
+          ++ extraModules;
         };
     in
     {
@@ -92,9 +118,8 @@
         "orre" = mkHome {
           system = "x86_64-linux";
           extraModules = [
-            nix-flatpak.homeManagerModules.nix-flatpak
-            ./flatpak.nix
             ./packages/kiro.nix
+            ./kirocrew-service.nix
           ];
         };
 
@@ -108,10 +133,9 @@
         "orre@cosmic" = mkHome {
           system = "x86_64-linux";
           extraModules = [
-            nix-flatpak.homeManagerModules.nix-flatpak
-            ./flatpak.nix
             ./cosmic.nix
             ./packages/kiro.nix
+            ./kirocrew-service.nix
           ];
         };
 
@@ -129,10 +153,12 @@
       };
 
       # Development shells for each system
-      devShells = forAllSystems (system: 
+      devShells = forAllSystems (
+        system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-        in {
+        in
+        {
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
               nixfmt
@@ -151,7 +177,7 @@
               echo "  - home-manager switch --flake .: Apply config"
             '';
           };
-          
+
           # Additional shell for testing configurations
           test = pkgs.mkShell {
             buildInputs = with pkgs; [
@@ -166,9 +192,7 @@
       );
 
       # Formatter for 'nix fmt'
-      formatter = forAllSystems (system: 
-        nixpkgs.legacyPackages.${system}.nixfmt
-      );
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
       # NixOS system configurations
       #   KiroCrew gateway VM: local QEMU now (`nixos-rebuild build-vm`), EC2 AMI later.
@@ -187,7 +211,10 @@
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
-              imports = [ ./home.nix ];
+              imports = [
+                ./home.nix
+                ./packages/kiro.nix
+              ];
             };
           }
         ];
@@ -212,7 +239,13 @@
               inherit claude-desktop;
             };
             home-manager.users.orre = { ... }: {
-              imports = [ ./home.nix ];
+              imports = [
+                ./home.nix
+                ./packages/kiro.nix
+                ./kirocrew-service.nix
+                sops-nix.homeManagerModules.sops
+                ./sops.nix
+              ];
             };
           }
         ];
@@ -238,7 +271,10 @@
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
-              imports = [ ./home.nix ];
+              imports = [
+                ./home.nix
+                ./packages/kiro.nix
+              ];
             };
           }
         ];
@@ -256,7 +292,7 @@
       #       home-manager.users.orre = { pkgs, lib, config, ... }: {
       #         imports = [ ./home.nix ];
       #       };
-      #       home-manager.extraSpecialArgs = { 
+      #       home-manager.extraSpecialArgs = {
       #         powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
       #         pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
       #       };

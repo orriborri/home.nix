@@ -1,0 +1,12 @@
+# sops encryption configuration
+# The age public key corresponds to the private key stored in 1Password
+# (item: "kirocrew-age"). On the EC2 instance, the private key lives at
+# ~/.config/sops/age/keys.txt (bootstrapped via `op read`).
+keys:
+  - &kirocrew age1rpj9d9n73j57hq7pxmjs4raqlrvzqtm8wzcxtzvd9045jppuq3vqhe3px2
+
+creation_rules:
+  - path_regex: secrets/secrets\.yaml$
+    key_groups:
+      - age:
+          - *kirocrew

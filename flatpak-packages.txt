@@ -1,0 +1,18 @@
+# Flatpak packages — one app ID per line.
+# Managed by update.sh: install missing + update all.
+# Find app IDs at https://flathub.org
+
+# Productivity
+md.obsidian.Obsidian
+io.dbeaver.DBeaverCommunity
+com.bitwarden.desktop
+
+# Communication
+com.slack.Slack
+
+# Browsers
+com.google.Chrome
+org.chromium.Chromium
+
+# Media
+org.videolan.VLC

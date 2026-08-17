@@ -1,6 +1,22 @@
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 
+let
+  isNixOS = builtins.pathExists /etc/NIXOS;
+in
 {
+  # Fix SSH config permissions: HM creates a symlink to the Nix store which
+  # OpenSSH rejects ("Bad owner or permissions"). Replace it with a copy
+  # that has 0600 permissions after each activation.
+  home.activation.fixSshConfigPermissions = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ -L "$HOME/.ssh/config" ]; then
+      target=$(readlink -f "$HOME/.ssh/config")
+      if [ -f "$target" ]; then
+        rm "$HOME/.ssh/config"
+        cp "$target" "$HOME/.ssh/config"
+        chmod 600 "$HOME/.ssh/config"
+      fi
+    fi
+  '';
   # GPG configuration
   programs.gpg = {
     enable = true;
@@ -38,20 +54,24 @@
     };
   };
 
-  # SSH configuration — uses 1Password as SSH agent
+  # SSH configuration
   programs.ssh = {
     enable = true;
+    package = pkgs.openssh;
     
     extraConfig = ''
-      # 1Password SSH agent
+      ${lib.optionalString (!isNixOS) ''
+      # 1Password SSH agent (desktop only — not available on headless NixOS)
       IdentityAgent "~/.1password/agent.sock"
-      
+      ''}
+      # Ignore unknown options from system crypto-policies (Fedora)
+      IgnoreUnknown GSSAPIKexAlgorithms
+
       # Security settings
-      Protocol 2
       Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
       MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha2-512
-      KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
-      HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa
+      KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+      HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-ed25519,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256
       
       # Connection settings
       ServerAliveInterval 60
@@ -74,6 +94,30 @@
       ControlMaster = "auto";
       ControlPath = "~/.ssh/master-%r@%n:%p";
       ControlPersist = "10m";
+    };
+
+    matchBlocks."kirocrew-ec2" = {
+      hostname = "i-05d4aaf8ee73fc07f";
+      user = "root";
+      identityFile = "~/.ssh/kirocrew.pem";
+      extraOptions = {
+        IdentitiesOnly = "yes";
+        StrictHostKeyChecking = "accept-new";
+      };
+      proxyCommand = "sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p' --profile Sandbox --region eu-central-1\"";
+    };
+
+    # For editor remote development (VS Code, Zed) — connects as orre
+    matchBlocks."kirocrew" = {
+      hostname = "i-05d4aaf8ee73fc07f";
+      user = "orre";
+      identityFile = "~/.ssh/kirocrew.pem";
+      extraOptions = {
+        IdentitiesOnly = "yes";
+        StrictHostKeyChecking = "accept-new";
+        ForwardAgent = "yes";
+      };
+      proxyCommand = "sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p' --profile Sandbox --region eu-central-1\"";
     };
   };
 

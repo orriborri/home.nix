@@ -10,6 +10,7 @@
     pipx           # Install Python apps in isolated environments
     
     # Development tools
+    openssh        # SSH client (needed by git for SSH remotes + 1Password agent)
     curl           # HTTP client (CLI)
     openssl        # TLS/SSL toolkit
     tokei          # Code statistics
@@ -30,6 +31,9 @@
     zsh
 
     # AI coding tools
+
+    # AWS tools
+    ssm-session-manager-plugin  # SSM tunnel for kirocrew EC2 instance
   ];
 
   # Development environment variables

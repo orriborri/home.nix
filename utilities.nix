@@ -52,5 +52,10 @@
     top = "btm";
     htop = "btm";
     gwt = "lazyworktree";
+
+    # Flatpak app shortcuts
+    obsidian = "flatpak run md.obsidian.Obsidian";
+    dbeaver = "flatpak run io.dbeaver.DBeaverCommunity";
+    bitwarden = "flatpak run com.bitwarden.desktop";
   };
 }

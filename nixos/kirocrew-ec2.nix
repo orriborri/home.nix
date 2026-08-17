@@ -69,7 +69,13 @@
   networking.firewall.enable = true;
   networking.firewall.allowedTCPPorts = [ 22 ];
 
-  # ── Container runtime (backend for oci-containers in kirocrew.nix) ─────────
+  # ── Note: bwrap sandbox is NOT used ─────────────────────────────────────────
+  # kiro-cli's bwrap (FHS sandbox) fails on EC2/Amazon virtualisation because
+  # mount(/, MS_SLAVE) is blocked. The kirocrew service uses sandbox=off and the
+  # activation script symlinks the unwrapped kiro-cli binary directly.
+  # No kernel.unprivileged_userns_clone or security.unprivilegedUsernsClone needed.
+
+  # ── Container runtime (for user workloads — KiroCrew itself runs native) ────
   virtualisation.docker.enable = true;
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
