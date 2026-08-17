@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   enable = true;
@@ -62,6 +62,7 @@
       eol = "lf";
       editor = "nvim";
       whitespace = "trailing-space,space-before-tab";
+      sshCommand = "${pkgs.openssh}/bin/ssh";
     };
 
     merge = {
