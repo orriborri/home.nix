@@ -30,6 +30,9 @@
       PermitRootLogin = "prohibit-password";
       X11Forwarding = true;
     };
+    extraConfig = ''
+      XAuthLocation ${pkgs.xorg.xauth}/bin/xauth
+    '';
   };
 
   # ── SSM agent: the box's outbound control channel ──────────────────────────

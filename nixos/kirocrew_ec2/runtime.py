@@ -217,10 +217,11 @@ class RemoteHost:
         """Open an SSH session with X11 forwarding and run a command.
 
         Blocks until the remote process exits or the user presses Ctrl-C.
+        Uses trusted forwarding (-Y) since the remote is our own managed box.
         """
         command = [
             "ssh",
-            "-X",
+            "-Y",
             "-C",
             "-o", "StrictHostKeyChecking=accept-new",
             "-o", f"ProxyCommand={self.proxy_command()}",
