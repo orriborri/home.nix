@@ -1,0 +1,93 @@
+# Declarative repo manifest -- cloned on every home-manager switch.
+# Both local and EC2 machines read this to stay in sync.
+# Path is relative to $HOME.
+
+# ─── ReadPeak (core) ───────────────────────────────────────────────
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/mononode.git"
+path = "ReadPeak/mononode"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/cdk.git"
+path = "ReadPeak/cdk"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/cloudformation.git"
+path = "ReadPeak/cloudformation"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/nativeflow.git"
+path = "ReadPeak/nativeflow"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/lambda.git"
+path = "ReadPeak/lambda"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/eks-workloads.git"
+path = "ReadPeak/eks-workloads"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/integrator.git"
+path = "ReadPeak/integrator"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/intelligence.git"
+path = "ReadPeak/intelligence"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/ramp.git"
+path = "ReadPeak/ramp"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/slackbots.git"
+path = "ReadPeak/slackbots"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/spritsstudio.git"
+path = "ReadPeak/SpritsStudio"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/renovate-bot.git"
+path = "ReadPeak/renovate-bot"
+
+# ─── ReadPeak (CI/infra) ──────────────────────────────────────────
+
+[[repos]]
+remote = "git@gitlab.com:readpeak/gitlab-components.git"
+path = "ReadPeak/gitlab-components"
+
+[[repos]]
+remote = "git@gitlab.com:readpeak.wiki.git"
+path = "ReadPeak/wiki"
+
+# ─── External / reference ─────────────────────────────────────────
+
+[[repos]]
+remote = "git@github.com:prebid/prebid-server.git"
+path = "ReadPeak/prebid-server"
+
+[[repos]]
+remote = "git@github.com:nanocoai/nanoclaw.git"
+path = "ReadPeak/nanoclaw-v2"
+
+[[repos]]
+remote = "git@github.com:aws-samples/sample-cfm-tips-mcp.git"
+path = "ReadPeak/sample-cfm-tips-mcp"
+
+[[repos]]
+remote = "git@github.com:VoltAgent/awesome-claude-code-subagents.git"
+path = "ReadPeak/awesome-claude-code-subagents"
+
+[[repos]]
+remote = "git@github.com:joshuakatt/Bob-The-Builder.git"
+path = "ReadPeak/Bob-The-Builder"
+
+[[repos]]
+remote = "git@gitlab.com:gitlab-org/gitlab.git"
+path = "ReadPeak/gitlab-docs"
+
+[[repos]]
+remote = "git@gitlab.com:gitlab-org/professional-services-automation/tools/utilities/pipeintel.git"
+path = "ReadPeak/pipeintel"

@@ -27,12 +27,17 @@ in
 {
   # KiroCrew uses an isolated Python launched with -E, so PYTHONTZPATH is
   # ignored. Keep tzdata pinned inside the pipx environment across reinstalls.
+  # NOTE: The kirocrew venv was installed with backend=uv (baked into pipx
+  # metadata), so we use uv directly to inject packages. pipx inject refuses to
+  # override the recorded backend even with PIPX_DEFAULT_BACKEND=pip.
+  # UV_NO_CONFIG prevents uv from traversing parent dirs for config files
+  # (hits permission errors when activation runs as root).
   home.activation.kirocrewTzdata = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     kirocrewPython="$HOME/.local/share/pipx/venvs/kirocrew/bin/python"
     if [ -x "$kirocrewPython" ]; then
       installedVersion="$("$kirocrewPython" -c 'from importlib.metadata import version; print(version("tzdata"))' 2>/dev/null || true)"
       if [ "$installedVersion" != "${kirocrewTzdataVersion}" ]; then
-        $DRY_RUN_CMD env PIPX_DEFAULT_BACKEND=pip ${pkgs.pipx}/bin/pipx inject --force kirocrew "tzdata==${kirocrewTzdataVersion}"
+        $DRY_RUN_CMD env UV_NO_CONFIG=1 ${pkgs.uv}/bin/uv pip install --python "$kirocrewPython" "tzdata==${kirocrewTzdataVersion}"
       fi
     fi
   '';

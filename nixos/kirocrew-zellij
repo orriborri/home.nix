@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session_name="${1:-kirocrew}"
+
+if [[ ! "$session_name" =~ ^[[:alnum:]_-]+$ ]]; then
+  echo "Invalid Zellij session name: $session_name" >&2
+  echo "Use only letters, numbers, underscores, and hyphens." >&2
+  exit 2
+fi
+
+if ! command -v cosmic-term >/dev/null 2>&1; then
+  echo "cosmic-term is not available on PATH." >&2
+  exit 127
+fi
+
+if ! command -v ssh >/dev/null 2>&1; then
+  echo "ssh is not available on PATH." >&2
+  exit 127
+fi
+
+if ! command -v nohup >/dev/null 2>&1; then
+  echo "nohup is not available on PATH." >&2
+  exit 127
+fi
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/kirocrew-zellij"
+log_file="$state_dir/cosmic-term.log"
+mkdir -p "$state_dir"
+
+printf 'Opening remote Zellij session %q; COSMIC Terminal log: %s\n' \
+  "$session_name" "$log_file"
+
+# cosmic-term 1.5.0 can panic in Iced/Winit when using its internal daemon
+# path. Keep the GUI process in foreground mode and detach it externally.
+# No local shell or local Zellij starts in the new terminal.
+RUST_BACKTRACE=1 nohup cosmic-term --no-daemon -- \
+  ssh -t kirocrew "exec zellij attach --create $session_name" \
+  </dev/null >>"$log_file" 2>&1 &

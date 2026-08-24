@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Manage the KiroCrew EC2 instance entirely through AWS SSM."""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+# Allow importing the sibling package regardless of working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from kirocrew_ec2.cli import parse_arguments  # noqa: E402
+from kirocrew_ec2.launcher import Launcher  # noqa: E402
+from kirocrew_ec2.models import LauncherError  # noqa: E402
+from kirocrew_ec2.runtime import quote_command  # noqa: E402
+
+
+def main() -> int:
+    try:
+        arguments = parse_arguments(sys.argv[1:])
+        script_dir = Path(__file__).resolve().parent
+        Launcher(arguments, script_dir).run()
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        return 130
+    except LauncherError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    except FileNotFoundError as error:
+        print(f"ERROR: required command not found: {error.filename}", file=sys.stderr)
+        return 127
+    except OSError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    except subprocess.CalledProcessError as error:
+        print(
+            f"ERROR: command failed (exit {error.returncode}): {quote_command(error.cmd)}",
+            file=sys.stderr,
+        )
+        if error.stderr:
+            print(error.stderr.rstrip(), file=sys.stderr)
+        return error.returncode or 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -16,7 +16,6 @@ let
   awsProfile = "Sandbox";
   region = "eu-central-1";
   excludes = builtins.concatStringsSep " " [
-    "--exclude 'pasta/*'"
     "--exclude '.lancedb/*'"
     "--exclude 'attachments/*'"
     "--exclude '.obsidian/*'"

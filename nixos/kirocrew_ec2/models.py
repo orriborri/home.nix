@@ -14,7 +14,8 @@ DEFAULT_AMI = "ami-0cdce1c7f7fa96c0d"
 KEY_NAME = "kirocrew"
 ROLE_NAME = "kirocrew-ssm"
 SECURITY_GROUP_NAME = "kirocrew-ssm"
-PORTAL_PORT = "7780"
+PORTAL_PORT = "5476"
+PORTAL_LOCAL_PORT = "7780"
 GITHUB_ED25519_KEY = (
     "github.com ssh-ed25519 "
     "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
@@ -32,6 +33,7 @@ COMMANDS = (
     "new",
     "migrate-kirocrew",
     "sync-state",
+    "browser",
 )
 CONFIG_KEYS = {
     "DEFAULT_PROFILE",
@@ -53,6 +55,7 @@ class Arguments:
     instance_type: str | None
     ami: str | None
     assume_yes: bool
+    browser_app: str | None = None
 
 
 @dataclass(frozen=True)

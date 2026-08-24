@@ -198,7 +198,7 @@ class RemoteHost:
             f"-o ProxyCommand={shlex.quote(self.proxy_command())}"
         )
 
-    def portal(self, port: str) -> None:
+    def portal(self, port: str, local_port: str | None = None) -> None:
         self.aws.run(
             "ssm",
             "start-session",
@@ -208,10 +208,28 @@ class RemoteHost:
             "AWS-StartPortForwardingSession",
             "--parameters",
             json.dumps(
-                {"portNumber": [port], "localPortNumber": [port]},
+                {"portNumber": [port], "localPortNumber": [local_port or port]},
                 separators=(",", ":"),
             ),
         )
+
+    def x11_ssh(self, user: str, remote_command: str) -> None:
+        """Open an SSH session with X11 forwarding and run a command.
+
+        Blocks until the remote process exits or the user presses Ctrl-C.
+        """
+        command = [
+            "ssh",
+            "-X",
+            "-C",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"ProxyCommand={self.proxy_command()}",
+            "-i", str(self.key_file),
+            "-o", "IdentitiesOnly=yes",
+            f"{user}@{self.instance_id}",
+            remote_command,
+        ]
+        subprocess.run(command)
 
 
 def inherited_environment(**updates: str) -> dict[str, str]:

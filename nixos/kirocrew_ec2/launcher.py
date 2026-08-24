@@ -16,6 +16,7 @@ from .models import (
     GITHUB_ED25519_KEY,
     GITLAB_ED25519_KEY,
     KEY_NAME,
+    PORTAL_LOCAL_PORT,
     PORTAL_PORT,
     Arguments,
     InstanceState,
@@ -104,6 +105,9 @@ class Launcher:
 
         if self.arguments.command == "portal":
             self._open_portal(state)
+            return
+        if self.arguments.command == "browser":
+            self._open_browser(state)
             return
         if self.arguments.command == "migrate-kirocrew":
             self._migrate(state)
@@ -234,9 +238,16 @@ class Launcher:
     def _open_portal(self, state: InstanceState) -> None:
         if shutil.which("session-manager-plugin") is None:
             raise LauncherError("The AWS Session Manager plugin is required")
-        print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_PORT}")
+        print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_LOCAL_PORT}")
         print("  Keep this command running; press Ctrl+C to close the tunnel.")
-        self._remote(state).portal(PORTAL_PORT)
+        self._remote(state).portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
+
+    def _open_browser(self, state: InstanceState) -> None:
+        app = self.arguments.browser_app or "firefox"
+        remote = self._remote(state)
+        print(f"\n» Launching {app} via X11 forwarding over SSM...")
+        print("  Keep this running; the browser closes when you Ctrl+C or close the window.")
+        remote.x11_ssh("orre", app)
 
     # ── Deploy workflow ────────────────────────────────────────────────────────
 
@@ -258,6 +269,7 @@ class Launcher:
         self._restart_kirocrew(remote)
         self._sync_state(state)
         failures = self._sync_repositories(remote)
+        self._setup_code_review_graph(remote)
         self._print_result(state, failures)
 
     def _bootstrap_age_key(self, remote: RemoteHost) -> None:
@@ -410,6 +422,41 @@ rm -f /tmp/.repo-sync-failures
         else:
             print("  ✓ All repositories ready")
         return failures
+
+    # ── Code Review Graph ────────────────────────────────────────────────────
+
+    def _setup_code_review_graph(self, remote: RemoteHost) -> None:
+        """Install code-review-graph, build graphs for all repos, and start the daemon."""
+        print("\n» Setting up code-review-graph...")
+        # Install via uv tool (idempotent — upgrades if already present)
+        remote.run(
+            "root",
+            r"""set -e
+sudo -u orre -H env PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bin:$PATH" \
+  uv tool install code-review-graph --upgrade 2>&1 | tail -3
+""",
+        )
+        # Build graph and register with daemon for all git repos under ~/code
+        remote.run(
+            "root",
+            r"""set -e
+export PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bin:$PATH"
+CRG="/home/orre/.local/bin/code-review-graph"
+for git_dir in $(find /home/orre/code -maxdepth 3 -name .git -type d 2>/dev/null | sort); do
+  repo_dir=$(dirname "$git_dir")
+  repo_name=$(basename "$repo_dir")
+  echo "  Building graph for ${repo_name}..."
+  sudo -u orre -H env PATH="$PATH" "$CRG" install --repo "$repo_dir" --platform kiro --no-hooks --no-instructions -y 2>&1 | tail -2
+  sudo -u orre -H env PATH="$PATH" "$CRG" build --repo "$repo_dir" 2>&1 | tail -2
+  sudo -u orre -H env PATH="$PATH" "$CRG" daemon add "$repo_dir" --alias "$repo_name" 2>&1 || true
+  echo "  ✓ ${repo_name}"
+done
+echo "  Starting daemon..."
+sudo -u orre -H env PATH="$PATH" "$CRG" daemon start 2>&1 | tail -2 || true
+""",
+            check=False,
+        )
+        print("  ✓ code-review-graph installed, graphs built, daemon running")
 
     # ── State sync ───────────────────────────────────────────────────────────
 

@@ -68,10 +68,25 @@
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
     
-    # Zellij auto-start
-    if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" ]]; then
+    # Zellij auto-start. Keep sessions separate by launcher and project.
+    # Skip entirely on KiroCrew host (raw shell preferred there).
+    if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" && "$HOST" != kirocrew* && -z "$KIROCREW_TERMINAL" ]]; then
       export ZELLIJ_STARTING=1
-      zellij attach --create main 2>/dev/null
+
+      zellij_project_root="$(git rev-parse --show-toplevel 2>/dev/null || print -r -- "$PWD")"
+      zellij_project_name="''${zellij_project_root:t}"
+      zellij_project_name="''${zellij_project_name//[^A-Za-z0-9_-]/-}"
+      [[ -n "$zellij_project_name" ]] || zellij_project_name="shell"
+
+      if [[ -n "$ZED_TERM" || "$TERM_PROGRAM" == "zed" ]]; then
+        zellij_session_name="zed-$zellij_project_name"
+      elif [[ "$TERM_PROGRAM" == "cosmic-term" ]]; then
+        zellij_session_name="cosmic-$zellij_project_name"
+      else
+        zellij_session_name="terminal-$zellij_project_name"
+      fi
+
+      zellij attach --create "$zellij_session_name" 2>/dev/null
       unset ZELLIJ_STARTING
     fi
 

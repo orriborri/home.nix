@@ -28,6 +28,7 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "prohibit-password";
+      X11Forwarding = true;
     };
   };
 
@@ -77,6 +78,17 @@
 
   # ── Container runtime (for user workloads — KiroCrew itself runs native) ────
   virtualisation.docker.enable = true;
+
+  # ── X11-forwarded browsers ─────────────────────────────────────────────────
+  # Connect with: ssh -XC via the SSM ProxyCommand, then run chromium/firefox.
+  # Requires a local X server (Wayland/X11 on Linux, XQuartz on macOS).
+  environment.systemPackages = with pkgs; [
+    chromium            # google-chrome unavailable on aarch64; chromium works
+    firefox
+    xorg.xauth          # X11 forwarding auth (sshd needs this)
+    dejavu_fonts         # readable default fonts for browsers
+    liberation_ttf       # metric-compatible web fonts
+  ];
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;

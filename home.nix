@@ -182,5 +182,6 @@ in
     ./security.nix
     # Services
     ./gpg-agent.nix
+    ./vault-sync.nix
   ];
 }

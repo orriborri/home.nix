@@ -62,7 +62,9 @@
       eol = "lf";
       editor = "nvim";
       whitespace = "trailing-space,space-before-tab";
-      sshCommand = "${pkgs.openssh}/bin/ssh";
+      # The Home Manager SSH package already forces ~/.ssh/config, avoiding
+      # Fedora's incompatible system crypto-policy for every SSH consumer.
+      sshCommand = "ssh";
     };
 
     merge = {
