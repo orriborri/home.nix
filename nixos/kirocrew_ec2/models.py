@@ -33,7 +33,7 @@ COMMANDS = (
     "new",
     "migrate-kirocrew",
     "sync-state",
-    "browser",
+    "ssh",
 )
 CONFIG_KEYS = {
     "DEFAULT_PROFILE",
@@ -55,7 +55,6 @@ class Arguments:
     instance_type: str | None
     ami: str | None
     assume_yes: bool
-    browser_app: str | None = None
 
 
 @dataclass(frozen=True)

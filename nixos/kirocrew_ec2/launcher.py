@@ -106,8 +106,8 @@ class Launcher:
         if self.arguments.command == "portal":
             self._open_portal(state)
             return
-        if self.arguments.command == "browser":
-            self._open_browser(state)
+        if self.arguments.command == "ssh":
+            self._open_ssh(state)
             return
         if self.arguments.command == "migrate-kirocrew":
             self._migrate(state)
@@ -242,12 +242,11 @@ class Launcher:
         print("  Keep this command running; press Ctrl+C to close the tunnel.")
         self._remote(state).portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
 
-    def _open_browser(self, state: InstanceState) -> None:
-        app = self.arguments.browser_app or "firefox"
+    def _open_ssh(self, state: InstanceState) -> None:
         remote = self._remote(state)
-        print(f"\n» Launching {app} via X11 forwarding over SSM...")
-        print("  Keep this running; the browser closes when you Ctrl+C or close the window.")
-        remote.x11_ssh("orre", app)
+        print("\n» Opening interactive shell with X11 forwarding...")
+        print("  Run 'firefox &' or 'chromium &' to launch browsers.")
+        remote.x11_ssh("orre")
 
     # ── Deploy workflow ────────────────────────────────────────────────────────
 

@@ -213,11 +213,11 @@ class RemoteHost:
             ),
         )
 
-    def x11_ssh(self, user: str, remote_command: str) -> None:
-        """Open an SSH session with X11 forwarding and run a command.
+    def x11_ssh(self, user: str) -> None:
+        """Open an interactive SSH session with X11 forwarding.
 
-        Blocks until the remote process exits or the user presses Ctrl-C.
-        Uses trusted forwarding (-Y) since the remote is our own managed box.
+        Drops into a login shell with DISPLAY set. Run GUI apps from there.
+        Blocks until the user exits the shell.
         """
         command = [
             "ssh",
@@ -228,7 +228,6 @@ class RemoteHost:
             "-i", str(self.key_file),
             "-o", "IdentitiesOnly=yes",
             f"{user}@{self.instance_id}",
-            remote_command,
         ]
         subprocess.run(command)
 

@@ -31,7 +31,7 @@
       X11Forwarding = true;
     };
     extraConfig = ''
-      XAuthLocation ${pkgs.xorg.xauth}/bin/xauth
+      XAuthLocation ${pkgs.xauth}/bin/xauth
     '';
   };
 
@@ -88,7 +88,7 @@
   environment.systemPackages = with pkgs; [
     chromium            # google-chrome unavailable on aarch64; chromium works
     firefox
-    xorg.xauth          # X11 forwarding auth (sshd needs this)
+    xauth               # X11 forwarding auth (sshd needs this)
     dejavu_fonts         # readable default fonts for browsers
     liberation_ttf       # metric-compatible web fonts
   ];
