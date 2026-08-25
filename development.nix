@@ -74,6 +74,7 @@
         data = tomllib.load(f)
     home = os.path.expanduser('~')
     role = os.environ.get('KIROCREW_ROLE', 'workstation')
+    git = sys.argv[2]
     for repo in data.get('repos', []):
         targets = repo.get('targets', ['workstation', 'headless'])
         if role not in targets:
@@ -82,13 +83,13 @@
         if not os.path.isdir(target):
             os.makedirs(os.path.dirname(target), exist_ok=True)
             shallow = repo.get('shallow', True)
-            cmd = ['git', 'clone']
+            cmd = [git, 'clone']
             if shallow:
                 cmd += ['--depth=1']
             cmd += [repo['remote'], target]
             print(f'Cloning {repo[\"remote\"]} -> {target}')
             subprocess.run(cmd, capture_output=True)
-    " "$MANIFEST"
+    " "$MANIFEST" "${pkgs.git}/bin/git"
         fi
   '';
 
