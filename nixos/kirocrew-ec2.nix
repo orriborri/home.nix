@@ -82,16 +82,39 @@
   # ── Container runtime (for user workloads — KiroCrew itself runs native) ────
   virtualisation.docker.enable = true;
 
-  # ── X11-forwarded browsers ─────────────────────────────────────────────────
-  # Connect with: ssh -XC via the SSM ProxyCommand, then run chromium/firefox.
-  # Requires a local X server (Wayland/X11 on Linux, XQuartz on macOS).
+  # ── Vault: S3-backed Obsidian vault via Mountpoint for Amazon S3 ───────────
+  # The vault bucket (readpeak-vault-sync) is mounted at the same path as the
+  # local workstation. IAM permissions come from the instance profile
+  # (kirocrew-ssm role). The local workstation pushes to S3 on a timer; EC2
+  # reads/writes through the FUSE mount.
   environment.systemPackages = with pkgs; [
+    mountpoint-s3
+
+    # ── X11-forwarded browsers ───────────────────────────────────────────────
+    # Connect with: ssh -XC via the SSM ProxyCommand, then run chromium/firefox.
     chromium            # google-chrome unavailable on aarch64; chromium works
     firefox
     xauth               # X11 forwarding auth (sshd needs this)
     dejavu_fonts         # readable default fonts for browsers
     liberation_ttf       # metric-compatible web fonts
   ];
+
+  systemd.services.mount-vault-s3 = {
+    description = "Mount Obsidian vault from S3";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "forking";
+      User = "orre";
+      Group = "users";
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /home/orre/Obsidian/Readpeak";
+      ExecStart = "${pkgs.mountpoint-s3}/bin/mount-s3 readpeak-vault-sync /home/orre/Obsidian/Readpeak --region eu-central-1 --allow-delete --allow-overwrite --dir-mode 0755 --file-mode 0644";
+      ExecStop = "${pkgs.fuse3}/bin/fusermount3 -u /home/orre/Obsidian/Readpeak";
+      Restart = "on-failure";
+      RestartSec = 10;
+    };
+  };
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;
