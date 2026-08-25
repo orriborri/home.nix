@@ -6,7 +6,7 @@
     enable = true;
     enableZshIntegration = true;
     enableSshSupport = false;  # Disabled — 1Password handles SSH agent
-    pinentry.package = pkgs.pinentry-gtk2;
+    pinentry.package = pkgs.pinentry-gnome3;
     
     # Cache settings
     defaultCacheTtl = 1800;      # 30 minutes
