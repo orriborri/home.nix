@@ -42,6 +42,18 @@ in
     fi
   '';
 
+  # Keep glab accessible to KiroCrew's Changes panel.
+  # The gateway rejects Nix store binaries (owned by nobody/65534),
+  # but trusts root-owned copies in /usr/local/libexec/kirocrew/.
+  home.activation.kiroCli = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    GLAB_SRC="$(readlink -f /etc/profiles/per-user/orre/bin/glab 2>/dev/null || true)"
+    if [ -n "$GLAB_SRC" ] && [ -f "$GLAB_SRC" ]; then
+      sudo mkdir -p /usr/local/libexec/kirocrew
+      sudo cp "$GLAB_SRC" /usr/local/libexec/kirocrew/glab
+      sudo chmod 755 /usr/local/libexec/kirocrew/glab
+    fi
+  '';
+
   systemd.user.services.kirocrew = {
     Unit = {
       Description = "KiroCrew Gateway";
