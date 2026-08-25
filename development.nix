@@ -92,6 +92,45 @@
         fi
   '';
 
+  # Migration: symlink old ~/ReadPeak/<name> paths to ~/code/readpeak/<name>.
+  # This keeps existing scripts, shell history, and editor sessions working
+  # during the transition. Remove after 2 deploy cycles (target: 2026-10-01).
+  home.activation.migrateReadPeakPaths = lib.hm.dag.entryAfter [ "cloneRepos" ] ''
+        OLD_BASE="$HOME/ReadPeak"
+        if [ -d "$OLD_BASE" ] && [ ! -L "$OLD_BASE" ]; then
+          ${pkgs.python3}/bin/python3 -c "
+    import tomllib, os, sys
+    from pathlib import Path
+
+    manifest = sys.argv[1]
+    if not os.path.isfile(manifest):
+        sys.exit(0)
+    with open(manifest, 'rb') as f:
+        data = tomllib.load(f)
+    home = Path.home()
+    old_base = home / 'ReadPeak'
+    for repo in data.get('repos', []):
+        path = repo['path']
+        # Only migrate repos whose new path is under code/readpeak/
+        if not path.startswith('code/readpeak/'):
+            continue
+        name = path.rsplit('/', 1)[-1]
+        old_path = old_base / name
+        new_path = home / path
+        # If old directory exists and new path exists, replace old with symlink
+        if old_path.is_dir() and not old_path.is_symlink() and new_path.is_dir():
+            print(f'  Migrating {old_path} -> symlink to {new_path}')
+            import shutil
+            shutil.rmtree(str(old_path))
+            old_path.symlink_to(new_path)
+        elif not old_path.exists() and new_path.is_dir():
+            # Create forward symlink for discoverability
+            old_path.parent.mkdir(parents=True, exist_ok=True)
+            old_path.symlink_to(new_path)
+    " "$HOME/.config/kirocrew/repos.toml"
+        fi
+  '';
+
   # Auto-register git repos from the manifest with code-review-graph
   home.activation.crgRegisterRepos = lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
         CRG="$HOME/.local/bin/code-review-graph"
