@@ -1,22 +1,30 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 # Reusable NixOS module: KiroCrew system-level dependencies.
 # The gateway itself runs as a home-manager user service (see home.nix / kirocrew-user-service.nix).
 # This module provides system packages and the kiro-cli symlink activation.
 {
   # Allow unfree kiro packages at the system level (activation script references them)
-  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
-    "kiro-cli"
-    "kiro-cli-unwrapped"
-  ];
+  nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (lib.getName pkg) [
+      "kiro-cli"
+      "kiro-cli-unwrapped"
+    ];
   # ── Dependencies ───────────────────────────────────────────────────────────
   environment.systemPackages = with pkgs; [
-    python3         # full interpreter (ensurepip needed by KiroCrew installer)
+    python3 # full interpreter (ensurepip needed by KiroCrew installer)
     nodejs_22
     git
+    glab # GitLab CLI — also symlinked for gateway at /usr/local/libexec/kirocrew/
     curl
-    openssl        # needed by the KiroCrew installer for manifest verification
-    stdenv.cc.cc.lib  # libstdc++.so.6 — needed by KiroCrew's embedded llama.cpp
+    openssl # needed by the KiroCrew installer for manifest verification
+    stdenv.cc.cc.lib # libstdc++.so.6 — needed by KiroCrew's embedded llama.cpp
     # Note: bubblewrap intentionally omitted — kiro-cli's bwrap FHS sandbox
     # fails on EC2 (mount propagation blocked); we use the unwrapped binary.
   ];
@@ -41,6 +49,15 @@
 
   # ── Enable lingering so the user service survives SSH disconnect ────────────
   users.users.orre.linger = true;
+
+  # ── Install glab where the KiroCrew gateway can find it (root-owned) ───────
+  # The gateway rejects Nix store binaries (owned by nobody/65534) but trusts
+  # root-owned files. Using a symlink to the Nix store path ensures no version
+  # drift between the user-level and system-level glab.
+  system.activationScripts.kirocrew-glab = lib.stringAfter [ "users" ] ''
+    mkdir -p /usr/local/libexec/kirocrew
+    ln -sf ${pkgs.glab}/bin/glab /usr/local/libexec/kirocrew/glab
+  '';
 
   # ── LD_LIBRARY_PATH for libstdc++ (system-wide shellInit) ──────────────────
   environment.shellInit = ''

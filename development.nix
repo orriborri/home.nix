@@ -1,4 +1,9 @@
-{ pkgs, lib, pkgs-stable ? pkgs, ... }:
+{
+  pkgs,
+  lib,
+  pkgs-stable ? pkgs,
+  ...
+}:
 
 {
   # Development packages organized by category
@@ -6,43 +11,43 @@
     # Programming languages
     nodejs_latest
     pnpm
-    python3        # Python interpreter
-    pipx           # Install Python apps in isolated environments
-    
+    python3 # Python interpreter
+    pipx # Install Python apps in isolated environments
+
     # Development tools
-    curl           # HTTP client (CLI)
-    openssl        # TLS/SSL toolkit
-    tokei          # Code statistics
-    jq             # JSON processor
-    xh             # HTTP client
-    pre-commit     # Git hooks
-    lazyworktree   # Git worktree TUI
-    glab           # GitLab CLI
-    uv             # Python package manager
-    
+    curl # HTTP client (CLI)
+    openssl # TLS/SSL toolkit
+    tokei # Code statistics
+    jq # JSON processor
+    xh # HTTP client
+    pre-commit # Git hooks
+    lazyworktree # Git worktree TUI
+    glab # GitLab CLI
+    uv # Python package manager
+
     # Nix development tools
-    nix            # Nix CLI (nix-shell, nix-build, nix develop, etc.)
-    nil            # Nix LSP
-    nixd           # Alternative Nix LSP
-    nixfmt         # Nix formatter (updated from nixfmt-rfc-style)
-    
+    nix # Nix CLI (nix-shell, nix-build, nix develop, etc.)
+    nil # Nix LSP
+    nixd # Alternative Nix LSP
+    nixfmt # Nix formatter (updated from nixfmt-rfc-style)
+
     # Shell utilities
     zsh
 
     # AI coding tools
 
     # AWS tools
-    ssm-session-manager-plugin  # SSM tunnel for kirocrew EC2 instance
+    ssm-session-manager-plugin # SSM tunnel for kirocrew EC2 instance
   ];
 
   # Development environment variables
   home.sessionVariables = {
     # Development paths
     EDITOR = "nvim";
-    
+
     # Node.js configuration
     NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
-    
+
     # Python configuration
     PYTHONPATH = "$HOME/.local/lib/python3.11/site-packages:$PYTHONPATH";
   };
@@ -54,35 +59,63 @@
   '';
 
   # Clone repos declared in config/repos.toml (idempotent -- skips existing)
+  # Reads from the XDG path placed by kirocrew-config.nix.
+  # Respects KIROCREW_ROLE for per-host filtering and 'shallow' for clone depth.
   home.activation.cloneRepos = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    MANIFEST="$HOME/.config/home-manager/config/repos.toml"
-    if [ -f "$MANIFEST" ]; then
-      ${pkgs.python3}/bin/python3 -c "
-import tomllib, os, subprocess, sys
-with open(sys.argv[1], 'rb') as f:
-    data = tomllib.load(f)
-home = os.path.expanduser('~')
-for repo in data.get('repos', []):
-    target = os.path.join(home, repo['path'])
-    if not os.path.isdir(target):
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        print(f'Cloning {repo[\"remote\"]} -> {target}')
-        subprocess.run(['git', 'clone', '--depth=1', repo['remote'], target],
-                       capture_output=True)
-" "$MANIFEST"
-    fi
+        MANIFEST="$HOME/.config/kirocrew/repos.toml"
+        # Fallback to old path during transition
+        if [ ! -f "$MANIFEST" ]; then
+          MANIFEST="$HOME/.config/home-manager/config/repos.toml"
+        fi
+        if [ -f "$MANIFEST" ]; then
+          ${pkgs.python3}/bin/python3 -c "
+    import tomllib, os, subprocess, sys
+    with open(sys.argv[1], 'rb') as f:
+        data = tomllib.load(f)
+    home = os.path.expanduser('~')
+    role = os.environ.get('KIROCREW_ROLE', 'workstation')
+    for repo in data.get('repos', []):
+        targets = repo.get('targets', ['workstation', 'headless'])
+        if role not in targets:
+            continue
+        target = os.path.join(home, repo['path'])
+        if not os.path.isdir(target):
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shallow = repo.get('shallow', True)
+            cmd = ['git', 'clone']
+            if shallow:
+                cmd += ['--depth=1']
+            cmd += [repo['remote'], target]
+            print(f'Cloning {repo[\"remote\"]} -> {target}')
+            subprocess.run(cmd, capture_output=True)
+    " "$MANIFEST"
+        fi
   '';
 
-  # Auto-register git repos under ~/ReadPeak/ with code-review-graph
+  # Auto-register git repos from the manifest with code-review-graph
   home.activation.crgRegisterRepos = lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
-    CRG="$HOME/.local/bin/code-review-graph"
-    if [ -x "$CRG" ] && [ -d "$HOME/ReadPeak" ]; then
-      for repo in "$HOME/ReadPeak"/*/; do
-        if [ -d "$repo/.git" ]; then
-          $CRG register "$repo" 2>/dev/null || true
+        CRG="$HOME/.local/bin/code-review-graph"
+        MANIFEST="$HOME/.config/kirocrew/repos.toml"
+        if [ ! -f "$MANIFEST" ]; then
+          MANIFEST="$HOME/.config/home-manager/config/repos.toml"
         fi
-      done
-    fi
+        if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
+          ${pkgs.python3}/bin/python3 -c "
+    import tomllib, os, subprocess, sys
+    with open(sys.argv[1], 'rb') as f:
+        repos = tomllib.load(f).get('repos', [])
+    home = os.path.expanduser('~')
+    crg = sys.argv[2]
+    role = os.environ.get('KIROCREW_ROLE', 'workstation')
+    for repo in repos:
+        targets = repo.get('targets', ['workstation', 'headless'])
+        if role not in targets:
+            continue
+        target = os.path.join(home, repo['path'])
+        if os.path.isdir(os.path.join(target, '.git')):
+            subprocess.run([crg, 'register', target], capture_output=True)
+    " "$MANIFEST" "$CRG"
+        fi
   '';
 
   # code-review-graph daemon: auto-updates graphs for all registered repos

@@ -90,6 +90,18 @@
           ]
           ++ extraModules;
         };
+
+      # Shared Home Manager module set for all KiroCrew NixOS outputs.
+      # Imported by VM, EC2, and AMI — keeps them in sync so adding/removing
+      # a KiroCrew module means editing one place.
+      kirocrewModules = [
+        ./home.nix
+        ./packages/kiro.nix
+        ./kirocrew-config.nix
+        ./kirocrew-service.nix
+        sops-nix.homeManagerModules.sops
+        ./sops.nix
+      ];
     in
     {
       # Export overlays for reuse in other flakes
@@ -120,6 +132,10 @@
           extraModules = [
             ./packages/kiro.nix
             ./kirocrew-service.nix
+            {
+              kirocrew.enable = true;
+              kirocrew.role = "workstation";
+            }
           ];
         };
 
@@ -136,6 +152,10 @@
             ./cosmic.nix
             ./packages/kiro.nix
             ./kirocrew-service.nix
+            {
+              kirocrew.enable = true;
+              kirocrew.role = "workstation";
+            }
           ];
         };
 
@@ -211,10 +231,9 @@
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
-              imports = [
-                ./home.nix
-                ./packages/kiro.nix
-              ];
+              imports = kirocrewModules;
+              kirocrew.enable = true;
+              kirocrew.role = "headless";
             };
           }
         ];
@@ -239,13 +258,9 @@
               inherit claude-desktop;
             };
             home-manager.users.orre = { ... }: {
-              imports = [
-                ./home.nix
-                ./packages/kiro.nix
-                ./kirocrew-service.nix
-                sops-nix.homeManagerModules.sops
-                ./sops.nix
-              ];
+              imports = kirocrewModules;
+              kirocrew.enable = true;
+              kirocrew.role = "headless";
             };
           }
         ];
@@ -271,10 +286,9 @@
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
-              imports = [
-                ./home.nix
-                ./packages/kiro.nix
-              ];
+              imports = kirocrewModules;
+              kirocrew.enable = true;
+              kirocrew.role = "headless";
             };
           }
         ];

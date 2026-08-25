@@ -10,7 +10,9 @@
 # Only active on the local workstation — EC2 uses mount-s3 directly.
 # Disabled when the vault path is an S3 mount (avoids syncing to itself).
 let
-  isEC2 = builtins.pathExists /etc/NIXOS && builtins.pathExists /etc/ec2-metadata;
+  # Use kirocrew.role to determine whether this is a headless host.
+  # Avoids builtins.pathExists which probes the evaluator's filesystem.
+  isHeadless = (config.kirocrew or { }).role or "workstation" == "headless";
   bucket = "readpeak-vault-sync";
   vaultDir = "${config.home.homeDirectory}/Obsidian/Readpeak";
   awsProfile = "Sandbox";
@@ -26,7 +28,12 @@ let
 
   syncScript = pkgs.writeShellScript "vault-sync" ''
     set -euo pipefail
-    export PATH="${lib.makeBinPath [ pkgs.awscli2 pkgs.coreutils ]}:$PATH"
+    export PATH="${
+      lib.makeBinPath [
+        pkgs.awscli2
+        pkgs.coreutils
+      ]
+    }:$PATH"
 
     VAULT="${vaultDir}"
     BUCKET="s3://${bucket}"
@@ -63,7 +70,7 @@ let
   '';
 in
 {
-  systemd.user.services.vault-sync = lib.mkIf (!isEC2) {
+  systemd.user.services.vault-sync = lib.mkIf (!isHeadless) {
     Unit = {
       Description = "Bidirectional Obsidian vault sync to S3";
       After = [ "network-online.target" ];
@@ -76,7 +83,7 @@ in
     };
   };
 
-  systemd.user.timers.vault-sync = lib.mkIf (!isEC2) {
+  systemd.user.timers.vault-sync = lib.mkIf (!isHeadless) {
     Unit = {
       Description = "Sync Obsidian vault to S3 every 5 minutes";
     };

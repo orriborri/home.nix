@@ -16,8 +16,9 @@
 # sandbox adds no meaningful isolation beyond what NixOS + the security group
 # already provide.
 let
-  # Detect whether sops-nix is active (EC2) or we're on a local workstation.
-  hasSops = config.sops or null != null && (config.sops.secrets or { }) != { };
+  # Detect whether sops-nix has the git-ssh-key secret declared.
+  # The module is imported on all outputs but only activates where a key exists.
+  hasSops = (config.sops.secrets or { }) ? "git-ssh-key";
   kirocrewTzdataVersion = "2026.3";
   kirocrewLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
@@ -42,17 +43,8 @@ in
     fi
   '';
 
-  # Keep glab accessible to KiroCrew's Changes panel.
-  # The gateway rejects Nix store binaries (owned by nobody/65534),
-  # but trusts root-owned copies in /usr/local/libexec/kirocrew/.
-  home.activation.kiroCli = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    GLAB_SRC="$(readlink -f /etc/profiles/per-user/orre/bin/glab 2>/dev/null || true)"
-    if [ -n "$GLAB_SRC" ] && [ -f "$GLAB_SRC" ]; then
-      sudo mkdir -p /usr/local/libexec/kirocrew
-      sudo cp "$GLAB_SRC" /usr/local/libexec/kirocrew/glab
-      sudo chmod 755 /usr/local/libexec/kirocrew/glab
-    fi
-  '';
+  # glab is installed system-wide by nixos/kirocrew.nix (root-owned symlink
+  # at /usr/local/libexec/kirocrew/glab). No sudo needed here.
 
   systemd.user.services.kirocrew = {
     Unit = {

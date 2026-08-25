@@ -13,8 +13,6 @@ from .models import (
     DEFAULT_AMI,
     DEFAULT_INSTANCE_TYPE,
     DEFAULT_REGION,
-    GITHUB_ED25519_KEY,
-    GITLAB_ED25519_KEY,
     KEY_NAME,
     PORTAL_LOCAL_PORT,
     PORTAL_PORT,
@@ -332,18 +330,33 @@ sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="un
         )
         print("  ✓ KiroCrew service restarted and verified active")
 
+    def _read_repos_manifest(self, remote: RemoteHost) -> list[dict]:
+        """Read repos.toml from the remote's XDG path (placed by kirocrew-config.nix)."""
+        import tomllib
+
+        raw = remote.run(
+            "orre",
+            "cat ~/.config/kirocrew/repos.toml 2>/dev/null || true",
+            capture=True,
+        ).stdout
+        if not raw.strip():
+            print("  ⚠ No repos.toml found on remote, falling back to empty list")
+            return []
+        data = tomllib.loads(raw)
+        repos = data.get("repos", [])
+        # Filter to headless-targeted repos only
+        return [
+            r for r in repos
+            if "headless" in r.get("targets", ["workstation", "headless"])
+        ]
+
     def _sync_repositories(self, remote: RemoteHost) -> list[str]:
         print("\n» Syncing code repositories...")
-        known_hosts = f"{GITLAB_ED25519_KEY}\n{GITHUB_ED25519_KEY}\n"
-        # Step 1: set up known_hosts and validate git-ssh-key (needs input_text)
+        # Step 1: validate git-ssh-key is available
         remote.run(
             "root",
             r"""set -e
-sudo -u orre mkdir -p /home/orre/.ssh /home/orre/code/readpeak
-cat >> /home/orre/.ssh/known_hosts
-sort -u -o /home/orre/.ssh/known_hosts /home/orre/.ssh/known_hosts
-chown orre:users /home/orre/.ssh/known_hosts
-chmod 600 /home/orre/.ssh/known_hosts
+sudo -u orre mkdir -p /home/orre/.ssh
 uid=$(id -u orre)
 GIT_SSH_KEY="/run/user/${uid}/secrets/git-ssh-key"
 if [ ! -f "$GIT_SSH_KEY" ]; then
@@ -351,64 +364,56 @@ if [ ! -f "$GIT_SSH_KEY" ]; then
   exit 1
 fi
 """,
-            input_text=known_hosts,
         )
-        # Step 2: clone/pull repos (no capture — streams output live)
-        result = remote.run(
-            "root",
-            r"""set -e
-cd /tmp
+        # Step 2: read manifest and build clone/pull script
+        repos = self._read_repos_manifest(remote)
+        if not repos:
+            print("  ⚠ No repos in manifest for headless target")
+            return []
+
+        # Build a shell script that clones/pulls each repo from the manifest
+        repo_commands = []
+        for repo in repos:
+            remote_url = shlex.quote(repo["remote"])
+            dest = shlex.quote(f"/home/orre/{repo['path']}")
+            shallow = repo.get("shallow", True)
+            depth_flag = "--depth=1" if shallow else ""
+            name = repo["path"].rsplit("/", 1)[-1]
+            repo_commands.append(f"""\
+dest={dest}
+if [ ! -d "$dest" ]; then
+  echo "  Cloning {name}..."
+  mkdir -p "$(dirname "$dest")"
+  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git clone {depth_flag} {remote_url} "$dest" 2>&1; then
+    failed="${{failed}} {name}"
+    echo "  ✗ {name} (clone failed)"
+  else
+    echo "  ✓ {name} (cloned)"
+  fi
+else
+  echo "  Pulling {name}..."
+  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git -C "$dest" pull --ff-only --quiet 2>&1; then
+    failed="${{failed}} {name}"
+    echo "  ✗ {name} (pull failed)"
+  else
+    echo "  ✓ {name}"
+  fi
+fi""")
+
+        script = r"""set -e
 uid=$(id -u orre)
 runtime_dir="/run/user/${uid}"
 GIT_SSH_KEY="${runtime_dir}/secrets/git-ssh-key"
 export GIT_SSH_COMMAND="ssh -i ${GIT_SSH_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
 failed=""
-for repo in mononode nativeflow cdk renovate-bot eks-workloads; do
-  dest="/home/orre/code/readpeak/${repo}"
-  if [ ! -d "$dest" ]; then
-    echo "  Cloning ${repo}..."
-    if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git clone "git@gitlab.com:readpeak/${repo}.git" "$dest" 2>&1; then
-      failed="${failed} ${repo}"
-      echo "  ✗ ${repo} (clone failed)"
-    else
-      echo "  ✓ ${repo} (cloned)"
-    fi
-  else
-    echo "  Pulling ${repo}..."
-    if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git -C "$dest" pull --ff-only --quiet 2>&1; then
-      failed="${failed} ${repo}"
-      echo "  ✗ ${repo} (pull failed)"
-    else
-      echo "  ✓ ${repo}"
-    fi
-  fi
-done
-pasta=/home/orre/code/pasta
-if [ ! -d "$pasta" ]; then
-  echo "  Cloning pasta..."
-  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git clone git@github.com:orriborri/pasta.git "$pasta" 2>&1; then
-    failed="${failed} pasta"
-    echo "  ✗ pasta (clone failed)"
-  else
-    echo "  ✓ pasta (cloned)"
-  fi
-else
-  echo "  Pulling pasta..."
-  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git -C "$pasta" pull --ff-only --quiet 2>&1; then
-    failed="${failed} pasta"
-    echo "  ✗ pasta (pull failed)"
-  else
-    echo "  ✓ pasta"
-  fi
-fi
+""" + "\n".join(repo_commands) + r"""
 if [ -n "$failed" ]; then
   echo "$failed" > /tmp/.repo-sync-failures
   exit 0
 fi
 rm -f /tmp/.repo-sync-failures
-""",
-            check=False,
-        )
+"""
+        remote.run("root", script, check=False)
         # Check if there were partial failures
         fail_result = remote.run(
             "root",
