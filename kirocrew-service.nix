@@ -62,13 +62,14 @@ in
     };
     Service = {
       Type = "simple";
-      ExecStartPre = "%h/.local/bin/kirocrew config set --local agent.sandbox off";
+      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp && %h/.local/bin/kirocrew config set --local agent.sandbox off";
       ExecStart = "%h/.local/bin/kirocrew gateway";
       Restart = "always";
       RestartSec = 5;
       Environment = [
         "KIROCREW_HOME=%h/.kiro/crew"
         "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
+        "TMPDIR=%t/kirocrew-tmp"
         "XDG_RUNTIME_DIR=%t"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus"
         "SSH_AUTH_SOCK=%h/.1password/agent.sock"

@@ -116,6 +116,9 @@
     };
   };
 
+  # ── Ensure /tmp exists (some NixOS AMIs lack it until first tmpfiles run) ──
+  systemd.tmpfiles.rules = [ "d /tmp 1777 root root -" ];
+
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;
 
