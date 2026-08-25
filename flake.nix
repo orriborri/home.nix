@@ -72,7 +72,7 @@
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
             inherit claude-desktop;
           }
-          // nixpkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+          // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             nixgl = nixgl.packages.${system};
           };
           modules = [
@@ -82,7 +82,7 @@
               home.homeDirectory =
                 if homeDirectory != null then
                   homeDirectory
-                else if pkgs.stdenv.isDarwin then
+                else if pkgs.stdenv.hostPlatform.isDarwin then
                   "/Users/${username}"
                 else
                   "/home/${username}";

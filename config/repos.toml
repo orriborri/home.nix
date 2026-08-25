@@ -62,32 +62,3 @@ path = "ReadPeak/gitlab-components"
 remote = "git@gitlab.com:readpeak.wiki.git"
 path = "ReadPeak/wiki"
 
-# ─── External / reference ─────────────────────────────────────────
-
-[[repos]]
-remote = "git@github.com:prebid/prebid-server.git"
-path = "ReadPeak/prebid-server"
-
-[[repos]]
-remote = "git@github.com:nanocoai/nanoclaw.git"
-path = "ReadPeak/nanoclaw-v2"
-
-[[repos]]
-remote = "git@github.com:aws-samples/sample-cfm-tips-mcp.git"
-path = "ReadPeak/sample-cfm-tips-mcp"
-
-[[repos]]
-remote = "git@github.com:VoltAgent/awesome-claude-code-subagents.git"
-path = "ReadPeak/awesome-claude-code-subagents"
-
-[[repos]]
-remote = "git@github.com:joshuakatt/Bob-The-Builder.git"
-path = "ReadPeak/Bob-The-Builder"
-
-[[repos]]
-remote = "git@gitlab.com:gitlab-org/gitlab.git"
-path = "ReadPeak/gitlab-docs"
-
-[[repos]]
-remote = "git@gitlab.com:gitlab-org/professional-services-automation/tools/utilities/pipeintel.git"
-path = "ReadPeak/pipeintel"

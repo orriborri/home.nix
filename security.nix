@@ -172,7 +172,7 @@ in
       nmap # Network scanning
       # wireshark        # Network analysis (if needed)
     ]
-    ++ lib.optionals pkgs.stdenv.isLinux [
+    ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
       # Linux-specific security tools
       #lynis            # Security auditing
     ];

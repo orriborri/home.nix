@@ -2,7 +2,7 @@
 
 {
   # GPG Agent configuration (Linux only)
-  services.gpg-agent = lib.mkIf pkgs.stdenv.isLinux {
+  services.gpg-agent = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     enable = true;
     enableZshIntegration = true;
     enableSshSupport = false;  # Disabled — 1Password handles SSH agent

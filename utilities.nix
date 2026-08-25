@@ -32,12 +32,12 @@
     fend            # Calculator
     
     # Clipboard and screenshot utilities (Linux only)
-  ] ++ lib.optionals pkgs.stdenv.isLinux [
+  ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     xclip
     wl-clipboard
     wayshot
     slurp
-  ] ++ lib.optionals pkgs.stdenv.isLinux [
+  ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     # Network utilities (Linux only)
     bluetui
     bandwhich

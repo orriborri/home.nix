@@ -146,7 +146,7 @@
     # Load cargo environment if available
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
   ''
-  + lib.optionalString pkgs.stdenv.isDarwin ''
+  + lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
     # macOS specific
     eval "$(/opt/homebrew/bin/brew shellenv)"
   '';

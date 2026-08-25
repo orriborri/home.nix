@@ -10,8 +10,8 @@ let
   # System detection
   isSilverblue = builtins.pathExists /run/ostree-booted;
   isNixOS = builtins.pathExists /etc/NIXOS;
-  isDarwin = pkgs.stdenv.isDarwin;
-  isLinux = pkgs.stdenv.isLinux;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
 in
 {
   # Home Manager needs a bit of information about you and the
