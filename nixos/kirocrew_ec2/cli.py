@@ -17,6 +17,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         "--migrate-kirocrew": "migrate-kirocrew",
         "--sync-state": "sync-state",
         "--ssh": "ssh",
+        "--connect": "connect",
     }
     normalized = [aliases.get(argument, argument) for argument in argv]
     selected_commands = [argument for argument in normalized if argument in COMMANDS]
@@ -35,6 +36,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "commands:\n"
             "  start              launch or resume and rebuild (default)\n"
             "  portal             start or resume and open http://127.0.0.1:7780\n"
+            "  connect            open a direct SSM session to the instance\n"
             "  ssh                open interactive shell with X11 forwarding\n"
             "  stop               stop the saved instance\n"
             "  destroy            permanently terminate the saved instance\n"

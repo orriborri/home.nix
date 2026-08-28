@@ -15,6 +15,7 @@ systemd user service (`kirocrew.service`) that runs `kirocrew gateway`.
 - `nixos/kirocrew.nix` — shared NixOS module (packages, kiro-cli link, glab adapter)
 - `kirocrew-config.nix` — Home Manager module (repos.toml, known_hosts, role option)
 - `kirocrew-service.nix` — Home Manager module (systemd user service)
+- `pasta-service.nix` — Home Manager module (pasta daemon, builds from source)
 - `sops.nix` — Home Manager module (age-encrypted secrets, conditional activation)
 - `nixos/kirocrew_ec2/` — Python launcher for EC2 lifecycle management
 
@@ -47,7 +48,39 @@ and the gateway falls back to the SSH agent socket.
 
 ## Dashboard access
 
-```bash
-ssh -NL 5476:localhost:5476 orre@kirocrew
-# open http://localhost:5476/?token=...
+The dashboard is accessible over Tailscale. After deploy, the instance joins
+your tailnet as `kirocrew`:
+
 ```
+http://kirocrew:5476/?token=...
+```
+
+### First-time Tailscale setup
+
+1. Deploy with Tailscale enabled (already in `kirocrew-ec2.nix`):
+   ```bash
+   ./nixos/launch-ec2 start
+   ```
+
+2. SSH into the instance and authenticate:
+   ```bash
+   ./nixos/launch-ec2 ssh
+   sudo tailscale up
+   ```
+   Follow the printed URL to authorize the node in your Tailscale admin console.
+
+3. On your laptop, ensure Tailscale is running and on the same tailnet.
+
+4. Access the dashboard directly:
+   ```bash
+   ./nixos/launch-ec2 portal   # opens browser to http://<tailscale-ip>:5476
+   ```
+
+5. Access the web terminal (Zellij):
+   ```
+   http://kirocrew:7681
+   ```
+   Every browser tab attaches to the same persistent Zellij session.
+
+If Tailscale is not yet configured, `portal` falls back to an SSM port-forward
+tunnel on `http://127.0.0.1:7780`.

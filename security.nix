@@ -6,7 +6,7 @@
 }:
 
 let
-  isNixOS = builtins.pathExists /etc/NIXOS;
+  isHeadless = config.kirocrew.role == "headless";
   # Fedora's system crypto-policy is newer than the Nix OpenSSH client and can
   # contain algorithms that client cannot parse.  Explicitly selecting the
   # Home Manager config keeps SSH (including editor subprocesses) independent
@@ -83,7 +83,7 @@ in
     package = configuredOpenSsh;
 
     extraConfig = ''
-      ${lib.optionalString (!isNixOS) ''
+      ${lib.optionalString (!isHeadless) ''
         # 1Password SSH agent (desktop only — not available on headless NixOS)
         IdentityAgent "~/.1password/agent.sock"
       ''}
@@ -139,7 +139,8 @@ in
         ForwardAgent = "yes";
         ProxyCommand = "sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p' --profile Sandbox --region eu-central-1\"";
       };
-    } // lib.optionalAttrs isNixOS {
+    }
+    // lib.optionalAttrs isHeadless {
       # On NixOS (EC2), use the sops-decrypted git SSH key for GitLab/GitHub.
       # The key lives at $XDG_RUNTIME_DIR/secrets/git-ssh-key (sops-nix).
       # We use /run/user/<uid> directly since SSH doesn't expand env vars.

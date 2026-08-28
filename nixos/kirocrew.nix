@@ -6,8 +6,13 @@
 }:
 
 # Reusable NixOS module: KiroCrew system-level dependencies.
-# The gateway itself runs as a home-manager user service (see home.nix / kirocrew-user-service.nix).
-# This module provides system packages and the kiro-cli symlink activation.
+#
+# On headless/EC2 hosts, the gateway runs as a system service under the
+# dedicated kirocrew user (see kirocrew-services.nix). On workstations,
+# it runs as a Home Manager user service under the operator user.
+#
+# This module provides source-build dependencies, the kiro-cli symlink,
+# and the glab symlink that all profiles need.
 {
   # Allow unfree kiro packages at the system level (activation script references them)
   nixpkgs.config.allowUnfreePredicate =
@@ -16,38 +21,38 @@
       "kiro-cli"
       "kiro-cli-unwrapped"
     ];
+
   # ── Dependencies ───────────────────────────────────────────────────────────
   environment.systemPackages = with pkgs; [
-    python3 # full interpreter (ensurepip needed by KiroCrew installer)
+    python313 # KiroCrew currently supports CPython 3.10-3.13
     nodejs_22
     git
+    gnumake # KiroCrew source releases are built with `make build`
     glab # GitLab CLI — also symlinked for gateway at /usr/local/libexec/kirocrew/
     curl
     openssl # needed by the KiroCrew installer for manifest verification
     stdenv.cc.cc.lib # libstdc++.so.6 — needed by KiroCrew's embedded llama.cpp
-    # Note: bubblewrap intentionally omitted — kiro-cli's bwrap FHS sandbox
-    # fails on EC2 (mount propagation blocked); we use the unwrapped binary.
   ];
 
-  # ── Install KiroCrew (one-time, via activation script) ─────────────────────
-  system.activationScripts.kirocrew-install = lib.stringAfter [ "users" ] ''
-    if ! /home/orre/.local/bin/kirocrew --version &>/dev/null 2>&1; then
-      echo "Installing KiroCrew as orre (first boot)..."
-      sudo -u orre ${pkgs.curl}/bin/curl -fsSL https://download.crew.kiro.dev/cli.sh | sudo -u orre ${pkgs.bash}/bin/bash
-    fi
-  '';
-
-  # ── Symlink kiro-cli into a path the user service can find ─────────────────
-  # Use the unwrapped binary (no bwrap FHS sandbox) because the EC2/Amazon
-  # virtualization environment blocks mount(/, MS_SLAVE) which bwrap requires.
-  # The kirocrew service already sets sandbox=off, so no isolation is lost.
+  # ── Symlink kiro-cli for both operator and kirocrew users ──────────────────
+  # Use the unwrapped binary (no bwrap FHS sandbox) because some EC2/Amazon
+  # virtualization environments block mount(/, MS_SLAVE) which bwrap requires.
+  # KiroCrew strict sandbox uses Linux namespaces instead.
   system.activationScripts.kirocrew-kiro-cli-link = lib.stringAfter [ "users" ] ''
+    # Operator user (workstation profiles and admin access)
     mkdir -p /home/orre/.local/bin
     chown orre:users /home/orre/.local/bin
     ln -sf ${pkgs.kiro-cli.passthru.unwrapped}/bin/kiro-cli /home/orre/.local/bin/kiro-cli
+
+    # Dedicated kirocrew user (headless/EC2 system service)
+    if id kirocrew &>/dev/null; then
+      mkdir -p /var/lib/kirocrew/bin
+      chown kirocrew:kirocrew /var/lib/kirocrew/bin
+      ln -sf ${pkgs.kiro-cli.passthru.unwrapped}/bin/kiro-cli /var/lib/kirocrew/bin/kiro-cli
+    fi
   '';
 
-  # ── Enable lingering so the user service survives SSH disconnect ────────────
+  # ── Enable lingering for operator user service (workstation profiles) ──────
   users.users.orre.linger = true;
 
   # ── Install glab where the KiroCrew gateway can find it (root-owned) ───────

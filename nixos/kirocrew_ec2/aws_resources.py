@@ -406,7 +406,7 @@ class AwsResources:
             "--client-token",
             state.client_token,
             "--block-device-mappings",
-            '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":40,"VolumeType":"gp3","Encrypted":true}}]',
+            '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":80,"VolumeType":"gp3","Encrypted":true}}]',
             "--tag-specifications",
             f"ResourceType=instance,Tags=[{{Key=Name,Value=kirocrew}},{{Key=ManagedBy,Value=launch-ec2}},{{Key=KiroCrewLaunchToken,Value={state.client_token}}}]",
             "--metadata-options",

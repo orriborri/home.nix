@@ -27,6 +27,16 @@ in
         - "headless": EC2/VM agent host (agent-relevant repos only)
       '';
     };
+    sourceTag = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "v[0-9]+\\.[0-9]+\\.[0-9]+");
+      default = null;
+      example = "v0.3.0";
+      description = ''
+        Exact stable source tag for headless hosts. When null, the source
+        updater follows the newest stable tag; when set, it stays pinned to
+        that immutable release while the daily check reports newer tags.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {

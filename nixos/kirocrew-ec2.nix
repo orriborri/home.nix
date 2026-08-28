@@ -10,7 +10,16 @@
 # nixos-generators' `amazon` format pulls in the SAME module, and NixOS dedupes
 # imports by path, so this is safe for the baked-AMI path too.
 {
-  imports = [ "${modulesPath}/virtualisation/amazon-image.nix" ];
+  imports = [
+    "${modulesPath}/virtualisation/amazon-image.nix"
+    ./kirocrew-security.nix
+    ./kirocrew-services.nix
+    ./kirocrew-vault.nix
+  ];
+
+  # The stock AMI has a 249 MiB /boot partition, which fits two kernel/initrd
+  # pairs but fills up if GRUB retains additional generations.
+  boot.loader.grub.configurationLimit = 2;
 
   networking.hostName = "kirocrew";
   nix.settings.experimental-features = [
@@ -43,78 +52,36 @@
   # run this agent, so the FIRST rebuild bootstraps it (see nixos/kirocrew.md).
   services.amazon-ssm-agent.enable = true;
 
-  # ── Operator user ──────────────────────────────────────────────────────────
-  # home-manager (./home.nix) manages this user's environment, so the system
-  # user must exist. ADD YOUR PUBLIC KEY before building, or SSH in as root
-  # (launch key) and add it afterwards.
+  # ── User settings ──────────────────────────────────────────────────────────
   # apply-ec2-data installs the EC2 launch key for root at boot; the static
   # immutable-user lockout check cannot observe that runtime credential.
   users.allowNoPasswordLogin = true;
   users.mutableUsers = false;
-  users.users.orre = {
-    isNormalUser = true;
-    extraGroups = [
-      "wheel"
-      "docker"
-    ];
-    shell = pkgs.zsh;
-    openssh.authorizedKeys.keys = [
-      # "ssh-ed25519 AAAA... you@laptop"
-    ];
-  };
-  security.sudo.wheelNeedsPassword = false;
 
-  # ── Firewall ───────────────────────────────────────────────────────────────
-  # Steady state is SSM-only: the security group needs NO inbound rule, and both
-  # SSH-over-SSM and the 5476 dashboard forward ride the SSM channel. Port 22 is
-  # allowed in the host firewall purely so a one-time bootstrap SSH (temporary SG
-  # ingress) can enable the SSM agent on the stock AMI; once SSM is up, drop the
-  # SG ingress and never open a port again.
-  networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  # ── Note: bwrap sandbox status ─────────────────────────────────────────────
+  # kiro-cli's bwrap (FHS sandbox) fails on some EC2/Amazon virtualisation
+  # environments because mount(/, MS_SLAVE) is blocked. KiroCrew strict sandbox
+  # uses Linux user/mount namespaces instead. If namespace creation fails on the
+  # target instance, the gateway will refuse to start (fail closed).
 
-  # ── Note: bwrap sandbox is NOT used ─────────────────────────────────────────
-  # kiro-cli's bwrap (FHS sandbox) fails on EC2/Amazon virtualisation because
-  # mount(/, MS_SLAVE) is blocked. The kirocrew service uses sandbox=off and the
-  # activation script symlinks the unwrapped kiro-cli binary directly.
-  # No kernel.unprivileged_userns_clone or security.unprivilegedUsernsClone needed.
-
-  # ── Container runtime (for user workloads — KiroCrew itself runs native) ────
-  virtualisation.docker.enable = true;
-
-  # ── Vault: S3-backed Obsidian vault via Mountpoint for Amazon S3 ───────────
-  # The vault bucket (readpeak-vault-sync) is mounted at the same path as the
-  # local workstation. IAM permissions come from the instance profile
-  # (kirocrew-ssm role). The local workstation pushes to S3 on a timer; EC2
-  # reads/writes through the FUSE mount.
+  # ── Packages ───────────────────────────────────────────────────────────────
+  # Minimal set for the workspace. ttyd, Tailscale, and Docker removed;
+  # access is SSM-only. Browsers retained for X11-forwarded testing.
   environment.systemPackages = with pkgs; [
-    mountpoint-s3
-
     # ── X11-forwarded browsers ───────────────────────────────────────────────
     # Connect with: ssh -XC via the SSM ProxyCommand, then run chromium/firefox.
-    chromium            # google-chrome unavailable on aarch64; chromium works
+    chromium
     firefox
-    xauth               # X11 forwarding auth (sshd needs this)
-    dejavu_fonts         # readable default fonts for browsers
-    liberation_ttf       # metric-compatible web fonts
+    xauth
+    dejavu_fonts
+    liberation_ttf
   ];
 
-  systemd.services.mount-vault-s3 = {
-    description = "Mount Obsidian vault from S3";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "forking";
-      User = "orre";
-      Group = "users";
-      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /home/orre/Obsidian/Readpeak";
-      ExecStart = "${pkgs.mountpoint-s3}/bin/mount-s3 readpeak-vault-sync /home/orre/Obsidian/Readpeak --region eu-central-1 --allow-delete --allow-overwrite --dir-mode 0755 --file-mode 0644";
-      ExecStop = "${pkgs.fuse3}/bin/fusermount3 -u /home/orre/Obsidian/Readpeak";
-      Restart = "on-failure";
-      RestartSec = 10;
-    };
-  };
+  # ── Vault: Git-backed checkout replaces S3 FUSE mount ─────────────────────
+  # The vault is now a Git checkout at /var/lib/vault, managed by the
+  # kirocrew-vault.nix module. The old S3 FUSE mount is removed.
+  # Synchronization happens through Git fetch/push, not FUSE.
+  programs.fuse.enable = true; # Retained for potential future use
 
   # ── Ensure /tmp exists (some NixOS AMIs lack it until first tmpfiles run) ──
   systemd.tmpfiles.rules = [ "d /tmp 1777 root root -" ];

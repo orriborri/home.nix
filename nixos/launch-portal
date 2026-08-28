@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Standalone SSM port-forward to the KiroCrew portal.
+# Reads instance ID, profile, and region from the launcher state file.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+STATE_FILE="${SCRIPT_DIR}/.kirocrew-ec2.json"
+
+if [ ! -f "$STATE_FILE" ]; then
+  echo "ERROR: No state file at ${STATE_FILE}" >&2
+  echo "Run launch-ec2 first to create an instance." >&2
+  exit 1
+fi
+
+INSTANCE_ID=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['instance_id'])" "$STATE_FILE")
+PROFILE=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['profile'])" "$STATE_FILE")
+REGION=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['region'])" "$STATE_FILE")
+
+if [ -z "$INSTANCE_ID" ]; then
+  echo "ERROR: No instance ID in state file" >&2
+  exit 1
+fi
+
+REMOTE_PORT=5476
+LOCAL_PORT=7780
+
+echo "» KiroCrew portal: http://127.0.0.1:${LOCAL_PORT}"
+echo "  Instance: ${INSTANCE_ID} (${PROFILE}, ${REGION})"
+echo "  Keep this running; press Ctrl+C to close the tunnel."
+
+exec aws ssm start-session \
+  --profile "$PROFILE" \
+  --region "$REGION" \
+  --target "$INSTANCE_ID" \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters "{\"portNumber\":[\"${REMOTE_PORT}\"],\"localPortNumber\":[\"${LOCAL_PORT}\"]}"

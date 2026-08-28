@@ -16,6 +16,7 @@ from .models import (
     KEY_NAME,
     PORTAL_LOCAL_PORT,
     PORTAL_PORT,
+    TTYD_PORT,
     Arguments,
     InstanceState,
     LauncherError,
@@ -103,6 +104,9 @@ class Launcher:
 
         if self.arguments.command == "portal":
             self._open_portal(state)
+            return
+        if self.arguments.command == "connect":
+            self._open_ssm_session(state)
             return
         if self.arguments.command == "ssh":
             self._open_ssh(state)
@@ -234,17 +238,57 @@ class Launcher:
         print("  ✓ Instance terminated and state removed")
 
     def _open_portal(self, state: InstanceState) -> None:
+        remote = self._remote(state)
+        tailscale_ip = remote.tailscale_ip()
+        if tailscale_ip and self._tailscale_reachable(tailscale_ip):
+            url = f"http://{tailscale_ip}:{PORTAL_PORT}"
+            print(f"\n» KiroCrew portal: {url}")
+            print("  (via Tailscale — no tunnel needed)")
+            self._open_browser(url)
+            return
+        # Fallback: SSM port-forward tunnel
         if shutil.which("session-manager-plugin") is None:
             raise LauncherError("The AWS Session Manager plugin is required")
         print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_LOCAL_PORT}")
+        if tailscale_ip:
+            print("  Tailscale IP found but not reachable locally; using SSM tunnel.")
         print("  Keep this command running; press Ctrl+C to close the tunnel.")
-        self._remote(state).portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
+        remote.portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
 
     def _open_ssh(self, state: InstanceState) -> None:
         remote = self._remote(state)
         print("\n» Opening interactive shell with X11 forwarding...")
         print("  Run 'firefox &' or 'chromium &' to launch browsers.")
         remote.x11_ssh("orre")
+
+    def _open_ssm_session(self, state: InstanceState) -> None:
+        if not state.instance_id:
+            raise LauncherError("Cannot connect without an instance ID")
+        if shutil.which("session-manager-plugin") is None:
+            raise LauncherError("The AWS Session Manager plugin is required")
+        print(f"\n» Opening SSM session to {state.instance_id}...")
+        self.aws.run(
+            "ssm", "start-session", "--target", state.instance_id,
+        )
+
+    @staticmethod
+    def _open_browser(url: str) -> None:
+        """Open the URL in the default browser, or print it if that fails."""
+        import webbrowser
+
+        if not webbrowser.open(url):
+            print(f"  Open this URL in your browser: {url}")
+
+    @staticmethod
+    def _tailscale_reachable(ip: str) -> bool:
+        """Check if the portal port is reachable on a Tailscale IP."""
+        import socket
+
+        try:
+            with socket.create_connection((ip, int(PORTAL_PORT)), timeout=3):
+                return True
+        except (OSError, TimeoutError):
+            return False
 
     # ── Deploy workflow ────────────────────────────────────────────────────────
 
@@ -266,8 +310,9 @@ class Launcher:
         self._restart_kirocrew(remote)
         self._sync_state(state)
         failures = self._sync_repositories(remote)
+        self._restart_pasta(remote)
         self._setup_code_review_graph(remote)
-        self._print_result(state, failures)
+        self._print_result(state, failures, remote)
 
     def _bootstrap_age_key(self, remote: RemoteHost) -> None:
         print("\n» Ensuring age decryption key is on the remote...")
@@ -329,6 +374,26 @@ sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="un
 """,
         )
         print("  ✓ KiroCrew service restarted and verified active")
+
+    def _restart_pasta(self, remote: RemoteHost) -> None:
+        """Start or restart the pasta daemon (builds from source on first run)."""
+        print("\n» Starting pasta daemon...")
+        remote.run(
+            "root",
+            """set -e
+uid=$(id -u orre)
+if sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+   systemctl --user list-unit-files pasta.service >/dev/null 2>&1; then
+  sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+    systemctl --user restart pasta.service
+  echo "pasta service restarted"
+else
+  echo "pasta.service not found (first deploy — will start after next rebuild)"
+fi
+""",
+            check=False,
+        )
+        print("  ✓ Pasta daemon started")
 
     def _read_repos_manifest(self, remote: RemoteHost) -> list[dict]:
         """Read repos.toml from the remote's XDG path (placed by kirocrew-config.nix)."""
@@ -430,7 +495,7 @@ rm -f /tmp/.repo-sync-failures
     # ── Code Review Graph ────────────────────────────────────────────────────
 
     def _setup_code_review_graph(self, remote: RemoteHost) -> None:
-        """Install code-review-graph, build graphs for all repos, and start the daemon."""
+        """Install code-review-graph and build graphs for repos that lack one."""
         print("\n» Setting up code-review-graph...")
         # Install via uv tool (idempotent — upgrades if already present)
         remote.run(
@@ -440,27 +505,38 @@ sudo -u orre -H env PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bi
   uv tool install code-review-graph --upgrade 2>&1 | tail -3
 """,
         )
-        # Build graph and register with daemon for all git repos under ~/code
+        # Build graph only for repos that don't already have one.
+        # Existing graphs are updated incrementally by the daemon's file watcher.
         remote.run(
             "root",
             r"""set -e
 export PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bin:$PATH"
 CRG="/home/orre/.local/bin/code-review-graph"
+built=0
 for git_dir in $(find /home/orre/code -maxdepth 3 -name .git -type d 2>/dev/null | sort); do
   repo_dir=$(dirname "$git_dir")
   repo_name=$(basename "$repo_dir")
+  if [ -d "$repo_dir/.code-review-graph" ]; then
+    echo "  ✓ ${repo_name} (already indexed)"
+    continue
+  fi
   echo "  Building graph for ${repo_name}..."
   sudo -u orre -H env PATH="$PATH" "$CRG" install --repo "$repo_dir" --platform kiro --no-hooks --no-instructions -y 2>&1 | tail -2
   sudo -u orre -H env PATH="$PATH" "$CRG" build --repo "$repo_dir" 2>&1 | tail -2
   sudo -u orre -H env PATH="$PATH" "$CRG" daemon add "$repo_dir" --alias "$repo_name" 2>&1 || true
   echo "  ✓ ${repo_name}"
+  built=$((built + 1))
 done
-echo "  Starting daemon..."
-sudo -u orre -H env PATH="$PATH" "$CRG" daemon start 2>&1 | tail -2 || true
+if [ "$built" -eq 0 ]; then
+  echo "  All repos already indexed"
+else
+  echo "  Starting daemon..."
+  sudo -u orre -H env PATH="$PATH" "$CRG" daemon start 2>&1 | tail -2 || true
+fi
 """,
             check=False,
         )
-        print("  ✓ code-review-graph installed, graphs built, daemon running")
+        print("  ✓ code-review-graph ready")
 
     # ── State sync ───────────────────────────────────────────────────────────
 
@@ -618,9 +694,17 @@ sudo -u orre -H env PATH="$PATH" "$CRG" daemon start 2>&1 | tail -2 || true
             raise LauncherError("Cannot connect without an instance ID")
         return RemoteHost(self.runner, self.aws, state.instance_id, self.key_file)
 
-    def _print_result(self, state: InstanceState, failures: list[str]) -> None:
+    def _print_result(self, state: InstanceState, failures: list[str], remote: RemoteHost) -> None:
         print(f"\n✓ Done — instance {state.instance_id} is deployed")
-        print(f"  Portal: {self.script_dir / 'launch-ec2'} portal")
+        tailscale_ip = remote.tailscale_ip()
+        if tailscale_ip and self._tailscale_reachable(tailscale_ip):
+            print(f"  Portal:   http://{tailscale_ip}:{PORTAL_PORT}  (Tailscale)")
+            print(f"  Terminal: http://{tailscale_ip}:{TTYD_PORT}  (Zellij web)")
+        else:
+            print(f"  Portal:   {self.script_dir / 'launch-ec2'} portal")
+            print(f"            {self.script_dir / 'launch-portal'}")
+        print(f"  Connect:  {self.script_dir / 'launch-ec2'} connect")
+        print(f"  SSH:      {self.script_dir / 'launch-ec2'} ssh")
         if failures:
             print(f"  ⚠ Failed repos: {', '.join(failures)}")
 

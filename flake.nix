@@ -99,6 +99,7 @@
         ./packages/kiro.nix
         ./kirocrew-config.nix
         ./kirocrew-service.nix
+        ./pasta-service.nix
         sops-nix.homeManagerModules.sops
         ./sops.nix
       ];
@@ -234,6 +235,7 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
+              kirocrew.sourceTag = "v0.3.0";
             };
           }
         ];
@@ -261,6 +263,7 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
+              kirocrew.sourceTag = "v0.3.0";
             };
           }
         ];
@@ -289,6 +292,7 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
+              kirocrew.sourceTag = "v0.3.0";
             };
           }
         ];

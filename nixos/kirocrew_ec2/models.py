@@ -16,6 +16,7 @@ ROLE_NAME = "kirocrew-ssm"
 SECURITY_GROUP_NAME = "kirocrew-ssm"
 PORTAL_PORT = "5476"
 PORTAL_LOCAL_PORT = "7780"
+TTYD_PORT = "7681"
 GITHUB_ED25519_KEY = (
     "github.com ssh-ed25519 "
     "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
@@ -27,6 +28,7 @@ GITLAB_ED25519_KEY = (
 COMMANDS = (
     "start",
     "portal",
+    "connect",
     "stop",
     "destroy",
     "rebuild",
