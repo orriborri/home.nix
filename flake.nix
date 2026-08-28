@@ -298,6 +298,32 @@
         ];
       };
 
+      # EC2 AMI for Graviton (aarch64). This is the target for the secure workspace.
+      #   Build:  nix build .#packages.aarch64-linux.kirocrew-ami
+      #   Requires an aarch64 builder (native or remote).
+      packages.aarch64-linux.kirocrew-ami = nixos-generators.nixosGenerate {
+        system = "aarch64-linux";
+        format = "amazon";
+        modules = [
+          ./nixos/kirocrew-ec2.nix
+          ./nixos/kirocrew.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = {
+              pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
+              inherit claude-desktop;
+            };
+            home-manager.users.orre = { ... }: {
+              imports = kirocrewModules;
+              kirocrew.enable = true;
+              kirocrew.role = "headless";
+              kirocrew.sourceTag = "v0.3.0";
+            };
+          }
+        ];
+      };
+
       # Legacy example retained for reference:
       # nixosConfigurations.default = nixpkgs.lib.nixosSystem {
       #   system = "x86_64-linux";
