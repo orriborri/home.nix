@@ -92,6 +92,7 @@ in
         "PATH=${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
         "KIROCREW_BIND=127.0.0.1"
+        "KIROCREW_DEVFLEET_BIN_GIT=${pkgs.git}/bin/git"
       ];
     };
   };
