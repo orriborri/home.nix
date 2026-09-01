@@ -362,33 +362,50 @@ class Launcher:
         )
 
     def _restart_kirocrew(self, remote: RemoteHost) -> None:
-        print("\n» Restarting KiroCrew user service...")
+        print("\n» Restarting KiroCrew service...")
+        # Try the system service first (EC2/headless hosts use kirocrew-gateway),
+        # fall back to the user service (workstation profiles use kirocrew.service
+        # under the orre user).
         remote.run(
             "root",
             """set -e
-uid=$(id -u orre)
-systemctl start "user@${uid}.service"
-sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user daemon-reload
-sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user restart kirocrew.service
-sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user is-active --quiet kirocrew.service
+if systemctl list-unit-files kirocrew-gateway.service >/dev/null 2>&1 && \
+   systemctl is-enabled kirocrew-gateway.service >/dev/null 2>&1; then
+  systemctl daemon-reload
+  systemctl restart kirocrew-gateway.service
+  systemctl is-active --quiet kirocrew-gateway.service
+else
+  uid=$(id -u orre)
+  systemctl start "user@${uid}.service"
+  sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user daemon-reload
+  sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user restart kirocrew.service
+  sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" systemctl --user is-active --quiet kirocrew.service
+fi
 """,
         )
         print("  ✓ KiroCrew service restarted and verified active")
 
     def _restart_pasta(self, remote: RemoteHost) -> None:
-        """Start or restart the pasta daemon (builds from source on first run)."""
+        """Start or restart the pasta daemon (system or user service)."""
         print("\n» Starting pasta daemon...")
         remote.run(
             "root",
             """set -e
-uid=$(id -u orre)
-if sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
-   systemctl --user list-unit-files pasta.service >/dev/null 2>&1; then
-  sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
-    systemctl --user restart pasta.service
-  echo "pasta service restarted"
+# Try system service first (EC2/headless), then user service (workstation).
+if systemctl list-unit-files pasta-daemon.service >/dev/null 2>&1 && \
+   systemctl is-enabled pasta-daemon.service >/dev/null 2>&1; then
+  systemctl restart pasta-daemon.service
+  echo "pasta-daemon system service restarted"
 else
-  echo "pasta.service not found (first deploy — will start after next rebuild)"
+  uid=$(id -u orre)
+  if sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+     systemctl --user list-unit-files pasta.service >/dev/null 2>&1; then
+    sudo -u orre env XDG_RUNTIME_DIR="/run/user/${uid}" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+      systemctl --user restart pasta.service
+    echo "pasta user service restarted"
+  else
+    echo "pasta service not found (first deploy — will start after next rebuild)"
+  fi
 fi
 """,
             check=False,

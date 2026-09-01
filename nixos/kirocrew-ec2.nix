@@ -65,8 +65,6 @@
   # target instance, the gateway will refuse to start (fail closed).
 
   # ── Packages ───────────────────────────────────────────────────────────────
-  # Minimal set for the workspace. ttyd, Tailscale, and Docker removed;
-  # access is SSM-only. Browsers retained for X11-forwarded testing.
   environment.systemPackages = with pkgs; [
     # ── X11-forwarded browsers ───────────────────────────────────────────────
     # Connect with: ssh -XC via the SSM ProxyCommand, then run chromium/firefox.
@@ -75,7 +73,33 @@
     xauth
     dejavu_fonts
     liberation_ttf
+    # ── Web terminal ─────────────────────────────────────────────────────────
+    ttyd
+    zellij
   ];
+
+  # ── Web terminal: ttyd + zellij on port 7681 ──────────────────────────────
+  # Every browser tab attaches to the same persistent Zellij session.
+  # Accessible via SSM port-forward or Tailscale.
+  systemd.services.ttyd-zellij = {
+    description = "Web terminal (ttyd + zellij)";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "orre";
+      Group = "users";
+      ExecStart = ''
+        ${pkgs.ttyd}/bin/ttyd \
+          --port 7681 \
+          --interface 127.0.0.1 \
+          --writable \
+          ${pkgs.zellij}/bin/zellij attach --create main
+      '';
+      Restart = "always";
+      RestartSec = 3;
+    };
+  };
 
   # ── Vault: Git-backed checkout replaces S3 FUSE mount ─────────────────────
   # The vault is now a Git checkout at /var/lib/vault, managed by the

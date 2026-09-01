@@ -60,7 +60,9 @@ in
       # ── systemd hardening ──────────────────────────────────────────────
       NoNewPrivileges = true;
       ProtectSystem = "strict";
-      ProtectHome = true;
+      # ProtectHome disabled: the gateway needs read access to /home/orre/
+      # for workspace project directories listed in config.json.
+      ProtectHome = false;
       PrivateTmp = true;
       ProtectKernelTunables = true;
       ProtectKernelModules = true;
@@ -73,6 +75,7 @@ in
       # Allow writes only to kirocrew's own state and the workspace area.
       ReadWritePaths = [
         kirocrewHome
+        "/home/orre"
         "/tmp"
       ];
 
@@ -98,7 +101,10 @@ in
   };
 
   # ── Pasta daemon ───────────────────────────────────────────────────────────
+  # Disabled until pasta-backend is installed into /var/lib/pasta/bin/.
+  # The missing binary causes switch-to-configuration to fail with exit 4.
   systemd.services.pasta-daemon = {
+    enable = false;
     description = "Pasta vault indexer";
     after = [
       "network-online.target"

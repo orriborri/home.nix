@@ -57,8 +57,10 @@
     ];
   };
 
-  # sudo requires password for admin operations (remove passwordless sudo).
-  security.sudo.wheelNeedsPassword = true;
+  # Passwordless sudo for wheel users. The instance is SSM-only with key-based
+  # SSH; there is no password set (mutableUsers = false), so requiring one would
+  # lock out sudo entirely.
+  security.sudo.wheelNeedsPassword = false;
 
   # ── Docker disabled ────────────────────────────────────────────────────────
   # No identity needs Docker for normal agent-assisted development.
