@@ -41,6 +41,9 @@
     };
     extraConfig = ''
       XAuthLocation ${pkgs.xauth}/bin/xauth
+      # Allow the launcher's `-R /run/kirocrew-agent/orre-1p.sock` forward
+      # (1Password agent bridge) to replace a stale socket on reconnect.
+      StreamLocalBindUnlink yes
     '';
   };
 
@@ -73,6 +76,9 @@
     xauth
     dejavu_fonts
     liberation_ttf
+    # ── Vault synchronization and read-only S3 inspection mount ─────────────
+    mountpoint-s3
+    fuse3
     # ── Web terminal ─────────────────────────────────────────────────────────
     ttyd
     zellij
@@ -101,14 +107,43 @@
     };
   };
 
-  # ── Vault: Git-backed checkout replaces S3 FUSE mount ─────────────────────
-  # The vault is now a Git checkout at /var/lib/vault, managed by the
-  # kirocrew-vault.nix module. The old S3 FUSE mount is removed.
-  # Synchronization happens through Git fetch/push, not FUSE.
-  programs.fuse.enable = true; # Retained for potential future use
+  # ── Vault storage ─────────────────────────────────────────────────────────
+  # Agents write the local POSIX copy at /var/lib/vault. This read-only
+  # Mountpoint view exposes the raw S3 state for inspection and recovery only;
+  # normal edits flow through the conflict-aware bisync service.
+  programs.fuse = {
+    enable = true;
+    userAllowOther = true;
+  };
 
-  # ── Ensure /tmp exists (some NixOS AMIs lack it until first tmpfiles run) ──
-  systemd.tmpfiles.rules = [ "d /tmp 1777 root root -" ];
+  systemd.tmpfiles.rules = [
+    "d /tmp 1777 root root -"
+    "d /mnt/readpeak-vault-s3 0755 root root -"
+  ];
+
+  systemd.services.readpeak-vault-s3-mount = {
+    description = "Read-only Mountpoint view of the ReadPeak Obsidian S3 bucket";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "mount-readpeak-vault-s3" ''
+        set -euo pipefail
+        if ${pkgs.util-linux}/bin/mountpoint -q /mnt/readpeak-vault-s3; then
+          exit 0
+        fi
+        ${pkgs.mountpoint-s3}/bin/mount-s3 \
+          readpeak-vault-sync \
+          /mnt/readpeak-vault-s3 \
+          --read-only \
+          --allow-other \
+          --region eu-central-1
+      '';
+      ExecStop = "-${pkgs.fuse3}/bin/fusermount3 -u /mnt/readpeak-vault-s3";
+    };
+  };
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;

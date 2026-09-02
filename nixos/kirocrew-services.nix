@@ -72,16 +72,22 @@ in
       LockPersonality = true;
       MemoryDenyWriteExecute = false; # Node.js JIT needs W+X
 
-      # Allow writes only to kirocrew's own state and the workspace area.
+      # KiroCrew writes the local POSIX vault; synchronization and conflict
+      # handling are provided by the dedicated vault-sync service.
       ReadWritePaths = [
         kirocrewHome
+        vaultCheckout
         "/home/orre"
         "/tmp"
       ];
 
-      # Read-only access to the vault checkout (via vault-readers group).
+      # Internal/index state remains read-only even though note content is
+      # writable. A leading '-' makes absent paths non-fatal on first boot.
       ReadOnlyPaths = [
-        vaultCheckout
+        "-${vaultCheckout}/.git"
+        "-${vaultCheckout}/.obsidian"
+        "-${vaultCheckout}/.lancedb"
+        "-${vaultCheckout}/.semantic_search"
       ];
 
       # Block IMDS access from agents.
@@ -96,6 +102,11 @@ in
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
         "KIROCREW_BIND=127.0.0.1"
         "KIROCREW_DEVFLEET_BIN_GIT=${pkgs.git}/bin/git"
+        # 1Password agent socket, relayed from the operator's forwarded socket
+        # while the launcher portal session is open. Absent otherwise, so the
+        # agent can push to git ONLY while the operator is online (and each
+        # signature is gated by a 1Password approval prompt).
+        "SSH_AUTH_SOCK=/run/kirocrew/1p-agent.sock"
       ];
     };
   };
@@ -158,17 +169,51 @@ in
     };
   };
 
-  # ── Vault checkout directory ───────────────────────────────────────────────
-  # Owned by root:vault-readers, readable by kirocrew and pasta.
-  # Write access is controlled by the Git-backed workflow (Phase 7 module).
-  system.activationScripts.vault-checkout = lib.stringAfter [ "users" ] ''
-    mkdir -p ${vaultCheckout}
-    chown root:vault-readers ${vaultCheckout}
-    chmod 2750 ${vaultCheckout}
-  '';
+  # ── 1Password agent socket bridge ──────────────────────────────────────────
+  # The launcher (`launch-ec2 portal`) forwards the operator's local 1Password
+  # agent socket to /run/kirocrew-agent/orre-1p.sock (owned by orre, created by
+  # sshd's -R). That socket is not readable by the kirocrew service user, so a
+  # socat relay re-exposes it at /run/kirocrew/1p-agent.sock with group kirocrew
+  # (0660). The gateway unit references the latter via SSH_AUTH_SOCK.
+  #
+  # The relay is PATH-ACTIVATED on the forwarded socket: it runs only while the
+  # portal session holds the socket open, so the gateway can push to git ONLY
+  # while the operator is online. When the portal closes, sshd unlinks the
+  # socket, the path unit stops the relay, and the bridge disappears.
+  systemd.paths.kirocrew-1p-agent-relay = {
+    description = "Watch for the operator's forwarded 1Password socket";
+    wantedBy = [ "multi-user.target" ];
+    pathConfig = {
+      PathExists = "/run/kirocrew-agent/orre-1p.sock";
+      Unit = "kirocrew-1p-agent-relay.service";
+    };
+  };
 
-  # ── Ensure kirocrew tmp directory ──────────────────────────────────────────
+  systemd.services.kirocrew-1p-agent-relay = {
+    description = "Relay the operator's 1Password agent socket to the kirocrew gateway";
+    serviceConfig = {
+      Type = "simple";
+      # Relay must be able to create a socket owned by the kirocrew group and
+      # connect to the orre-owned forwarded socket; run as root, drop the new
+      # socket into the kirocrew group at 0660.
+      ExecStart =
+        "${pkgs.socat}/bin/socat "
+        + "UNIX-LISTEN:/run/kirocrew/1p-agent.sock,fork,mode=0660,user=kirocrew,group=kirocrew "
+        + "UNIX-CONNECT:/run/kirocrew-agent/orre-1p.sock";
+      Restart = "on-failure";
+      RestartSec = 2;
+      # Clean up the relayed socket when the forward goes away.
+      ExecStopPost = "${pkgs.coreutils}/bin/rm -f /run/kirocrew/1p-agent.sock";
+    };
+  };
+
+  # ── Ensure kirocrew tmp + socket-bridge directories ────────────────────────
+  # /run/kirocrew-agent: where sshd binds the operator's forwarded socket
+  #   (must be writable by orre so the -R forward can create the socket).
+  # /run/kirocrew: where the relay exposes the socket to the gateway.
   systemd.tmpfiles.rules = [
     "d /tmp/kirocrew 0700 kirocrew kirocrew -"
+    "d /run/kirocrew-agent 0750 orre kirocrew -"
+    "d /run/kirocrew 0750 kirocrew kirocrew -"
   ];
 }
