@@ -141,17 +141,24 @@ in
       };
     }
     // lib.optionalAttrs isHeadless {
-      # On NixOS (EC2), use the sops-decrypted git SSH key for GitLab/GitHub.
-      # The key lives at $XDG_RUNTIME_DIR/secrets/git-ssh-key (sops-nix).
-      # We use /run/user/<uid> directly since SSH doesn't expand env vars.
+      # On NixOS (EC2) there are two credential paths for GitLab/GitHub:
+      #   1. Interactive (you, over SSM with ForwardAgent): the forwarded
+      #      1Password agent signs, gated by an approval prompt on your laptop.
+      #   2. Non-interactive (the launcher cloning/pulling as orre at deploy):
+      #      the sops-decrypted key at /run/user/<uid>/secrets/git-ssh-key.
+      #
+      # We therefore keep the sops key as an IdentityFile FALLBACK but do NOT
+      # set `IdentitiesOnly = yes` — that flag would force SSH to ignore the
+      # agent, locking out the forwarded 1Password path. Without it, SSH offers
+      # the forwarded agent first (when present) and falls back to the file,
+      # so both the interactive-approve flow and the unattended launcher work.
+      # (uid hardcoded to 1001 = orre on the EC2 box.)
       "gitlab.com" = {
         IdentityFile = "/run/user/1001/secrets/git-ssh-key";
-        IdentitiesOnly = "yes";
         StrictHostKeyChecking = "accept-new";
       };
       "github.com" = {
         IdentityFile = "/run/user/1001/secrets/git-ssh-key";
-        IdentitiesOnly = "yes";
         StrictHostKeyChecking = "accept-new";
       };
     };

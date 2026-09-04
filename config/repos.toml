@@ -56,7 +56,7 @@ path = "code/readpeak/ramp"
 remote = "git@gitlab.com:readpeak/slackbots.git"
 path = "code/readpeak/slackbots"
 
-# ─── ReadPeak (workstation-only) ──────────────────────────────────
+# ─── ReadPeak (additional) ────────────────────────────────────────
 
 [[repos]]
 remote = "git@gitlab.com:readpeak/spritsstudio.git"
@@ -66,17 +66,19 @@ targets = ["workstation"]
 [[repos]]
 remote = "git@gitlab.com:readpeak/renovate-bot.git"
 path = "code/readpeak/renovate-bot"
-targets = ["workstation"]
 
 [[repos]]
 remote = "git@gitlab.com:readpeak/gitlab-components.git"
 path = "code/readpeak/gitlab-components"
-targets = ["workstation"]
 
+# GitLab group wiki. Wiki repositories use the same clone/pull flow as code.
 [[repos]]
 remote = "git@gitlab.com:readpeak.wiki.git"
 path = "code/readpeak/wiki"
-targets = ["workstation"]
+
+[[repos]]
+remote = "git@github.com:readpeak/Prebid.js.git"
+path = "code/readpeak/Prebid.js"
 
 # ─── External ─────────────────────────────────────────────────────
 

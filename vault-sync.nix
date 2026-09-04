@@ -6,8 +6,8 @@
 }:
 
 # Home Manager module: conflict-preserving bidirectional synchronization of the
-# local Obsidian vault and S3. Headless KiroCrew hosts use the matching NixOS
-# service in nixos/kirocrew-vault.nix.
+# local Obsidian vault and S3. Headless KiroCrew hosts mount the S3 bucket
+# directly and do not run rclone bisync.
 let
   isHeadless = (config.kirocrew or { }).role or "workstation" == "headless";
   vaultDir = "${config.home.homeDirectory}/Obsidian/Readpeak";

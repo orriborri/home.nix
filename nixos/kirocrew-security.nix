@@ -24,10 +24,17 @@
   # (e.g. the vault checkout).
   users.groups.vault-readers = { };
 
+  # Shared group for the code repository tree at /var/lib/code. Both the
+  # operator (orre), who clones/pulls the repos, and the gateway (kirocrew),
+  # whose agent edits them, are members so they can read and write the same
+  # working trees. The tree is setgid + group-writable (see kirocrew-code.nix)
+  # so new files inherit this group.
+  users.groups.code-writers = { };
+
   users.users.kirocrew = {
     isSystemUser = true;
     group = "kirocrew";
-    extraGroups = [ "vault-readers" ];
+    extraGroups = [ "vault-readers" "code-writers" ];
     home = "/var/lib/kirocrew";
     createHome = true;
     shell = pkgs.bashInteractive;
@@ -50,7 +57,7 @@
   # can be introduced.
   users.users.orre = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
+    extraGroups = [ "wheel" "code-writers" ];
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       # Add your SSH public key here before deploying

@@ -17,6 +17,49 @@ SECURITY_GROUP_NAME = "kirocrew-ssm"
 PORTAL_PORT = "5476"
 PORTAL_LOCAL_PORT = "7780"
 TTYD_PORT = "7681"
+# Shared code repository tree on the instance. Repos are cloned/pulled here by
+# orre and edited by the kirocrew gateway agent; the tree is owned
+# orre:code-writers and setgid so both identities can read and write it (see
+# kirocrew-code.nix and kirocrew-security.nix).
+REMOTE_CODE_DIR = "/var/lib/code"
+# Legacy code-tree roots that earlier deploys pinned into the gateway's session
+# state (session_map.json, recent_projects.json, and per-session .jsonl project
+# headers). After the move to REMOTE_CODE_DIR these paths became stale, and a
+# session whose project points at a non-existent read-only path crashes on
+# resume. `launch-ec2` rewrites this prefix to REMOTE_CODE_DIR on every deploy
+# so the migration is self-healing.
+#
+# Only /home/orre/code is listed: the move preserved the sub-path
+# (/home/orre/code/readpeak/... -> /var/lib/code/readpeak/...), so the rewrite
+# is a safe prefix swap. Other historical roots (e.g. /home/orre/Repos) are NOT
+# included because their sub-paths do not map cleanly onto the new tree.
+LEGACY_CODE_DIRS = (
+    "/home/orre/code",
+)
+# Writable Obsidian vault on the instance, owned by kirocrew (see
+# kirocrew-vault.nix). Registered as a gateway project directory so the agent
+# can read and write vault notes.
+REMOTE_VAULT_DIR = "/var/lib/vault"
+# KiroCrew gateway service user's home on headless hosts (see
+# kirocrew-services.nix). The gateway reads MCP OAuth tokens from
+# REMOTE_MCP_AUTH_DIR under this home.
+REMOTE_KIROCREW_HOME = "/var/lib/kirocrew"
+REMOTE_MCP_AUTH_DIR = "/var/lib/kirocrew/.mcp-auth/mcp-remote-v1"
+# Local mcp-remote OAuth cache. `npx mcp-remote <url>` completes the browser
+# flow and writes the cached token here on the workstation.
+LOCAL_MCP_AUTH_DIR = "~/.mcp-auth/mcp-remote-v1"
+# Remote MCP endpoints reached through mcp-remote. Used by `launch-ec2 auth`.
+# Linear removed SSE support; the current endpoint is the streamable HTTP /mcp.
+AUTH_SERVER_URLS = {
+    "linear": "https://mcp.linear.app/mcp",
+}
+# 1Password agent socket bridge. When the portal is open, the launcher forwards
+# the operator's local 1Password agent socket to REMOTE_AGENT_SOCKET on the box
+# (as orre). A systemd relay there re-exposes it to the kirocrew gateway so the
+# agent can push to git — gated by a 1Password approval prompt — ONLY while the
+# portal session is alive.
+LOCAL_1P_AGENT_SOCKET = "~/.1password/agent.sock"
+REMOTE_AGENT_SOCKET = "/run/kirocrew-agent/orre-1p.sock"
 GITHUB_ED25519_KEY = (
     "github.com ssh-ed25519 "
     "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
@@ -36,7 +79,9 @@ COMMANDS = (
     "migrate-kirocrew",
     "sync-state",
     "ssh",
+    "auth",
 )
+AUTH_TARGETS = ("linear",)
 CONFIG_KEYS = {
     "DEFAULT_PROFILE",
     "DEFAULT_REGION",
@@ -57,6 +102,7 @@ class Arguments:
     instance_type: str | None
     ami: str | None
     assume_yes: bool
+    auth_target: str | None = None
 
 
 @dataclass(frozen=True)

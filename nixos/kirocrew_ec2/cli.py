@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from typing import Sequence
 
-from .models import COMMANDS, Arguments, LauncherError
+from .models import AUTH_TARGETS, COMMANDS, Arguments, LauncherError
 
 
 def parse_arguments(argv: Sequence[str]) -> Arguments:
@@ -27,6 +27,16 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
     if selected_commands:
         normalized.remove(command)
 
+    auth_target: str | None = None
+    if command == "auth":
+        targets = [argument for argument in normalized if argument in AUTH_TARGETS]
+        if len(targets) != 1:
+            raise LauncherError(
+                f"auth requires exactly one target: {', '.join(AUTH_TARGETS)}"
+            )
+        auth_target = targets[0]
+        normalized.remove(auth_target)
+
     parser = argparse.ArgumentParser(
         prog="launch-ec2",
         usage="launch-ec2 [COMMAND] [profile] [region] [instance-type] [ami-id] [OPTIONS]",
@@ -43,7 +53,8 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  rebuild            rebuild the saved instance\n"
             "  new                launch a new instance\n"
             "  migrate-kirocrew   migrate local KiroCrew state to the instance\n"
-            "  sync-state         sync local kirocrew config, skills, and workspace to remote"
+            "  sync-state         sync local kirocrew config, skills, and workspace to remote\n"
+            "  auth linear        run Linear OAuth locally and install the token on the gateway"
         ),
     )
     parser.add_argument("legacy_profile", nargs="?")
@@ -69,4 +80,5 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         instance_type=parsed.instance_type_option or parsed.legacy_instance_type,
         ami=parsed.ami_option or parsed.legacy_ami,
         assume_yes=parsed.yes,
+        auth_target=auth_target,
     )

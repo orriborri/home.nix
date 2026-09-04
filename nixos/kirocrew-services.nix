@@ -18,6 +18,10 @@ let
   # Vault checkout location — kirocrew and pasta read via vault-readers group.
   vaultCheckout = "/var/lib/vault";
 
+  # Shared code repository tree — kirocrew reads/writes via code-writers group
+  # (see kirocrew-code.nix).
+  codeCheckout = "/var/lib/code";
+
   kirocrewLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -28,15 +32,60 @@ let
     pkgs.zlib
     pkgs.openssl
   ];
+
+  legacyKiroReadAccess = pkgs.writeShellApplication {
+    name = "kirocrew-legacy-kiro-read-access";
+    runtimeInputs = with pkgs; [
+      acl
+      findutils
+    ];
+    text = ''
+      set -euo pipefail
+      legacy_dir=/home/orre/.kiro
+      if [[ ! -d "$legacy_dir" ]]; then
+        echo "Legacy Kiro directory is absent; nothing to expose."
+        exit 0
+      fi
+
+      # /home/orre is 0700, so grant kirocrew traverse-only (no read) on the
+      # home directory itself. This lets the ACL below on .kiro be reachable
+      # without exposing the rest of the operator's home to the group/others.
+      setfacl --modify user:kirocrew:--x /home/orre
+
+      # Existing entries need an access ACL, while defaults ensure newly
+      # created historical state remains readable. No write permission is
+      # granted; the gateway also receives a read-only bind in its namespace.
+      setfacl --recursive --modify user:kirocrew:r-X "$legacy_dir"
+      find "$legacy_dir" -type d \
+        -exec setfacl --modify default:user:kirocrew:r-X {} +
+    '';
+  };
 in
 {
+  systemd.services.kirocrew-legacy-kiro-read-access = {
+    description = "Grant KiroCrew read-only access to the operator's legacy Kiro state";
+    before = [ "kirocrew-gateway.service" ];
+    requiredBy = [ "kirocrew-gateway.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${legacyKiroReadAccess}/bin/kirocrew-legacy-kiro-read-access";
+      RemainAfterExit = true;
+    };
+  };
+
   # ── KiroCrew gateway ───────────────────────────────────────────────────────
   systemd.services.kirocrew-gateway = {
     description = "KiroCrew Gateway";
     after = [
       "network-online.target"
+      "kirocrew-legacy-kiro-read-access.service"
+      "kirocrew-vault-clone.service"
     ];
     wants = [ "network-online.target" ];
+    requires = [
+      "kirocrew-legacy-kiro-read-access.service"
+      "kirocrew-vault-clone.service"
+    ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
@@ -60,9 +109,11 @@ in
       # ── systemd hardening ──────────────────────────────────────────────
       NoNewPrivileges = true;
       ProtectSystem = "strict";
-      # ProtectHome disabled: the gateway needs read access to /home/orre/
-      # for workspace project directories listed in config.json.
-      ProtectHome = false;
+      # Hide all operator homes, then selectively expose the legacy Kiro tree
+      # at its original path through a read-only bind. ACLs from the prerequisite
+      # service provide file-level read permission without granting writes.
+      ProtectHome = "tmpfs";
+      BindReadOnlyPaths = [ "/home/orre/.kiro" ];
       PrivateTmp = true;
       ProtectKernelTunables = true;
       ProtectKernelModules = true;
@@ -72,17 +123,19 @@ in
       LockPersonality = true;
       MemoryDenyWriteExecute = false; # Node.js JIT needs W+X
 
-      # KiroCrew writes the local POSIX vault; synchronization and conflict
-      # handling are provided by the dedicated vault-sync service.
+      # Repositories and the vault are both writable agent workspaces now. The
+      # vault is a git-crypt checkout owned by kirocrew (see
+      # kirocrew-vault-git.nix); the agent edits notes in place and the
+      # vault-push service commits and pushes them.
       ReadWritePaths = [
         kirocrewHome
+        codeCheckout
         vaultCheckout
-        "/home/orre"
         "/tmp"
       ];
 
-      # Internal/index state remains read-only even though note content is
-      # writable. A leading '-' makes absent paths non-fatal on first boot.
+      # Keep git internals and index/state read-only to the agent even though
+      # note content is writable. A leading '-' makes absent paths non-fatal.
       ReadOnlyPaths = [
         "-${vaultCheckout}/.git"
         "-${vaultCheckout}/.obsidian"
@@ -119,8 +172,10 @@ in
     description = "Pasta vault indexer";
     after = [
       "network-online.target"
+      "kirocrew-vault-clone.service"
     ];
     wants = [ "network-online.target" ];
+    requires = [ "kirocrew-vault-clone.service" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {

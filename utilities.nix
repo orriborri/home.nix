@@ -18,6 +18,7 @@
     dust            # Better du
     dua             # Disk usage analyzer
     ripgrep         # Better grep
+    git-crypt       # Transparent git file encryption (vault)
     
     # Text processing
     jc              # Convert command output to JSON

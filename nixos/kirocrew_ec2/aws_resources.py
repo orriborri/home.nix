@@ -5,6 +5,7 @@ import json
 import os
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 from .models import (
     KEY_NAME,
@@ -18,6 +19,8 @@ from .models import (
 from .runtime import AwsCli, CommandRunner
 
 SSM_POLICY_NAME = "AmazonSSMManagedInstanceCore"
+VAULT_BUCKET_NAME = "readpeak-vault-sync"
+VAULT_POLICY_NAME = "KiroCrewVaultSync"
 
 
 class AwsResources:
@@ -98,6 +101,9 @@ class AwsResources:
             )
             changed = True
 
+        if self._ensure_vault_policy():
+            changed = True
+
         profile = self.aws.run_global(
             "iam",
             "get-instance-profile",
@@ -141,6 +147,67 @@ class AwsResources:
             print("  Waiting 10 seconds for IAM propagation...")
             time.sleep(10)
         print("  ✓ IAM role, policy, and instance-profile membership verified")
+
+    def _ensure_vault_policy(self) -> bool:
+        bucket_arn = f"arn:{self.identity.partition}:s3:::{VAULT_BUCKET_NAME}"
+        policy_document = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "ListVaultBucket",
+                    "Effect": "Allow",
+                    "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+                    "Resource": bucket_arn,
+                },
+                {
+                    "Sid": "SyncVaultObjects",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:DeleteObject",
+                        "s3:GetObject",
+                        "s3:PutObject",
+                    ],
+                    "Resource": f"{bucket_arn}/*",
+                },
+            ],
+        }
+
+        existing = self.aws.run_global(
+            "iam",
+            "get-role-policy",
+            "--role-name",
+            ROLE_NAME,
+            "--policy-name",
+            VAULT_POLICY_NAME,
+            capture=True,
+            check=False,
+        )
+        current_document: object | None = None
+        if self.aws.is_missing(existing, "NoSuchEntity"):
+            pass
+        else:
+            self.aws.require_success(existing, "get KiroCrew vault IAM policy")
+            try:
+                current_document = json.loads(existing.stdout)["PolicyDocument"]
+                if isinstance(current_document, str):
+                    current_document = json.loads(unquote(current_document))
+            except (json.JSONDecodeError, KeyError, TypeError) as error:
+                raise LauncherError("Vault IAM policy response is invalid") from error
+
+        if current_document == policy_document:
+            return False
+
+        self.aws.run_global(
+            "iam",
+            "put-role-policy",
+            "--role-name",
+            ROLE_NAME,
+            "--policy-name",
+            VAULT_POLICY_NAME,
+            "--policy-document",
+            json.dumps(policy_document, separators=(",", ":")),
+        )
+        return True
 
     def ensure_key_pair(self) -> tuple[str, str]:
         existing = self._describe_key_pair()

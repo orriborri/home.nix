@@ -2,7 +2,81 @@
 
 ## Status
 
-Proposed. This plan requires human approval before security-, IAM-, network-, or infrastructure-changing phases are implemented.
+Accepted on 2026-09-02 as the target architecture. This approval authorizes Phase 0 reconciliation only. Every approval gate in this plan remains in force; security, IAM, network, infrastructure, vault-storage, credential, and destructive migration changes still require separate human approval.
+
+## Accepted implementation decisions — 2026-09-03
+
+This section records the approved near-term implementation for the existing EC2 workspace. It supersedes conflicting statements elsewhere in this plan for this deployment; the broader Vault Writer, Crew Cloud, and AMI architecture remains a future target. The configuration has passed Nix evaluation, Python compilation, diff checks, and an `aarch64-linux` remote dry-build, but has not yet been activated with `nixos-rebuild switch`.
+
+Formal decision record: [ADR-001: KiroCrew Remote Workspace Data and Indexing Model](../docs/adr/001-kirocrew-remote-workspace.md).
+
+### Vault ownership and access
+
+- The workstation remains the only vault writer. Home Manager runs conflict-preserving rclone bisync between `/home/orre/Obsidian/Readpeak` and `s3://readpeak-vault-sync` every ten minutes.
+- The remote KiroCrew host does not run rclone. It mounts `s3://readpeak-vault-sync` directly and read-only at `/var/lib/vault` with Mountpoint for Amazon S3.
+- KiroCrew and Pasta require the S3 mount and receive read-only vault access. Remote note mutation and the Vault Writer are deferred.
+- On first activation, any pre-existing local files under `/var/lib/vault` are preserved under `/var/lib/vault-before-s3-mount` before the S3 mount is established.
+
+### Repository synchronization
+
+- `config/repos.toml` remains the repository source of truth; only repositories targeting `headless` are synchronized.
+- A credentialed `orre` service fetches each remote into a protected bare mirror under `/var/lib/kirocrew-repo-mirrors`. Agent-writable Git state is never processed with the SSH credential present.
+- A separate credential-free service running as `kirocrew` clones or fast-forwards working trees under `/var/lib/code` from those local mirrors.
+- Dirty or diverged working trees are preserved and reported instead of reset. Fetch runs at boot and every fifteen minutes.
+
+### Code Review Graph
+
+- The launcher installs the validated `code-review-graph` version `2.3.8`.
+- After repository synchronization, missing graphs are installed, changed graphs are rebuilt using a HEAD-plus-working-tree fingerprint, and every repository is registered idempotently.
+- `code-review-graph-daemon.service` runs the watcher in the foreground under systemd with restart supervision. A failure in one repository does not prevent the daemon from supervising healthy repositories.
+
+### Legacy Kiro state
+
+- The gateway receives direct read-only access to `/home/orre/.kiro` at its original path to preserve UI/path compatibility.
+- A prerequisite service applies read/traverse ACLs for `kirocrew`, including defaults for new entries.
+- `ProtectHome=tmpfs` continues to hide other home content; `BindReadOnlyPaths=/home/orre/.kiro` selectively exposes only the legacy Kiro tree and prevents writes from the gateway namespace.
+- This is an explicit security exception: the legacy tree includes configuration, session, trust, and token-related state. The service can read that state but cannot modify it.
+
+### Deployment gate and verification
+
+Activation still requires explicit human approval because it changes filesystem ACLs, moves the existing local vault aside, mounts S3 at the live vault path, clones repositories, and builds persistent graph data. After activation, verify:
+
+1. `readpeak-vault-s3-mount.service` is active and `/var/lib/vault` is a read-only mount containing the expected S3 objects.
+2. The workstation `vault-sync.timer` remains active while no `vault-sync` unit exists on the remote.
+3. `repo-fetch.timer`, `repo-fetch.service`, and `repo-sync.service` complete successfully; dirty repositories surface without destructive reset.
+4. All expected working trees exist under `/var/lib/code` and protected mirrors under `/var/lib/kirocrew-repo-mirrors` are not writable by `kirocrew`.
+5. `code-review-graph-daemon.service` is active and every available repository is registered.
+6. The gateway can read but not write `/home/orre/.kiro`, can read but not write `/var/lib/vault`, and remains unable to read other operator-home paths.
+7. Reboot preserves the mount, timer, daemon, and access behavior.
+
+## Phase 0 decision and current-diff classification
+
+The plan is approved, but the pre-existing implementation diff is rejected as-is. It mixes independently useful migration work with access expansion, credential forwarding, imperative installation, and custom-lifecycle growth that conflict with the target architecture. No pre-existing implementation file-level diff is retained unchanged; this decision record is the sole retained change.
+
+Classification baseline:
+
+- Fixed point: `origin/main` at `f08fce3f27876f90c9ca7d9bffbd4684d261ebdc`.
+- Reviewed commit: `8734d86` (`feat(kirocrew): system-service deploy wiring + gateway home access`).
+- Reviewed scope: the complete tracked diff from `origin/main` through the working tree, plus all untracked files present before this decision record was added on 2026-09-02.
+- Decision: do not deploy, merge, or treat the pre-existing implementation diff as the approved implementation.
+
+| Path | Classification | Required disposition |
+|---|---|---|
+| `nixos/kirocrew-development-workspace-plan.md` | Retain | Keep this accepted target architecture and Phase 0 decision record. Approval gates remain binding. |
+| `nixos/kirocrew-ec2.nix` | Revert | Remove the writable ttyd shell running as the administrator identity. Reintroduce only SSM-first access and Phase 1 sandbox verification in a separate change. |
+| `nixos/kirocrew-security.nix` | Revert | Remove passwordless administrator sudo and any premature access expansion. Add identities and permissions only within the phase that verifies their boundaries. |
+| `nixos/kirocrew-services.nix` | Revise | Keep the system-service direction, but remove broad `/home/orre` access and the operator-agent socket relay. Limit writes to dedicated state/workspace paths and make required-service failures explicit. |
+| `nixos/kirocrew-sops.nix` | Revert | Remove the unwired age/Git-key draft. Design narrowly scoped repository credentials after the service identity and workspace layout are proven. |
+| `nixos/kirocrew.nix` | Revert | Remove activation-time `curl | sh` installation. Package and pin KiroCrew declaratively as part of the AMI phase. |
+| `nixos/kirocrew_ec2/launcher.py` | Revise | Preserve only independently valid defect fixes in separate commits: accurate service detection, Pasta failure reporting, CRG daemon supervision, and loopback/SSM portal behavior. Do not expand credential forwarding or custom AWS lifecycle scope. |
+| `nixos/kirocrew_ec2/models.py` | Revert | Remove operator-agent forwarding state added for the rejected credential bridge. |
+| `nixos/kirocrew_ec2/runtime.py` | Revert | Remove the SSH-agent forwarding transport added for the rejected credential bridge. |
+| `security.nix` | Revert | Restore the prior workstation 1Password-agent permissions; do not weaken local socket access for EC2 migration. |
+| `nixos/old-field-map-redshift.json` | Revert / exclude | Unrelated untracked data; keep it outside this KiroCrew change and decide its repository location separately. |
+| `nixos/old-table-map-redshift.json` | Revert / exclude | Unrelated untracked data; keep it outside this KiroCrew change and decide its repository location separately. |
+| `nixos/users_approved.tsv` | Revert / exclude | Unrelated potentially sensitive user data; do not include it in this repository change. |
+
+Phase 0 is complete only after the dispositions above are implemented, the resulting diff is reviewed again, and the documented static checks pass. Runtime sandbox, reboot, restore, and service-health criteria remain unverified and belong to their respective phases.
 
 ## Objective
 

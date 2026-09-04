@@ -1,9 +1,12 @@
 """Main coordinator that ties AWS resources, state, and remote host together."""
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
+import subprocess
 import tempfile
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -13,9 +16,18 @@ from .models import (
     DEFAULT_AMI,
     DEFAULT_INSTANCE_TYPE,
     DEFAULT_REGION,
+    AUTH_SERVER_URLS,
     KEY_NAME,
+    LEGACY_CODE_DIRS,
+    LOCAL_1P_AGENT_SOCKET,
+    LOCAL_MCP_AUTH_DIR,
     PORTAL_LOCAL_PORT,
     PORTAL_PORT,
+    REMOTE_AGENT_SOCKET,
+    REMOTE_CODE_DIR,
+    REMOTE_KIROCREW_HOME,
+    REMOTE_MCP_AUTH_DIR,
+    REMOTE_VAULT_DIR,
     TTYD_PORT,
     Arguments,
     InstanceState,
@@ -116,6 +128,9 @@ class Launcher:
             return
         if self.arguments.command == "sync-state":
             self._sync_state(state)
+            return
+        if self.arguments.command == "auth":
+            self._auth(state)
             return
         self._deploy(state)
 
@@ -239,21 +254,97 @@ class Launcher:
 
     def _open_portal(self, state: InstanceState) -> None:
         remote = self._remote(state)
-        tailscale_ip = remote.tailscale_ip()
-        if tailscale_ip and self._tailscale_reachable(tailscale_ip):
-            url = f"http://{tailscale_ip}:{PORTAL_PORT}"
-            print(f"\n» KiroCrew portal: {url}")
-            print("  (via Tailscale — no tunnel needed)")
-            self._open_browser(url)
-            return
-        # Fallback: SSM port-forward tunnel
-        if shutil.which("session-manager-plugin") is None:
-            raise LauncherError("The AWS Session Manager plugin is required")
-        print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_LOCAL_PORT}")
-        if tailscale_ip:
-            print("  Tailscale IP found but not reachable locally; using SSM tunnel.")
-        print("  Keep this command running; press Ctrl+C to close the tunnel.")
-        remote.portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
+        # Start the 1Password agent socket forward for the duration of the
+        # portal session. While the portal is open the kirocrew gateway can
+        # push to git using the operator's forwarded agent (with a 1Password
+        # approval prompt); closing the portal revokes it. Best-effort: if the
+        # local agent socket is absent, skip the forward rather than fail the
+        # portal.
+        agent_forward = self._start_agent_forward(remote)
+        try:
+            tailscale_ip = remote.tailscale_ip()
+            if tailscale_ip and self._tailscale_reachable(tailscale_ip):
+                url = f"http://{tailscale_ip}:{PORTAL_PORT}"
+                print(f"\n» KiroCrew portal: {url}")
+                print("  (via Tailscale — no tunnel needed)")
+                self._open_browser(url)
+                if agent_forward is not None:
+                    print(
+                        "  Agent git-push enabled while this stays open; "
+                        "press Ctrl+C to close."
+                    )
+                    try:
+                        agent_forward.wait()
+                    except KeyboardInterrupt:
+                        pass
+                return
+            # Fallback: SSM port-forward tunnel
+            if shutil.which("session-manager-plugin") is None:
+                raise LauncherError("The AWS Session Manager plugin is required")
+            print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_LOCAL_PORT}")
+            if tailscale_ip:
+                print("  Tailscale IP found but not reachable locally; using SSM tunnel.")
+            if agent_forward is not None:
+                print("  Agent git-push enabled while the portal is open (1Password will prompt).")
+            print("  Keep this command running; press Ctrl+C to close the tunnel.")
+            self._run_portal_with_reconnect(remote)
+        finally:
+            if agent_forward is not None and agent_forward.poll() is None:
+                agent_forward.terminate()
+                try:
+                    agent_forward.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    agent_forward.kill()
+                print("  Agent git-push forward closed.")
+
+    def _run_portal_with_reconnect(self, remote: "RemoteHost") -> None:
+        """Hold the SSM port-forward open, reconnecting when it drops.
+
+        The SSM session ends whenever the network blips, the instance restarts
+        its agent, or AWS times the session out. Each of those returns from
+        remote.portal(); we back off briefly and re-establish the tunnel so the
+        local portal URL keeps working. Only Ctrl+C ends the loop.
+        """
+        backoff = 2
+        max_backoff = 30
+        while True:
+            started = time.monotonic()
+            try:
+                remote.portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
+            except KeyboardInterrupt:
+                raise
+            except LauncherError as error:
+                print(f"  ⚠ Port-forward error: {error}")
+            # A session that ran for a while was healthy; reset the backoff so a
+            # long-lived tunnel that finally drops reconnects immediately.
+            if time.monotonic() - started >= 15:
+                backoff = 2
+            try:
+                print(
+                    f"  Portal disconnected; reconnecting in {backoff}s "
+                    "(Ctrl+C to stop)..."
+                )
+                time.sleep(backoff)
+            except KeyboardInterrupt:
+                raise
+            backoff = min(backoff * 2, max_backoff)
+
+    def _start_agent_forward(self, remote: "RemoteHost"):
+        """Start the 1Password agent socket forward if the local socket exists.
+
+        Returns the Popen handle, or None if the local 1Password agent socket
+        is not present (in which case agent git-push is simply unavailable).
+        """
+        local_socket = os.path.expanduser(LOCAL_1P_AGENT_SOCKET)
+        if not os.path.exists(local_socket):
+            print(
+                "  ⚠ 1Password agent socket not found locally "
+                f"({LOCAL_1P_AGENT_SOCKET}); agent git-push disabled this session."
+            )
+            return None
+        return remote.agent_forward_popen(
+            REMOTE_AGENT_SOCKET, local_socket, user="orre"
+        )
 
     def _open_ssh(self, state: InstanceState) -> None:
         remote = self._remote(state)
@@ -312,6 +403,8 @@ class Launcher:
         failures = self._sync_repositories(remote)
         self._restart_pasta(remote)
         self._setup_code_review_graph(remote)
+        self._register_project_dirs(remote)
+        self._normalize_session_paths(remote)
         self._print_result(state, failures, remote)
 
     def _bootstrap_age_key(self, remote: RemoteHost) -> None:
@@ -412,148 +505,372 @@ fi
         )
         print("  ✓ Pasta daemon started")
 
-    def _read_repos_manifest(self, remote: RemoteHost) -> list[dict]:
-        """Read repos.toml from the remote's XDG path (placed by kirocrew-config.nix)."""
-        import tomllib
-
-        raw = remote.run(
-            "orre",
-            "cat ~/.config/kirocrew/repos.toml 2>/dev/null || true",
-            capture=True,
-        ).stdout
-        if not raw.strip():
-            print("  ⚠ No repos.toml found on remote, falling back to empty list")
-            return []
-        data = tomllib.loads(raw)
-        repos = data.get("repos", [])
-        # Filter to headless-targeted repos only
-        return [
-            r for r in repos
-            if "headless" in r.get("targets", ["workstation", "headless"])
-        ]
-
     def _sync_repositories(self, remote: RemoteHost) -> list[str]:
+        """Run the declarative protected-mirror and checkout services."""
         print("\n» Syncing code repositories...")
-        # Step 1: validate git-ssh-key is available
-        remote.run(
+        result = remote.run(
             "root",
-            r"""set -e
-sudo -u orre mkdir -p /home/orre/.ssh
-uid=$(id -u orre)
-GIT_SSH_KEY="/run/user/${uid}/secrets/git-ssh-key"
-if [ ! -f "$GIT_SSH_KEY" ]; then
-  echo "git-ssh-key not found at $GIT_SSH_KEY" >&2
+            r"""fetch_failed=0
+sync_failed=0
+systemctl restart repo-fetch.service || fetch_failed=1
+systemctl start repo-sync.service || sync_failed=1
+systemctl is-active --quiet repo-fetch.timer || true
+if [ "$fetch_failed" -ne 0 ] || [ "$sync_failed" -ne 0 ]; then
   exit 1
 fi
 """,
-        )
-        # Step 2: read manifest and build clone/pull script
-        repos = self._read_repos_manifest(remote)
-        if not repos:
-            print("  ⚠ No repos in manifest for headless target")
-            return []
-
-        # Build a shell script that clones/pulls each repo from the manifest
-        repo_commands = []
-        for repo in repos:
-            remote_url = shlex.quote(repo["remote"])
-            dest = shlex.quote(f"/home/orre/{repo['path']}")
-            shallow = repo.get("shallow", True)
-            depth_flag = "--depth=1" if shallow else ""
-            name = repo["path"].rsplit("/", 1)[-1]
-            repo_commands.append(f"""\
-dest={dest}
-if [ ! -d "$dest" ]; then
-  echo "  Cloning {name}..."
-  mkdir -p "$(dirname "$dest")"
-  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git clone {depth_flag} {remote_url} "$dest" 2>&1; then
-    failed="${{failed}} {name}"
-    echo "  ✗ {name} (clone failed)"
-  else
-    echo "  ✓ {name} (cloned)"
-  fi
-else
-  echo "  Pulling {name}..."
-  if ! sudo -u orre -H env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git -C "$dest" pull --ff-only --quiet 2>&1; then
-    failed="${{failed}} {name}"
-    echo "  ✗ {name} (pull failed)"
-  else
-    echo "  ✓ {name}"
-  fi
-fi""")
-
-        script = r"""set -e
-uid=$(id -u orre)
-runtime_dir="/run/user/${uid}"
-GIT_SSH_KEY="${runtime_dir}/secrets/git-ssh-key"
-export GIT_SSH_COMMAND="ssh -i ${GIT_SSH_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
-failed=""
-""" + "\n".join(repo_commands) + r"""
-if [ -n "$failed" ]; then
-  echo "$failed" > /tmp/.repo-sync-failures
-  exit 0
-fi
-rm -f /tmp/.repo-sync-failures
-"""
-        remote.run("root", script, check=False)
-        # Check if there were partial failures
-        fail_result = remote.run(
-            "root",
-            "cat /tmp/.repo-sync-failures 2>/dev/null && rm -f /tmp/.repo-sync-failures || true",
             capture=True,
+            check=False,
         )
-        failures = fail_result.stdout.strip().split() if fail_result.stdout.strip() else []
-        if failures:
-            print(f"  ⚠ These repositories failed: {', '.join(failures)}")
-        else:
-            print("  ✓ All repositories ready")
-        return failures
+        if result.returncode != 0:
+            print("  ⚠ One or more repository operations need attention")
+            return ["repo-sync"]
+        print("  ✓ All repositories ready")
+        return []
 
     # ── Code Review Graph ────────────────────────────────────────────────────
 
     def _setup_code_review_graph(self, remote: RemoteHost) -> None:
         """Install code-review-graph and build graphs for repos that lack one."""
         print("\n» Setting up code-review-graph...")
-        # Install via uv tool (idempotent — upgrades if already present)
+        # Install the validated version used by the declarative service.
+        # `uv` is provided by the operator's Home Manager profile, so include
+        # its per-user profile bin on PATH alongside the Nix/default locations.
         remote.run(
             "root",
             r"""set -e
-sudo -u orre -H env PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bin:$PATH" \
-  uv tool install code-review-graph --upgrade 2>&1 | tail -3
+sudo -u orre -H env PATH="/home/orre/.local/bin:/etc/profiles/per-user/orre/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:$PATH" \
+  uv tool install code-review-graph==2.3.8 2>&1 | tail -3
 """,
         )
-        # Build graph only for repos that don't already have one.
-        # Existing graphs are updated incrementally by the daemon's file watcher.
+        # Run the declarative units immediately after deployment instead of
+        # duplicating their repository discovery and graph lifecycle logic here.
         remote.run(
             "root",
             r"""set -e
-export PATH="/home/orre/.local/bin:/nix/var/nix/profiles/default/bin:$PATH"
-CRG="/home/orre/.local/bin/code-review-graph"
-built=0
-for git_dir in $(find /home/orre/code -maxdepth 3 -name .git -type d 2>/dev/null | sort); do
-  repo_dir=$(dirname "$git_dir")
-  repo_name=$(basename "$repo_dir")
-  if [ -d "$repo_dir/.code-review-graph" ]; then
-    echo "  ✓ ${repo_name} (already indexed)"
-    continue
-  fi
-  echo "  Building graph for ${repo_name}..."
-  sudo -u orre -H env PATH="$PATH" "$CRG" install --repo "$repo_dir" --platform kiro --no-hooks --no-instructions -y 2>&1 | tail -2
-  sudo -u orre -H env PATH="$PATH" "$CRG" build --repo "$repo_dir" 2>&1 | tail -2
-  sudo -u orre -H env PATH="$PATH" "$CRG" daemon add "$repo_dir" --alias "$repo_name" 2>&1 || true
-  echo "  ✓ ${repo_name}"
-  built=$((built + 1))
+systemctl restart repo-fetch.service || true
+systemctl start repo-sync.service || true
+systemctl start code-review-graph-sync.service || true
+systemctl restart code-review-graph-daemon.service
+systemctl is-active --quiet code-review-graph-daemon.service
+""",
+        )
+        print("  ✓ code-review-graph ready and supervised")
+
+    # ── Project directory registration ─────────────────────────────────────
+    def _register_project_dirs(self, remote: RemoteHost) -> None:
+        """Expose the code repos and the vault to the gateway agent.
+
+        The gateway runs as `kirocrew` and works out of its workspace dir.
+        Repos live in the shared /var/lib/code tree (readable/writable via the
+        code-writers group) and the writable vault at /var/lib/vault is owned
+        by kirocrew. We surface both inside the workspace as symlinks and add
+        their real roots to agent.subagent_cwd_allowed_roots so subagents may
+        cd into them.
+        """
+        print("\n» Registering project directories (code + vault)...")
+        workspace = "/var/lib/kirocrew/.kiro/crew/workspace"
+        config = "/var/lib/kirocrew/config.json"
+        script = f"""set -e
+WORKSPACE={shlex.quote(workspace)}
+CONFIG={shlex.quote(config)}
+CODE_DIR={shlex.quote(REMOTE_CODE_DIR)}
+VAULT_DIR={shlex.quote(REMOTE_VAULT_DIR)}
+
+# Link each repo and the vault into the gateway workspace so the agent sees
+# them as project folders. Links (and config) are owned by kirocrew.
+sudo -u kirocrew -H bash -s <<'KC'
+set -e
+WORKSPACE="{workspace}"
+CODE_DIR="{REMOTE_CODE_DIR}"
+VAULT_DIR="{REMOTE_VAULT_DIR}"
+mkdir -p "$WORKSPACE/code"
+for repo in "$CODE_DIR"/*/; do
+  [ -d "$repo" ] || continue
+  name=$(basename "$repo")
+  ln -sfn "$repo" "$WORKSPACE/code/$name"
+  echo "  ✓ linked code/$name"
 done
-if [ "$built" -eq 0 ]; then
-  echo "  All repos already indexed"
-else
-  echo "  Starting daemon..."
-  sudo -u orre -H env PATH="$PATH" "$CRG" daemon start 2>&1 | tail -2 || true
+if [ -d "$VAULT_DIR" ]; then
+  ln -sfn "$VAULT_DIR" "$WORKSPACE/vault"
+  echo "  ✓ linked vault"
 fi
-""",
-            check=False,
+
+# Add /var/lib/code and /var/lib/vault to agent.subagent_cwd_allowed_roots
+# (idempotent) so subagents can cd into the linked targets.
+python3 - "$CONFIG" "$CODE_DIR" "$VAULT_DIR" <<'PY'
+import json, sys
+config_path, code_dir, vault_dir = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(config_path) as fh:
+    data = json.load(fh)
+agent = data.setdefault("agent", {{}})
+roots = agent.setdefault("subagent_cwd_allowed_roots", [])
+changed = False
+for root in (code_dir, vault_dir):
+    if root not in roots:
+        roots.append(root)
+        changed = True
+if changed:
+    with open(config_path, "w") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\\n")
+    print("  ✓ updated subagent_cwd_allowed_roots")
+else:
+    print("  ✓ subagent_cwd_allowed_roots already current")
+PY
+KC
+"""
+        remote.run("root", script, check=False)
+        print("  ✓ project directories registered")
+
+    # ── Session path normalization ──────────────────────────────────────────
+    def _normalize_session_paths(self, remote: RemoteHost) -> None:
+        """Rewrite stale legacy code-tree roots in the gateway's session state.
+
+        Earlier deploys pinned per-session working directories to legacy roots
+        (see LEGACY_CODE_DIRS). After the move to REMOTE_CODE_DIR those paths no
+        longer exist and sit on a read-only mount, so resuming such a session
+        crashes when the ACP runtime tries to mkdir the missing project dir.
+
+        This rewrites the legacy prefix to REMOTE_CODE_DIR in three places the
+        gateway reads a project/cwd from:
+          - session_map.json         (resume cwd via SessionMap.get_cwd)
+          - recent_projects.json     (the project picker)
+          - sessions/*.jsonl         (only the line-0 `project` header)
+
+        It is idempotent and conservative: message/transcript content in the
+        .jsonl files is never touched, per-file backups are written, and a
+        rewritten path that still does not exist falls back to REMOTE_CODE_DIR
+        so a stale sub-path (e.g. a deleted MR worktree) never re-introduces a
+        broken project dir. Runs as kirocrew (the owner of the state).
+        """
+        print("\n» Normalizing gateway session paths...")
+        crew_dir = f"{REMOTE_KIROCREW_HOME}/.kiro/crew"
+        legacy_arg = ",".join(LEGACY_CODE_DIRS)
+        script = f"""set -e
+sudo -u kirocrew -H python3 - {shlex.quote(crew_dir)} {shlex.quote(REMOTE_CODE_DIR)} {shlex.quote(legacy_arg)} <<'PY'
+import json, os, sys, time
+
+crew_dir, code_dir, legacy_arg = sys.argv[1], sys.argv[2], sys.argv[3]
+legacy = [p for p in legacy_arg.split(",") if p]
+ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+
+
+def remap(path):
+    # Return (new_path, changed). Map a legacy prefix onto code_dir; if the
+    # remapped path does not exist, fall back to code_dir so we never write a
+    # path that would crash on resume. Leave non-legacy paths untouched.
+    if not isinstance(path, str):
+        return path, False
+    for old in legacy:
+        if path == old or path.startswith(old + "/"):
+            candidate = code_dir + path[len(old):]
+            if not os.path.isdir(candidate):
+                candidate = code_dir
+            return candidate, candidate != path
+    return path, False
+
+
+def backup(p):
+    try:
+        import shutil
+        shutil.copy2(p, f"{{p}}.bak-{{ts}}")
+    except OSError:
+        pass
+
+
+changed_total = 0
+
+# 1) session_map.json — cwd values inside the map structure.
+smap = os.path.join(crew_dir, "session_map.json")
+if os.path.isfile(smap):
+    with open(smap) as fh:
+        data = json.load(fh)
+    n = 0
+
+    def walk(obj):
+        global n
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if isinstance(v, str) and k in ("cwd", "project", "project_dir"):
+                    nv, ch = remap(v)
+                    if ch:
+                        obj[k] = nv
+                        n += 1
+                else:
+                    walk(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                walk(v)
+
+    walk(data)
+    if n:
+        backup(smap)
+        with open(smap, "w") as fh:
+            json.dump(data, fh, indent=2)
+            fh.write("\\n")
+        print(f"  ✓ session_map.json: {{n}} path(s) rewritten")
+        changed_total += n
+
+# 2) recent_projects.json — a flat list of project dir strings.
+recent = os.path.join(crew_dir, "recent_projects.json")
+if os.path.isfile(recent):
+    with open(recent) as fh:
+        data = json.load(fh)
+    if isinstance(data, list):
+        new = []
+        n = 0
+        for entry in data:
+            nv, ch = remap(entry)
+            if ch:
+                n += 1
+            if nv not in new:
+                new.append(nv)
+        if n:
+            backup(recent)
+            with open(recent, "w") as fh:
+                json.dump(new, fh)
+            print(f"  ✓ recent_projects.json: {{n}} path(s) rewritten")
+            changed_total += n
+
+# 3) sessions/*.jsonl — only the line-0 `project` header.
+sessions_dir = os.path.join(crew_dir, "sessions")
+if os.path.isdir(sessions_dir):
+    files = 0
+    for name in sorted(os.listdir(sessions_dir)):
+        if not name.endswith(".jsonl"):
+            continue
+        path = os.path.join(sessions_dir, name)
+        try:
+            with open(path) as fh:
+                lines = fh.readlines()
+        except OSError:
+            continue
+        if not lines or not lines[0].strip():
+            continue
+        try:
+            hdr = json.loads(lines[0].strip())
+        except Exception:
+            continue
+        proj = hdr.get("project")
+        nv, ch = remap(proj)
+        if not ch:
+            continue
+        hdr["project"] = nv
+        first = json.dumps(hdr, ensure_ascii=False)
+        if lines[0].endswith("\\n"):
+            first += "\\n"
+        backup(path)
+        lines[0] = first
+        with open(path, "w") as fh:
+            fh.writelines(lines)
+        files += 1
+    if files:
+        print(f"  ✓ sessions: {{files}} project header(s) rewritten")
+        changed_total += files
+
+if changed_total == 0:
+    print("  ✓ session paths already current")
+PY
+"""
+        remote.run("root", script, check=False)
+
+    # ── MCP OAuth provisioning ─────────────────────────────────────────────
+
+    def _auth(self, state: InstanceState) -> None:
+        """Run an MCP OAuth flow locally and install the token on the gateway.
+
+        The browser OAuth runs on the workstation (mcp-remote writes a cached
+        token into LOCAL_MCP_AUTH_DIR). Only the actual credential file — not
+        the code_verifier or client_info files — is copied to the gateway's
+        REMOTE_MCP_AUTH_DIR over SSM, then the gateway is restarted so the MCP
+        server picks up the cached token.
+        """
+        target = self.arguments.auth_target
+        server_url = AUTH_SERVER_URLS.get(target or "")
+        if server_url is None:
+            raise LauncherError(f"Unknown auth target: {target!r}")
+
+        if shutil.which("npx") is None:
+            raise LauncherError("npx is required to run the mcp-remote OAuth flow")
+
+        auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
+        before = self._mcp_token_files(auth_dir)
+
+        print(f"\n» Starting {target} OAuth in your browser...")
+        print("  Complete the login/consent, then return here.")
+        print("  Press Ctrl+C once the tools connect (the flow stays open).")
+        try:
+            self.runner.run(
+                ["npx", "-y", "mcp-remote", server_url],
+                check=False,
+            )
+        except KeyboardInterrupt:
+            pass
+
+        after = self._mcp_token_files(auth_dir)
+        token_file = self._select_token_file(after, before)
+        if token_file is None:
+            raise LauncherError(
+                f"No new token file appeared in {auth_dir}; OAuth did not complete"
+            )
+        print(f"  ✓ Local token cached: {token_file.name}")
+
+        remote = self._remote(state)
+        remote_path = f"{REMOTE_MCP_AUTH_DIR}/{token_file.name}"
+        print("\n» Installing the token on the gateway...")
+        with token_file.open("rb") as handle:
+            remote.run(
+                "root",
+                "set -e; "
+                f"install -d -m 700 -o kirocrew -g kirocrew {shlex.quote(REMOTE_MCP_AUTH_DIR)}; "
+                f"install -m 600 -o kirocrew -g kirocrew /dev/stdin {shlex.quote(remote_path)}",
+                stdin=handle,
+            )
+        print(f"  ✓ Installed {remote_path}")
+
+        print("\n» Restarting the gateway to pick up the token...")
+        remote.run(
+            "root",
+            "set -e; systemctl restart kirocrew-gateway.service; "
+            "systemctl is-active --quiet kirocrew-gateway.service",
         )
-        print("  ✓ code-review-graph ready")
+        print(f"  ✓ Gateway restarted; {target} tools should now connect")
+
+    @staticmethod
+    def _mcp_token_files(auth_dir: Path) -> dict[str, float]:
+        """Map candidate token filenames to their mtimes.
+
+        Only the real credential is a candidate: mcp-remote writes companion
+        code_verifier and client_info files that are not the token itself.
+        """
+        if not auth_dir.is_dir():
+            return {}
+        candidates: dict[str, float] = {}
+        for entry in auth_dir.iterdir():
+            if not entry.is_file():
+                continue
+            name = entry.name
+            if "code_verifier" in name or "client_info" in name:
+                continue
+            candidates[name] = entry.stat().st_mtime
+        return candidates
+
+    @staticmethod
+    def _select_token_file(
+        after: dict[str, float], before: dict[str, float]
+    ) -> Path | None:
+        """Pick the token file created or refreshed by this OAuth run."""
+        auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
+        changed = [
+            name
+            for name, mtime in after.items()
+            if name not in before or mtime > before[name]
+        ]
+        if not changed:
+            return None
+        newest = max(changed, key=lambda name: after[name])
+        return auth_dir / newest
 
     # ── State sync ───────────────────────────────────────────────────────────
 

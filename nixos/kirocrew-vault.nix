@@ -1,74 +1,72 @@
-{
-  lib,
-  pkgs,
-  ...
-}:
+{ pkgs, ... }:
 
-# NixOS module: local writable Obsidian vault synchronized bidirectionally with
-# S3. The local filesystem remains the agent write path; Mountpoint is exposed
-# separately as a read-only inspection/recovery view by kirocrew-ec2.nix.
+# NixOS module: direct read-only S3 mount for the headless KiroCrew host.
+# The workstation remains the vault writer and synchronizes its local Obsidian
+# vault to S3 with rclone (see ../vault-sync.nix).
 let
   vaultDir = "/var/lib/vault";
-  stateDir = "/var/lib/vault-sync";
+  displacedLocalDir = "/var/lib/vault-before-s3-mount";
+  prepareMount = pkgs.writeShellScript "prepare-kirocrew-vault-mount" ''
+    set -euo pipefail
+    if ${pkgs.util-linux}/bin/mountpoint -q ${vaultDir}; then
+      exit 0
+    fi
 
-  syncScript = import ../vault-bisync-script.nix {
-    inherit
-      pkgs
-      lib
-      vaultDir
-      stateDir
-      ;
-    name = "kirocrew-vault-sync";
-    peerName = "kirocrew";
-    initialMode = "path2";
-  };
+    shopt -s dotglob nullglob
+    entries=(${vaultDir}/*)
+    if (( ''${#entries[@]} > 0 )); then
+      backup_entries=(${displacedLocalDir}/*)
+      if (( ''${#backup_entries[@]} > 0 )); then
+        echo "Both ${vaultDir} and ${displacedLocalDir} contain files; refusing to overwrite the preserved local vault." >&2
+        exit 1
+      fi
+      ${pkgs.coreutils}/bin/mv -- "''${entries[@]}" ${displacedLocalDir}/
+      echo "Preserved pre-mount local vault content in ${displacedLocalDir}."
+    fi
+  '';
 in
 {
-  environment.systemPackages = [ syncScript ];
-
-  # KiroCrew owns the writable local copy. Pasta receives read access through
-  # vault-readers; the sync state remains private to KiroCrew.
-  systemd.tmpfiles.rules = [
-    "d ${vaultDir} 2750 kirocrew vault-readers -"
-    "d ${stateDir} 0700 kirocrew kirocrew -"
+  environment.systemPackages = with pkgs; [
+    fuse3
+    mountpoint-s3
   ];
 
-  systemd.services.vault-sync = {
-    description = "Conflict-preserving KiroCrew vault sync with S3";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "kirocrew";
-      Group = "kirocrew";
-      UMask = "0027";
-      ExecStart = "${syncScript}/bin/kirocrew-vault-sync";
-      WorkingDirectory = vaultDir;
-
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
-      ReadWritePaths = [
-        vaultDir
-        stateDir
-      ];
-    };
+  programs.fuse = {
+    enable = true;
+    userAllowOther = true;
   };
 
-  # Staggered five minutes after the workstation's ten-minute cadence.
-  systemd.timers.vault-sync = {
-    description = "Sync the KiroCrew vault with S3 every 10 minutes";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "*:5/10";
-      Persistent = true;
-      Unit = "vault-sync.service";
+  systemd.tmpfiles.rules = [
+    "d ${vaultDir} 0755 root root -"
+    "d ${displacedLocalDir} 0700 root root -"
+  ];
+
+  systemd.services.readpeak-vault-s3-mount = {
+    description = "Read-only ReadPeak Obsidian vault mounted directly from S3";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    before = [
+      "kirocrew-gateway.service"
+      "pasta-daemon.service"
+    ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStartPre = prepareMount;
+      ExecStart = pkgs.writeShellScript "mount-readpeak-vault-s3" ''
+        set -euo pipefail
+        if ${pkgs.util-linux}/bin/mountpoint -q ${vaultDir}; then
+          exit 0
+        fi
+        ${pkgs.mountpoint-s3}/bin/mount-s3 \
+          readpeak-vault-sync \
+          ${vaultDir} \
+          --read-only \
+          --allow-other \
+          --region eu-central-1
+      '';
+      ExecStop = "-${pkgs.fuse3}/bin/fusermount3 -u ${vaultDir}";
     };
   };
 }

@@ -252,6 +252,7 @@
         modules = [
           ./nixos/kirocrew-ec2.nix
           ./nixos/kirocrew.nix
+          sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
             home-manager.useUserPackages = true;
@@ -280,6 +281,7 @@
         modules = [
           ./nixos/kirocrew-ec2.nix
           ./nixos/kirocrew.nix
+          sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
             home-manager.useUserPackages = true;
@@ -307,6 +309,7 @@
         modules = [
           ./nixos/kirocrew-ec2.nix
           ./nixos/kirocrew.nix
+          sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
             home-manager.useUserPackages = true;

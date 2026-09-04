@@ -1,16 +1,5 @@
 { config, ... }:
 
-# ⚠ DRAFT — NOT YET WIRED IN. Deferred (2026-09-01).
-# This module is intentionally NOT imported by any flake output yet. It is a
-# starting point for a future migration where the kirocrew agent gets its own
-# git credentials (goal: let the agent sign commits on the operator's behalf).
-# Until that migration is picked up, the push/credential model stays as-is:
-# repos are cloned as `orre` and the gateway uses orre's identity.
-# Before wiring this in, revisit the push-privilege question (should kirocrew
-# push directly, or should push be gated through orre?) and the commit-signing
-# key design (separate signing key vs. reusing the transport key).
-#
-# ── Original design notes (for the future migration) ───────────────────────
 # NixOS (system-level) sops-nix configuration for the dedicated `kirocrew`
 # service user.
 #
@@ -18,46 +7,67 @@
 # unprivileged `kirocrew` user (see kirocrew-services.nix). That user has no
 # home-manager instance and no login session, so the HM sops module
 # (sops.nix, imported under home-manager.users.orre) cannot provision secrets
-# for it. This module fills that gap with system-level sops-nix.
+# for it. This module fills that gap with system-level sops-nix so the gateway
+# can own the vault git repository end-to-end (Model 2): clone/push over SSH
+# and unlock the git-crypt-encrypted contents.
 #
-# Design (A1 — kirocrew owns its own key):
+# Design (kirocrew owns its own key):
 #   * Age private key lives in the kirocrew user's home at
 #     /var/lib/kirocrew/.config/sops/age/keys.txt. It is the SAME age key
 #     already tracked in .sops.yaml (1Password item "kirocrew-age"), so
 #     secrets/secrets.yaml does NOT need re-encryption — only the private key
 #     is bootstrapped into kirocrew's home instead of orre's.
-#   * The decrypted git-ssh-key is written to a persistent path inside the
-#     kirocrew home (/var/lib/kirocrew/secrets/git-ssh-key), owned by kirocrew.
-#     This sits under `kirocrewHome`, which the gateway unit already lists in
-#     ReadWritePaths and which ProtectHome does not mask.
+#   * Decrypted secrets are written to persistent paths inside the kirocrew
+#     home (under ReadWritePaths, not masked by ProtectHome).
 #
-# One-time bootstrap on the instance (documented in nixos/kirocrew.md):
+# One-time bootstrap on the instance (also see nixos/kirocrew.md):
 #   install -d -m 700 -o kirocrew -g kirocrew /var/lib/kirocrew/.config/sops/age
-#   op read "op://<vault>/kirocrew-age/private-key" \
+#   op read "op://Readpeak/kirocrew-age/private key" \
 #     | install -m 600 -o kirocrew -g kirocrew /dev/stdin \
 #         /var/lib/kirocrew/.config/sops/age/keys.txt
 #
-# sops-install-secrets runs at activation and creates the
-# sops-nix.service / sops-install-secrets.service unit that other services can
-# order after.
+# sops-install-secrets runs at activation; other services order After it.
 {
   sops = {
-    # System-level: decrypt using the kirocrew user's age key.
     age.keyFile = "/var/lib/kirocrew/.config/sops/age/keys.txt";
-    # Do not require the key at build/eval time; only at activation. If the key
-    # is absent the activation logs an error but evaluation still succeeds, so
-    # the AMI/VM outputs build without the private key present.
+    # Do not require the key at build/eval time; only at activation. If absent,
+    # activation logs an error but evaluation still succeeds.
     age.generateKey = false;
 
     defaultSopsFile = ../secrets/secrets.yaml;
 
+    # Git transport key: still used by other flows that clone as kirocrew over
+    # SSH. Retained; harmless if unused by the vault (which uses HTTPS below).
     secrets.git-ssh-key = {
       owner = config.users.users.kirocrew.name;
       inherit (config.users.users.kirocrew) group;
       mode = "0400";
-      # Persistent, inside kirocrewHome so the ProtectHome'd gateway can read it
-      # and the launcher (running as kirocrew) can reference it for git over SSH.
       path = "/var/lib/kirocrew/secrets/git-ssh-key";
+    };
+
+    # GitLab deploy token for the vault repo (HTTPS auth). Username and token
+    # are separate secrets; kirocrew-vault-git.nix feeds them to git via
+    # GIT_ASKPASS so the token never lands in .git/config.
+    secrets.vault-git-token = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/vault-git-token";
+    };
+    secrets.vault-git-token-user = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/vault-git-token-user";
+    };
+
+    # git-crypt symmetric key: unlocks the encrypted vault after clone. Base64
+    # of the raw key exported by the workstation wizard.
+    secrets.vault-git-crypt-key = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/vault-git-crypt-key";
     };
   };
 }

@@ -52,11 +52,16 @@ pkgs.writeShellApplication {
 
     mkdir -p "$VAULT" "$STATE/bisync" "$STATE/backups" "$STATE/conflicts" "$STATE/failures"
 
+    # rclone bisync writes a checksum beside its filters file. Nix store paths
+    # are immutable, so keep a runtime copy and its checksum in writable state.
+    FILTERS="$STATE/filters"
+    cp ${filters} "$FILTERS"
+
     args=(
       bisync "$VAULT/" "$REMOTE/"
       --config ${rcloneConfig}
       --workdir "$STATE/bisync"
-      --filters-file ${filters}
+      --filters-file "$FILTERS"
       --compare "size,checksum"
       --resilient
       --recover
