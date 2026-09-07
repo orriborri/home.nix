@@ -27,6 +27,17 @@ let
     pkgs.zlib
   ];
 
+  # Source builder shared with the workstation profile (kirocrew-service.nix).
+  # Follows the newest stable tag (pinnedSourceTag = ""). The gateway service
+  # runs it as an ExecStartPre, then starts the freshly built venv, so no
+  # restart wiring is needed here (systemd's own ExecStart picks it up).
+  kirocrewSourceUpdate = import ../kirocrew-source-build.nix { inherit pkgs lib; } {
+    pinnedSourceTag = "";
+  };
+
+  # Absolute path to the source-built gateway under the kirocrew user's home.
+  kirocrewSourceBin = "${kirocrewHome}/.local/share/kirocrew-source/current/.venv/bin/kirocrew";
+
   pastaLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -92,7 +103,7 @@ in
       Type = "simple";
       User = "kirocrew";
       Group = "kirocrew";
-      ExecStart = "${kirocrewHome}/bin/kirocrew gateway";
+      ExecStart = "${kirocrewSourceBin} gateway";
       Restart = "always";
       RestartSec = 5;
       TimeoutStartSec = "20min";
@@ -102,8 +113,13 @@ in
       # KiroCrew's own strict sandbox provides namespace isolation for agents.
       # systemd hardening adds defense in depth at the service level.
       ExecStartPre = [
+        # Build/update the gateway from source (newest stable tag), producing
+        # ${kirocrewHome}/.local/share/kirocrew-source/current/.venv/bin/kirocrew.
+        # First build compiles the dashboard + Python venv, hence the long
+        # TimeoutStartSec above.
+        "${kirocrewSourceUpdate}/bin/kirocrew-source-update"
         "${pkgs.coreutils}/bin/mkdir -p ${kirocrewHome}/.kiro/crew"
-        "${kirocrewHome}/bin/kirocrew config set --local agent.sandbox strict"
+        "${kirocrewSourceBin} config set --local agent.sandbox strict"
       ];
 
       # ── systemd hardening ──────────────────────────────────────────────

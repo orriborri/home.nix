@@ -235,7 +235,9 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              kirocrew.sourceTag = "v0.3.0";
+              # sourceTag = null (default) → follow the newest stable tag.
+              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
+              kirocrew.sourceTag = null;
             };
           }
         ];
@@ -264,7 +266,9 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              kirocrew.sourceTag = "v0.3.0";
+              # sourceTag = null (default) → follow the newest stable tag.
+              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
+              kirocrew.sourceTag = null;
             };
           }
         ];
@@ -294,7 +298,9 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              kirocrew.sourceTag = "v0.3.0";
+              # sourceTag = null (default) → follow the newest stable tag.
+              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
+              kirocrew.sourceTag = null;
             };
           }
         ];
@@ -321,7 +327,9 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              kirocrew.sourceTag = "v0.3.0";
+              # sourceTag = null (default) → follow the newest stable tag.
+              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
+              kirocrew.sourceTag = null;
             };
           }
         ];

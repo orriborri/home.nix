@@ -52,19 +52,12 @@
       ln -sf ${pkgs.kiro-cli.passthru.unwrapped}/bin/kiro-cli-chat /var/lib/kirocrew/bin/kiro-cli-chat
       ln -sf ${pkgs.kiro-cli.passthru.unwrapped}/bin/kiro-cli-term /var/lib/kirocrew/bin/kiro-cli-term
 
-      # Install the kirocrew CLI from the official channel if not already present.
-      # The gateway service (kirocrew-services.nix) runs /var/lib/kirocrew/bin/kirocrew,
-      # which is a separate binary from kiro-cli — installed via the signed wheel
-      # installer into a managed venv under /var/lib/kirocrew/.kiro/crew-venv/.
-      if [ ! -e /var/lib/kirocrew/.kiro/crew-venv/bin/kirocrew ]; then
-        echo "Installing kirocrew CLI for system user..."
-        ${pkgs.curl}/bin/curl -fsSL https://download.crew.kiro.dev/cli.sh \
-          | sudo -u kirocrew -H env \
-              HOME=/var/lib/kirocrew \
-              PATH="${pkgs.python313}/bin:${pkgs.openssl}/bin:${pkgs.curl}/bin:/run/current-system/sw/bin" \
-            sh
-      fi
-      ln -sf /var/lib/kirocrew/.kiro/crew-venv/bin/kirocrew /var/lib/kirocrew/bin/kirocrew
+      # The kirocrew gateway itself is built from source by the
+      # kirocrew-gateway service (see kirocrew-services.nix), which runs the
+      # shared source builder as an ExecStartPre and starts the resulting venv
+      # under the kirocrew user's ~/.local/share/kirocrew-source/current.
+      # No curl|bash install path is used any more; both the workstation and
+      # headless profiles build from the pinned/latest stable tag.
     fi
   '';
 
