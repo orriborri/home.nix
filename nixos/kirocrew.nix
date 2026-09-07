@@ -32,6 +32,7 @@
     curl
     openssl # needed by the KiroCrew installer for manifest verification
     stdenv.cc.cc.lib # libstdc++.so.6 — needed by KiroCrew's embedded llama.cpp
+    uv # installs code-review-graph for the kirocrew user (see launcher.py)
   ];
 
   # ── Symlink kiro-cli for both operator and kirocrew users ──────────────────

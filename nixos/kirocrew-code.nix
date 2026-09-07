@@ -252,7 +252,7 @@ let
       set -uo pipefail
       umask 0002
 
-      crg="/home/orre/.local/bin/code-review-graph"
+      crg="/var/lib/kirocrew/.local/bin/code-review-graph"
       failures=0
       present=0
       mkdir -p ${lib.escapeShellArg graphStateDir}/revisions
@@ -333,7 +333,7 @@ in
     # edit worktrees.
     "d ${codeDir}/wt 2775 kirocrew code-writers -"
     "d ${mirrorDir} 0750 orre code-writers -"
-    "d ${graphStateDir} 0750 orre code-writers -"
+    "d ${graphStateDir} 0750 kirocrew code-writers -"
   ]
   # Intermediate parent dirs (e.g. wt/readpeak) as group-owned, so tmpfiles
   # doesn't leave auto-created parents root:root 0755.
@@ -416,7 +416,7 @@ in
     after = [ "repo-sync.service" ];
     serviceConfig = {
       Type = "oneshot";
-      User = "orre";
+      User = "kirocrew";
       Group = "code-writers";
       UMask = "0002";
       ExecStart = "${graphSync}/bin/kirocrew-code-review-graph-sync";
@@ -424,10 +424,10 @@ in
       ReadWritePaths = [
         codeDir
         graphStateDir
-        "-/home/orre/.code-review-graph"
+        "-/var/lib/kirocrew/.code-review-graph"
       ];
       ProtectSystem = "strict";
-      ProtectHome = "read-only";
+      ProtectHome = true;
       PrivateTmp = true;
       NoNewPrivileges = true;
       RestrictSUIDSGID = true;
@@ -442,21 +442,21 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
-      User = "orre";
+      User = "kirocrew";
       Group = "code-writers";
       UMask = "0002";
-      ExecStartPre = "-/home/orre/.local/bin/code-review-graph daemon stop";
-      ExecStart = "/home/orre/.local/bin/code-review-graph daemon start --foreground";
+      ExecStartPre = "-/var/lib/kirocrew/.local/bin/code-review-graph daemon stop";
+      ExecStart = "/var/lib/kirocrew/.local/bin/code-review-graph daemon start --foreground";
       Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
       Restart = "on-failure";
       RestartSec = 5;
       ReadWritePaths = [
         codeDir
         graphStateDir
-        "-/home/orre/.code-review-graph"
+        "-/var/lib/kirocrew/.code-review-graph"
       ];
       ProtectSystem = "strict";
-      ProtectHome = "read-only";
+      ProtectHome = true;
       PrivateTmp = true;
       NoNewPrivileges = true;
       RestrictSUIDSGID = true;

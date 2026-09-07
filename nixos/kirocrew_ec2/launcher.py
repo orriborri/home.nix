@@ -533,14 +533,20 @@ fi
     def _setup_code_review_graph(self, remote: RemoteHost) -> None:
         """Install code-review-graph and build graphs for repos that lack one."""
         print("\n» Setting up code-review-graph...")
-        # Install the validated version used by the declarative service.
-        # `uv` is provided by the operator's Home Manager profile, so include
-        # its per-user profile bin on PATH alongside the Nix/default locations.
+        # Install the validated version used by the declarative service, as the
+        # kirocrew user (the CRG sync/daemon units and the gateway all run as
+        # kirocrew). `uv tool install` drops the binary at
+        # /var/lib/kirocrew/.local/bin/code-review-graph, which the units
+        # reference. uv itself is provided system-wide (environment.systemPackages
+        # in kirocrew.nix), so it is on the default Nix path for any user.
+        # --force ensures a clean reinstall, repairing a partial/corrupt env.
         remote.run(
             "root",
             r"""set -e
-sudo -u orre -H env PATH="/home/orre/.local/bin:/etc/profiles/per-user/orre/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:$PATH" \
-  uv tool install code-review-graph==2.3.8 2>&1 | tail -3
+sudo -u kirocrew -H env \
+  HOME=/var/lib/kirocrew \
+  PATH="/var/lib/kirocrew/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:$PATH" \
+  uv tool install --force code-review-graph==2.3.8 2>&1 | tail -3
 """,
         )
         # Run the declarative units immediately after deployment instead of
