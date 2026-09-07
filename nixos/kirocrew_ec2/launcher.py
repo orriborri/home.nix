@@ -533,6 +533,26 @@ fi
     def _setup_code_review_graph(self, remote: RemoteHost) -> None:
         """Install code-review-graph and build graphs for repos that lack one."""
         print("\n» Setting up code-review-graph...")
+        # Clean up the legacy orre-owned CRG install/state. CRG used to run as
+        # the orre user; it now runs as kirocrew (see kirocrew-code.nix), so the
+        # old binary, uv tool venv, and daemon state under /home/orre are dead.
+        # Best-effort: a fresh box or an already-cleaned box just skips these.
+        remote.run(
+            "root",
+            r"""set +e
+# Stop any lingering orre-side daemon still registered from the old layout.
+sudo -u orre -H env PATH="/home/orre/.local/bin:/run/current-system/sw/bin:$PATH" \
+  code-review-graph daemon stop >/dev/null 2>&1
+# Uninstall the old uv tool (removes the venv + the ~/.local/bin shim).
+sudo -u orre -H env PATH="/etc/profiles/per-user/orre/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:$PATH" \
+  uv tool uninstall code-review-graph >/dev/null 2>&1
+# Remove orphaned state and any leftover binary/venv.
+rm -rf /home/orre/.code-review-graph \
+       /home/orre/.local/share/uv/tools/code-review-graph \
+       /home/orre/.local/bin/code-review-graph
+true
+""",
+        )
         # Install the validated version used by the declarative service, as the
         # kirocrew user (the CRG sync/daemon units and the gateway all run as
         # kirocrew). `uv tool install` drops the binary at
