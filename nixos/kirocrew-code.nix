@@ -385,8 +385,14 @@ in
   systemd.services.repo-sync = {
     description = "Update KiroCrew working trees from protected mirrors";
     after = [ "repo-fetch.service" ];
-    onSuccess = [ "code-review-graph-sync.service" ];
-    onFailure = [ "code-review-graph-sync.service" ];
+    onSuccess = [
+      "code-review-graph-sync.service"
+      "kirocrew-skill-sync.service"
+    ];
+    onFailure = [
+      "code-review-graph-sync.service"
+      "kirocrew-skill-sync.service"
+    ];
     serviceConfig = {
       Type = "oneshot";
       User = "kirocrew";
@@ -451,6 +457,60 @@ in
       ];
       ProtectSystem = "strict";
       ProtectHome = "read-only";
+      PrivateTmp = true;
+      NoNewPrivileges = true;
+      RestrictSUIDSGID = true;
+      LockPersonality = true;
+    };
+  };
+
+  # ── Skill sync: copy agentskills.io SKILL.md files into the gateway ────────
+  # After repo-sync refreshes the mattpocock-skills checkout, this oneshot
+  # copies every SKILL.md into the KiroCrew skills directory where the gateway
+  # picks them up automatically (no restart needed). Each skill is named by its
+  # directory path (e.g. "tdd.md", "grill-with-docs.md") so it's identifiable
+  # in the dashboard and via Slack slash-commands.
+  systemd.services.kirocrew-skill-sync = {
+    description = "Sync agent skills from managed checkouts into KiroCrew";
+    after = [ "repo-sync.service" ];
+    wantedBy = [ ]; # not standalone; triggered by repo-sync success
+    serviceConfig = {
+      Type = "oneshot";
+      User = "kirocrew";
+      Group = "kirocrew";
+      UMask = "0022";
+      ExecStart = pkgs.writeShellScript "kirocrew-skill-sync" ''
+        set -euo pipefail
+        skills_dir="/var/lib/kirocrew/.kiro/crew/skills"
+        source_dir="${codeDir}/mattpocock-skills/skills"
+        mkdir -p "$skills_dir"
+
+        if [[ ! -d "$source_dir" ]]; then
+          echo "Skills source not yet checked out at $source_dir; skipping."
+          exit 0
+        fi
+
+        synced=0
+        # Walk every SKILL.md in the repo and copy it into the gateway skills
+        # dir, named by its parent directory (the skill's slug).
+        while IFS= read -r -d "" skill_file; do
+          skill_dir="$(dirname "$skill_file")"
+          skill_name="$(basename "$skill_dir")"
+          dest="$skills_dir/$skill_name.md"
+
+          # Only copy if the source is newer or the destination is missing.
+          if [[ ! -e "$dest" ]] || [[ "$skill_file" -nt "$dest" ]]; then
+            cp "$skill_file" "$dest"
+            synced=$((synced + 1))
+          fi
+        done < <(find "$source_dir" -name 'SKILL.md' -print0)
+
+        echo "Skill sync complete: $synced file(s) updated."
+      '';
+      ReadOnlyPaths = [ codeDir ];
+      ReadWritePaths = [ "/var/lib/kirocrew" ];
+      ProtectSystem = "strict";
+      ProtectHome = true;
       PrivateTmp = true;
       NoNewPrivileges = true;
       RestrictSUIDSGID = true;

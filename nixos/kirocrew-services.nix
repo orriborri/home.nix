@@ -369,5 +369,8 @@ in
     # and that PASTA_DATA_DIR exists before the daemon starts.
     "d ${pastaHome}/bin 0755 pasta pasta -"
     "d ${pastaHome}/data 0750 pasta pasta -"
+    # KiroCrew skill files (synced from managed skill checkouts by
+    # kirocrew-skill-sync.service in kirocrew-code.nix).
+    "d ${kirocrewHome}/.kiro/crew/skills 0755 kirocrew kirocrew -"
   ];
 }

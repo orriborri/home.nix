@@ -85,3 +85,13 @@ path = "code/readpeak/Prebid.js"
 [[repos]]
 remote = "git@github.com:orriborri/pasta.git"
 path = "code/pasta"
+
+# ─── Agent skills ─────────────────────────────────────────────────
+
+# Matt Pocock's engineering skills (agentskills.io format). The skill-sync
+# service copies SKILL.md files from the checkout into the KiroCrew skills
+# directory so the gateway picks them up automatically.
+[[repos]]
+remote = "https://github.com/mattpocock/skills.git"
+path = "code/mattpocock-skills"
+targets = ["headless"]
