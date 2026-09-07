@@ -12,16 +12,38 @@ let
   graphStateDir = "/var/lib/code-review-graph";
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
   headlessRepos = builtins.filter (
-    repo: builtins.elem "headless" (repo.targets or [
-      "workstation"
-      "headless"
-    ])
+    repo:
+    builtins.elem "headless" (
+      repo.targets or [
+        "workstation"
+        "headless"
+      ]
+    )
   ) manifest.repos;
   destinationFor = repo: "${codeDir}/${lib.removePrefix "code/" repo.path}";
-  mirrorFor = repo: "${mirrorDir}/${builtins.substring 0 16 (builtins.hashString "sha256" repo.remote)}.git";
+  worktreeFor = repo: "${codeDir}/wt/${lib.removePrefix "code/" repo.path}";
+  # All intermediate parent directories of the per-repo worktree dirs
+  # (e.g. "readpeak" for "readpeak/cloudformation"). Declared as group-owned
+  # tmpfiles dirs so systemd-tmpfiles doesn't leave them root:root 0755 when
+  # auto-creating the leaf. Deduplicated; derived from the manifest so it stays
+  # correct if repo paths change.
+  worktreeParentDirs =
+    let
+      relPaths = map (repo: lib.removePrefix "code/" repo.path) headlessRepos;
+      # For "a/b/c" produce [ "a" "a/b" ]; for a top-level "a" produce [ ].
+      parentsOf =
+        rel:
+        let
+          parts = lib.splitString "/" rel;
+          dirParts = lib.init parts; # drop the final path component
+        in
+        lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) dirParts)) (lib.length dirParts);
+    in
+    lib.unique (lib.concatMap parentsOf relPaths);
+  mirrorFor =
+    repo: "${mirrorDir}/${builtins.substring 0 16 (builtins.hashString "sha256" repo.remote)}.git";
   safeGitConfig = pkgs.writeText "kirocrew-code-review-graph-gitconfig" (
-    "[safe]\n"
-    + lib.concatMapStrings (repo: "\tdirectory = ${destinationFor repo}\n") headlessRepos
+    "[safe]\n" + lib.concatMapStrings (repo: "\tdirectory = ${destinationFor repo}\n") headlessRepos
   );
 
   fetchCommands = lib.concatMapStringsSep "\n" (repo: ''
@@ -130,6 +152,31 @@ let
       export GIT_CONFIG_KEY_0=safe.directory
       export GIT_CONFIG_VALUE_0='*'
 
+      # Make the repo's .git group-writable so members of code-writers (the
+      # operator and the gateway/agent) can create refs and worktree admin
+      # data. core.sharedRepository=group only affects newly created files, so
+      # checkouts cloned before that setting — or the top-level .git dir and
+      # any 0755 subdirs — stay read-only to the group without this. Setgid on
+      # directories keeps new subdirs in the code-writers group. Idempotent.
+      enforce_git_perms() {
+        local destination="$1"
+        local gitdir="$destination/.git"
+        [[ -d "$gitdir" ]] || return 0
+        chgrp -R code-writers "$gitdir" 2>/dev/null || true
+        chmod -R g+rwX "$gitdir" 2>/dev/null || true
+        find "$gitdir" -type d -exec chmod g+s {} + 2>/dev/null || true
+      }
+
+      # Drop administrative entries for worktrees whose directory has been
+      # removed (e.g. under ${codeDir}/wt). Without this, deleted worktrees
+      # leave dangling records in .git/worktrees/ that block re-creating a
+      # worktree at the same path. Best-effort; never fails the sync.
+      prune_worktrees() {
+        local destination="$1"
+        [[ -d "$destination/.git" ]] || return 0
+        git -C "$destination" worktree prune 2>/dev/null || true
+      }
+
       update_checkout() {
         local mirror="$1"
         local destination="$2"
@@ -153,6 +200,7 @@ let
             failures=$((failures + 1))
             return
           fi
+          enforce_git_perms "$destination"
           echo "Ready: $name"
           return
         fi
@@ -160,6 +208,8 @@ let
         git -C "$destination" remote set-url origin "$mirror"
         git -C "$destination" config core.sharedRepository group
         if [[ -n "$(git -C "$destination" status --porcelain)" ]]; then
+          enforce_git_perms "$destination"
+          prune_worktrees "$destination"
           echo "Skipping dirty checkout (preserved, not reset): $name"
           warnings=$((warnings + 1))
           return
@@ -175,6 +225,8 @@ let
           failures=$((failures + 1))
           return
         fi
+        enforce_git_perms "$destination"
+        prune_worktrees "$destination"
         echo "Updated: $name"
       }
 
@@ -273,9 +325,20 @@ in
 {
   systemd.tmpfiles.rules = [
     "d ${codeDir} 2775 kirocrew code-writers -"
+    # Shared worktree root plus a per-repo subdirectory mirroring the checkout
+    # layout (wt/<repo-relpath>). Worktrees created off the managed checkouts
+    # live here — outside the checkouts themselves — so repo-sync's
+    # fast-forward does not disturb them. setgid + group-writable so both the
+    # operator and the gateway/agent (both in code-writers) can create and
+    # edit worktrees.
+    "d ${codeDir}/wt 2775 kirocrew code-writers -"
     "d ${mirrorDir} 0750 orre code-writers -"
     "d ${graphStateDir} 0750 orre code-writers -"
-  ];
+  ]
+  # Intermediate parent dirs (e.g. wt/readpeak) as group-owned, so tmpfiles
+  # doesn't leave auto-created parents root:root 0755.
+  ++ map (dir: "d ${codeDir}/wt/${dir} 2775 kirocrew code-writers -") worktreeParentDirs
+  ++ map (repo: "d ${worktreeFor repo} 2775 kirocrew code-writers -") headlessRepos;
 
   systemd.services.repo-fetch = {
     description = "Fetch protected KiroCrew repository mirrors";
