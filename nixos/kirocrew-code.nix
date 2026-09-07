@@ -372,6 +372,10 @@ in
     "d ${codeDir}/wt 2775 kirocrew code-writers -"
     "d ${mirrorDir} 0750 orre code-writers -"
     "d ${graphStateDir} 0750 kirocrew code-writers -"
+    # CRG per-user state dir; must exist so ProtectSystem=strict can bind it
+    # read-write for the sync/daemon units (the '-' optional-path form left it
+    # read-only when absent, so CRG's mkdir hit a read-only FS).
+    "d /var/lib/kirocrew/.code-review-graph 0750 kirocrew kirocrew -"
   ]
   # Intermediate parent dirs (e.g. wt/readpeak) as group-owned, so tmpfiles
   # doesn't leave auto-created parents root:root 0755.
@@ -492,7 +496,7 @@ in
       ReadWritePaths = [
         codeDir
         graphStateDir
-        "-/var/lib/kirocrew/.code-review-graph"
+        "/var/lib/kirocrew/.code-review-graph"
       ];
       ProtectSystem = "strict";
       ProtectHome = true;
@@ -525,7 +529,7 @@ in
       ReadWritePaths = [
         codeDir
         graphStateDir
-        "-/var/lib/kirocrew/.code-review-graph"
+        "/var/lib/kirocrew/.code-review-graph"
       ];
       ProtectSystem = "strict";
       ProtectHome = true;
