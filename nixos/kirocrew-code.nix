@@ -26,6 +26,9 @@ let
   ) manifest.repos;
   destinationFor = repo: "${codeDir}/${lib.removePrefix "code/" repo.path}";
   worktreeFor = repo: "${codeDir}/wt/${lib.removePrefix "code/" repo.path}";
+  # Repos the Code Review Graph should index. Opt out per-repo with
+  # `graph = false` in repos.toml (e.g. skill/doc repos that aren't code).
+  graphedRepos = builtins.filter (repo: (repo.graph or true) != false) headlessRepos;
   # All intermediate parent directories of the per-repo worktree dirs
   # (e.g. "readpeak" for "readpeak/cloudformation"). Declared as group-owned
   # tmpfiles dirs so systemd-tmpfiles doesn't leave them root:root 0755 when
@@ -47,7 +50,7 @@ let
   mirrorFor =
     repo: "${mirrorDir}/${builtins.substring 0 16 (builtins.hashString "sha256" repo.remote)}.git";
   safeGitConfig = pkgs.writeText "kirocrew-code-review-graph-gitconfig" (
-    "[safe]\n" + lib.concatMapStrings (repo: "\tdirectory = ${destinationFor repo}\n") headlessRepos
+    "[safe]\n" + lib.concatMapStrings (repo: "\tdirectory = ${destinationFor repo}\n") graphedRepos
   );
 
   fetchCommands = lib.concatMapStringsSep "\n" (repo: ''
@@ -67,7 +70,7 @@ let
     sync_graph \
       ${lib.escapeShellArg (destinationFor repo)} \
       ${lib.escapeShellArg (builtins.baseNameOf repo.path)}
-  '') headlessRepos;
+  '') graphedRepos;
 
   repoFetch = pkgs.writeShellApplication {
     name = "kirocrew-repo-fetch";

@@ -6,6 +6,8 @@
 #   path    (required) — clone destination relative to $HOME
 #   shallow (optional, default true) — use --depth=1 if true
 #   targets (optional, default ["workstation", "headless"]) — which roles clone this repo
+#   graph   (optional, default true) — index this repo in the Code Review Graph.
+#           Set false for non-code repos (skills, docs, wikis).
 
 [settings]
 base_dir = "code/readpeak"
@@ -90,8 +92,10 @@ path = "code/pasta"
 
 # Matt Pocock's engineering skills (agentskills.io format). The skill-sync
 # service copies SKILL.md files from the checkout into the KiroCrew skills
-# directory so the gateway picks them up automatically.
+# directory so the gateway picks them up automatically. Not code — exclude it
+# from the Code Review Graph.
 [[repos]]
 remote = "https://github.com/mattpocock/skills.git"
 path = "code/mattpocock-skills"
 targets = ["headless"]
+graph = false
