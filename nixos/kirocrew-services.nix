@@ -44,13 +44,20 @@ let
     pkgs.openssl
   ];
 
-  # Source builder for the Pasta vault indexer, run as an ExecStartPre of the
-  # pasta-daemon system service (pasta user). Mirrors the workstation recipe in
-  # pasta-service.nix (cargo build --release -p pasta-backend -p kb-cli) but is
-  # fully self-contained under ${pastaHome}: it clones the public repo, builds,
-  # and links the binary to ${pastaHome}/bin/pasta-backend, all inside the
-  # unit's single ReadWritePath. CARGO_HOME/target live under ${pastaHome} so
-  # nothing is written outside the sandbox.
+  # Source builder for the Pasta vault indexer + kb MCP server, run as an
+  # ExecStartPre of the pasta-daemon system service (pasta user). Builds the
+  # whole workspace so both `pasta-backend` (indexer) and `kb` (MCP stdio
+  # server) are produced, and links them into ${pastaHome}/bin. Fully
+  # self-contained under ${pastaHome}: clones the public repo and builds there,
+  # inside the unit's single ReadWritePath. CARGO_HOME/target live under
+  # ${pastaHome} so nothing is written outside the sandbox.
+  #
+  # Build env mirrors the repo's shell.nix (protobuf, openssl, mold) but wires
+  # it explicitly rather than via nix-shell (which can't run under the strict
+  # sandbox). openssl-sys needs OPENSSL_DIR/PKG_CONFIG_PATH pointing at the
+  # openssl .dev output and OPENSSL_NO_VENDOR=1 to use it instead of compiling a
+  # vendored copy. mold must be on PATH because the repo's .cargo/config.toml
+  # sets rustflags to link with it.
   #
   # NOTE: uses the public HTTPS remote — the pasta user has no forge
   # credentials. If orriborri/pasta becomes private, switch this to a
@@ -63,8 +70,10 @@ let
       cargo
       rustc
       gcc
+      mold # repo's .cargo/config.toml links with mold
       pkg-config
       openssl
+      openssl.dev
       protobuf
     ];
     text = ''
@@ -74,6 +83,12 @@ let
       export CARGO_TARGET_DIR="${pastaHome}/target"
       export PROTOC="${pkgs.protobuf}/bin/protoc"
       export PROTOC_INCLUDE="${pkgs.protobuf}/include"
+
+      # openssl-sys: use the Nix system OpenSSL, do not compile a vendored copy.
+      export OPENSSL_NO_VENDOR=1
+      export OPENSSL_DIR="${pkgs.openssl.dev}"
+      export OPENSSL_LIB_DIR="${pkgs.openssl.out}/lib"
+      export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
       # Public, read-only checkout: ignore user Git URL rewrites so an HTTPS
       # clone can't be redirected to an SSH clone needing credentials.
@@ -91,20 +106,29 @@ let
       fi
 
       cd "$srcRoot"
-      # Rebuild only when the binary is missing or sources are newer.
-      built="$CARGO_TARGET_DIR/release/pasta-backend"
-      if [ ! -x "$built" ] || \
-         [ -n "$(find crates src -name '*.rs' -newer "$built" 2>/dev/null | head -1)" ]; then
-        echo "Building pasta-backend (release)..."
-        cargo build --release -p pasta-backend -p kb-cli
+      # Build the whole workspace so both pasta-backend and kb are produced.
+      # Rebuild when either binary is missing or sources changed.
+      backend="$CARGO_TARGET_DIR/release/pasta-backend"
+      kb="$CARGO_TARGET_DIR/release/kb"
+      if [ ! -x "$backend" ] || [ ! -x "$kb" ] || \
+         [ -n "$(find crates src -name '*.rs' -newer "$backend" 2>/dev/null | head -1)" ]; then
+        echo "Building pasta workspace (release)..."
+        cargo build --release
       fi
 
-      ln -sfnT "$built" "$binDir/pasta-backend"
-      if [ -x "$CARGO_TARGET_DIR/release/kb-cli" ]; then
-        ln -sfnT "$CARGO_TARGET_DIR/release/kb-cli" "$binDir/kb-cli"
-      fi
+      # Link whatever got built into the bin dir (names per the repo/KiroCrew
+      # skill: pasta-backend = indexer daemon, kb = MCP stdio server).
+      for b in pasta-backend kb; do
+        if [ -x "$CARGO_TARGET_DIR/release/$b" ]; then
+          ln -sfnT "$CARGO_TARGET_DIR/release/$b" "$binDir/$b"
+          echo "linked $b -> $binDir/$b"
+        else
+          echo "warning: expected binary not built: $b" >&2
+        fi
+      done
+
       "$binDir/pasta-backend" --version 2>/dev/null || true
-      echo "pasta-backend ready at $binDir/pasta-backend"
+      echo "pasta build complete"
     '';
   };
 
