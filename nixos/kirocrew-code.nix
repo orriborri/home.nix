@@ -323,9 +323,14 @@ let
         exit 0
       fi
       if (( failures > 0 )); then
-        echo "$failures graph operation(s) need attention" >&2
-        exit 1
+        # Best-effort indexing: report loudly but DO NOT fail. This oneshot runs
+        # during activation (the daemon Requires= it), so exiting non-zero here
+        # would fail switch-to-configuration for a single repo's graph hiccup.
+        # CRG's design is that one repo failing must not stop the others, so we
+        # surface the count and exit 0; the 10-min timer retries transient ones.
+        echo "$failures graph operation(s) need attention (non-fatal; see log above)" >&2
       fi
+      exit 0
     '';
   };
 
