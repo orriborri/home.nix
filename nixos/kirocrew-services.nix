@@ -123,7 +123,17 @@ in
       ];
 
       # ── systemd hardening ──────────────────────────────────────────────
-      NoNewPrivileges = true;
+      # NoNewPrivileges MUST stay off: KiroCrew's strict sandbox runs the agent
+      # (kiro-cli via ACP) inside an unprivileged user+mount namespace and seals
+      # paths like ${kirocrewHome}/.kiro/crew/run read-only via remount. With
+      # NoNewPrivileges=yes the process cannot gain the privileges that remount
+      # needs inside the userns, so the seal fails with EPERM and every agent
+      # session/cron dies with AcpRuntimeDead. The kernel already allows
+      # unprivileged userns (user.max_user_namespaces > 0) and the kirocrew user
+      # can perform the seal by hand, so the namespace sandbox remains the real
+      # isolation layer; this only removes the redundant systemd flag that blocks
+      # it. RestrictNamespaces is already false for the same reason.
+      NoNewPrivileges = false;
       ProtectSystem = "strict";
       # Hide all operator homes, then selectively expose the legacy Kiro tree
       # at its original path through a read-only bind. ACLs from the prerequisite
