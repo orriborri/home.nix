@@ -44,6 +44,70 @@ let
     pkgs.openssl
   ];
 
+  # Source builder for the Pasta vault indexer, run as an ExecStartPre of the
+  # pasta-daemon system service (pasta user). Mirrors the workstation recipe in
+  # pasta-service.nix (cargo build --release -p pasta-backend -p kb-cli) but is
+  # fully self-contained under ${pastaHome}: it clones the public repo, builds,
+  # and links the binary to ${pastaHome}/bin/pasta-backend, all inside the
+  # unit's single ReadWritePath. CARGO_HOME/target live under ${pastaHome} so
+  # nothing is written outside the sandbox.
+  #
+  # NOTE: uses the public HTTPS remote — the pasta user has no forge
+  # credentials. If orriborri/pasta becomes private, switch this to a
+  # deploy-token/SSH flow like kirocrew-vault-git.nix.
+  pastaSourceBuild = pkgs.writeShellApplication {
+    name = "pasta-source-build";
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+      cargo
+      rustc
+      gcc
+      pkg-config
+      openssl
+      protobuf
+    ];
+    text = ''
+      srcRoot="${pastaHome}/src"
+      binDir="${pastaHome}/bin"
+      export CARGO_HOME="${pastaHome}/.cargo"
+      export CARGO_TARGET_DIR="${pastaHome}/target"
+      export PROTOC="${pkgs.protobuf}/bin/protoc"
+      export PROTOC_INCLUDE="${pkgs.protobuf}/include"
+
+      # Public, read-only checkout: ignore user Git URL rewrites so an HTTPS
+      # clone can't be redirected to an SSH clone needing credentials.
+      export GIT_CONFIG_GLOBAL=/dev/null
+      export GIT_CONFIG_NOSYSTEM=1
+      export GIT_TERMINAL_PROMPT=0
+
+      mkdir -p "$srcRoot" "$binDir" "$CARGO_HOME" "$CARGO_TARGET_DIR"
+
+      if [ ! -d "$srcRoot/.git" ]; then
+        git clone --depth 1 https://github.com/orriborri/pasta.git "$srcRoot"
+      else
+        git -C "$srcRoot" fetch --depth 1 origin HEAD
+        git -C "$srcRoot" reset --hard FETCH_HEAD
+      fi
+
+      cd "$srcRoot"
+      # Rebuild only when the binary is missing or sources are newer.
+      built="$CARGO_TARGET_DIR/release/pasta-backend"
+      if [ ! -x "$built" ] || \
+         [ -n "$(find crates src -name '*.rs' -newer "$built" 2>/dev/null | head -1)" ]; then
+        echo "Building pasta-backend (release)..."
+        cargo build --release -p pasta-backend -p kb-cli
+      fi
+
+      ln -sfnT "$built" "$binDir/pasta-backend"
+      if [ -x "$CARGO_TARGET_DIR/release/kb-cli" ]; then
+        ln -sfnT "$CARGO_TARGET_DIR/release/kb-cli" "$binDir/kb-cli"
+      fi
+      "$binDir/pasta-backend" --version 2>/dev/null || true
+      echo "pasta-backend ready at $binDir/pasta-backend"
+    '';
+  };
+
   legacyKiroReadAccess = pkgs.writeShellApplication {
     name = "kirocrew-legacy-kiro-read-access";
     runtimeInputs = with pkgs; [
@@ -191,10 +255,11 @@ in
   };
 
   # ── Pasta daemon ───────────────────────────────────────────────────────────
-  # Disabled until pasta-backend is installed into /var/lib/pasta/bin/.
-  # The missing binary causes switch-to-configuration to fail with exit 4.
+  # Builds pasta-backend from source (as an ExecStartPre) under the pasta
+  # user's home, then runs it. Indexes the EC2 vault checkout read-only and
+  # writes its index to ${pastaHome}/data.
   systemd.services.pasta-daemon = {
-    enable = false;
+    enable = true;
     description = "Pasta vault indexer";
     after = [
       "network-online.target"
@@ -208,6 +273,9 @@ in
       Type = "simple";
       User = "pasta";
       Group = "pasta";
+      # Build/refresh pasta-backend from source before starting it. First build
+      # on Graviton can take a while, hence the long TimeoutStartSec below.
+      ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
       ExecStart = "${pastaHome}/bin/pasta-backend";
       Restart = "on-failure";
       RestartSec = 10;
@@ -296,5 +364,10 @@ in
     "d /tmp/kirocrew 0700 kirocrew kirocrew -"
     "d /run/kirocrew-agent 0750 orre kirocrew -"
     "d /run/kirocrew 0750 kirocrew kirocrew -"
+    # Pasta build/runtime dirs (pasta user owns its home tree). The build
+    # script also mkdir -p's these, but declaring them guarantees ownership
+    # and that PASTA_DATA_DIR exists before the daemon starts.
+    "d ${pastaHome}/bin 0755 pasta pasta -"
+    "d ${pastaHome}/data 0750 pasta pasta -"
   ];
 }
