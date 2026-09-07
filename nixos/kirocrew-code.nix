@@ -10,6 +10,10 @@ let
   codeDir = "/var/lib/code";
   mirrorDir = "/var/lib/kirocrew-repo-mirrors";
   graphStateDir = "/var/lib/code-review-graph";
+  # Pinned CRG version, installed as a uv tool under the kirocrew user by
+  # code-review-graph-install.service.
+  crgVersion = "2.3.8";
+  crgBin = "/var/lib/kirocrew/.local/bin/code-review-graph";
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
   headlessRepos = builtins.filter (
     repo:
@@ -252,7 +256,7 @@ let
       set -uo pipefail
       umask 0002
 
-      crg="/var/lib/kirocrew/.local/bin/code-review-graph"
+      crg=${lib.escapeShellArg crgBin}
       failures=0
       present=0
       mkdir -p ${lib.escapeShellArg graphStateDir}/revisions
@@ -319,6 +323,40 @@ let
         echo "$failures graph operation(s) need attention" >&2
         exit 1
       fi
+    '';
+  };
+
+  # Installs code-review-graph as a uv tool under the kirocrew user, at
+  # ${crgBin}. Runs before the sync/daemon units so the binary always exists by
+  # the time they start — this is what makes switch-to-configuration succeed on
+  # a fresh box (the old launcher-side install ran too late, after activation).
+  crgInstall = pkgs.writeShellApplication {
+    name = "kirocrew-code-review-graph-install";
+    runtimeInputs = with pkgs; [
+      coreutils
+      uv
+      python313
+      git
+    ];
+    text = ''
+      set -euo pipefail
+      export HOME=/var/lib/kirocrew
+      export PATH="/var/lib/kirocrew/.local/bin:$PATH"
+
+      installed=""
+      if [[ -x ${lib.escapeShellArg crgBin} ]]; then
+        installed="$(${lib.escapeShellArg crgBin} --version 2>/dev/null | tr -dc '0-9.' || true)"
+      fi
+
+      if [[ "$installed" != ${lib.escapeShellArg crgVersion} ]]; then
+        echo "Installing code-review-graph==${crgVersion} (was: ''${installed:-none})"
+        uv tool install --force "code-review-graph==${crgVersion}"
+      else
+        echo "code-review-graph==${crgVersion} already installed"
+      fi
+
+      # Verify the module actually imports — catches a corrupt env early.
+      ${lib.escapeShellArg crgBin} --version
     '';
   };
 in
@@ -411,9 +449,39 @@ in
     };
   };
 
+  systemd.services.code-review-graph-install = {
+    description = "Install code-review-graph (uv tool) for the kirocrew user";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    before = [
+      "code-review-graph-sync.service"
+      "code-review-graph-daemon.service"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      User = "kirocrew";
+      Group = "kirocrew";
+      UMask = "0022";
+      ExecStart = "${crgInstall}/bin/kirocrew-code-review-graph-install";
+      TimeoutStartSec = "10min";
+      ReadWritePaths = [ "/var/lib/kirocrew" ];
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      NoNewPrivileges = true;
+      RestrictSUIDSGID = true;
+      LockPersonality = true;
+    };
+  };
+
   systemd.services.code-review-graph-sync = {
     description = "Build and register KiroCrew Code Review Graph indexes";
-    after = [ "repo-sync.service" ];
+    after = [
+      "repo-sync.service"
+      "code-review-graph-install.service"
+    ];
+    requires = [ "code-review-graph-install.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = "kirocrew";
@@ -438,15 +506,19 @@ in
   systemd.services.code-review-graph-daemon = {
     description = "Code Review Graph repository watcher";
     wants = [ "code-review-graph-sync.service" ];
-    after = [ "code-review-graph-sync.service" ];
+    after = [
+      "code-review-graph-sync.service"
+      "code-review-graph-install.service"
+    ];
+    requires = [ "code-review-graph-install.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
       User = "kirocrew";
       Group = "code-writers";
       UMask = "0002";
-      ExecStartPre = "-/var/lib/kirocrew/.local/bin/code-review-graph daemon stop";
-      ExecStart = "/var/lib/kirocrew/.local/bin/code-review-graph daemon start --foreground";
+      ExecStartPre = "-${crgBin} daemon stop";
+      ExecStart = "${crgBin} daemon start --foreground";
       Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
       Restart = "on-failure";
       RestartSec = 5;

@@ -560,6 +560,11 @@ true
         # reference. uv itself is provided system-wide (environment.systemPackages
         # in kirocrew.nix), so it is on the default Nix path for any user.
         # --force ensures a clean reinstall, repairing a partial/corrupt env.
+        #
+        # NOTE: the declarative code-review-graph-install.service also performs
+        # this install (ordered before the sync/daemon units, so activation
+        # succeeds on a fresh box). This launcher step is kept as a belt-and-
+        # suspenders early install; both are idempotent.
         remote.run(
             "root",
             r"""set -e
