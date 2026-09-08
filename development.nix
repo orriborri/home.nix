@@ -79,6 +79,9 @@
         targets = repo.get('targets', ['workstation', 'headless'])
         if role not in targets:
             continue
+        # The pinned skills checkout is installed by its supervised service.
+        if repo.get('revision') and repo['path'] == 'code/mattpocock-skills':
+            continue
         target = os.path.join(home, repo['path'])
         if not os.path.isdir(target):
             os.makedirs(os.path.dirname(target), exist_ok=True)

@@ -14,10 +14,49 @@
 # (see nixos/kirocrew-services.nix). This module remains active only on
 # workstation profiles where everything runs under the operator user.
 #
-# Sandbox is set to strict: KiroCrew's namespace-based isolation prevents
-# agents from accessing operator credentials, IMDS, and system resources.
+# Sandbox is set to auto: KiroCrew v0.5.0 retired the 'strict' value (allowed
+# values are now 'auto' and 'off'). 'auto' enables the namespace-based
+# isolation that prevents agents from accessing operator credentials, IMDS,
+# and system resources.
 let
   cfg = config.kirocrew;
+  skillsTools = import ./nixos/kirocrew-skills-package.nix { inherit pkgs; };
+  repoManifest = builtins.fromTOML (builtins.readFile ./config/repos.toml);
+  skillsRepo = lib.findFirst (repo: repo.path == "code/mattpocock-skills") null repoManifest.repos;
+  syncWorkstationSkills =
+    cfg.enable
+    && cfg.role == "workstation"
+    && builtins.elem "workstation" (
+      skillsRepo.targets or [
+        "workstation"
+        "headless"
+      ]
+    );
+  skillsCheckout = "${config.home.homeDirectory}/${skillsRepo.path}";
+  skillsMirror = "${config.home.homeDirectory}/.local/state/kirocrew/repo-mirrors/mattpocock.git";
+  workstationSkillSync = pkgs.writeShellApplication {
+    name = "kirocrew-workstation-skill-sync";
+    text = ''
+      # This public source must work without an interactive SSH agent, even
+      # when the operator normally rewrites GitHub HTTPS URLs to SSH.
+      export GIT_CONFIG_GLOBAL=/dev/null
+      export GIT_CONFIG_NOSYSTEM=1
+      export GIT_TERMINAL_PROMPT=0
+      ${skillsTools.pinnedRepo}/bin/kirocrew-pinned-repo fetch \
+        --remote ${lib.escapeShellArg skillsRepo.remote} \
+        --destination ${lib.escapeShellArg skillsMirror} \
+        --revision ${lib.escapeShellArg skillsRepo.revision}
+      ${skillsTools.pinnedRepo}/bin/kirocrew-pinned-repo checkout \
+        --remote ${lib.escapeShellArg skillsMirror} \
+        --destination ${lib.escapeShellArg skillsCheckout} \
+        --revision ${lib.escapeShellArg skillsRepo.revision}
+      ${skillsTools.sync}/bin/kirocrew-skill-sync \
+        --source ${lib.escapeShellArg "${skillsCheckout}/skills"} \
+        --destination ${lib.escapeShellArg "${config.home.homeDirectory}/.kiro/crew/skills"} \
+        --state ${lib.escapeShellArg "${config.home.homeDirectory}/.kiro/crew/skill-sync/mattpocock"} \
+        --revision ${lib.escapeShellArg skillsRepo.revision}
+    '';
+  };
   # Detect whether sops-nix has the git-ssh-key secret declared.
   # The module is imported on all outputs but only activates where a key exists.
   hasSops = (config.sops.secrets or { }) ? "git-ssh-key";
@@ -72,8 +111,14 @@ in
   systemd.user.services.kirocrew = lib.mkIf (cfg.role == "workstation") {
     Unit = {
       Description = "KiroCrew Gateway";
-      After = [ "network-online.target" ] ++ lib.optionals hasSops [ "sops-nix.service" ];
-      Wants = lib.optionals hasSops [ "sops-nix.service" ];
+      After = [
+        "network-online.target"
+      ]
+      ++ lib.optionals hasSops [ "sops-nix.service" ]
+      ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
+      Wants =
+        lib.optionals hasSops [ "sops-nix.service" ]
+        ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
     };
     Service = {
       Type = "simple";
@@ -83,7 +128,7 @@ in
         ]
         ++ [
           "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
-          "${kirocrewExecutable} config set --local agent.sandbox strict"
+          "${kirocrewExecutable} config set --local agent.sandbox auto"
         ];
       ExecStart = "${kirocrewExecutable} gateway";
       # A first source install builds the TypeScript dashboard and Python venv.
@@ -105,6 +150,30 @@ in
     Install = {
       WantedBy = [ "default.target" ];
     };
+  };
+
+  systemd.user.services.kirocrew-skill-sync = lib.mkIf syncWorkstationSkills {
+    Unit = {
+      Description = "Refresh pinned KiroCrew skill directories";
+      After = [ "network-online.target" ];
+    };
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${workstationSkillSync}/bin/kirocrew-workstation-skill-sync";
+      UMask = "0022";
+      TimeoutStartSec = "5min";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+  systemd.user.timers.kirocrew-skill-sync = lib.mkIf syncWorkstationSkills {
+    Unit.Description = "Refresh pinned KiroCrew skills every 15 minutes";
+    Timer = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "15m";
+      RandomizedDelaySec = "30s";
+      Unit = "kirocrew-skill-sync.service";
+    };
+    Install.WantedBy = [ "timers.target" ];
   };
 
   # Refresh stable tags daily. New releases are built and validated alongside

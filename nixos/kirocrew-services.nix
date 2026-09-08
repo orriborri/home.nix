@@ -197,8 +197,11 @@ in
       TimeoutStartSec = "20min";
       WorkingDirectory = kirocrewHome;
 
-      # ── Sandbox: strict mode ───────────────────────────────────────────
-      # KiroCrew's own strict sandbox provides namespace isolation for agents.
+      # ── Sandbox: auto mode ─────────────────────────────────────────────
+      # KiroCrew v0.5.0 retired the 'strict' value for agent.sandbox; the
+      # allowed values are now 'auto' and 'off'. 'auto' turns the namespace
+      # sandbox on automatically, providing the isolation the systemd hardening
+      # below is tuned for (see the NoNewPrivileges / RestrictNamespaces notes).
       # systemd hardening adds defense in depth at the service level.
       ExecStartPre = [
         # Build/update the gateway from source (newest stable tag), producing
@@ -207,11 +210,11 @@ in
         # TimeoutStartSec above.
         "${kirocrewSourceUpdate}/bin/kirocrew-source-update"
         "${pkgs.coreutils}/bin/mkdir -p ${kirocrewHome}/.kiro/crew"
-        "${kirocrewSourceBin} config set --local agent.sandbox strict"
+        "${kirocrewSourceBin} config set --local agent.sandbox auto"
       ];
 
       # ── systemd hardening ──────────────────────────────────────────────
-      # NoNewPrivileges MUST stay off: KiroCrew's strict sandbox runs the agent
+      # NoNewPrivileges MUST stay off: KiroCrew's namespace sandbox runs the agent
       # (kiro-cli via ACP) inside an unprivileged user+mount namespace and seals
       # paths like ${kirocrewHome}/.kiro/crew/run read-only via remount. With
       # NoNewPrivileges=yes the process cannot gain the privileges that remount

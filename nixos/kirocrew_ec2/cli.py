@@ -54,7 +54,8 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  new                launch a new instance\n"
             "  migrate-kirocrew   migrate local KiroCrew state to the instance\n"
             "  sync-state         sync local kirocrew config, skills, and workspace to remote\n"
-            "  auth linear        run Linear OAuth locally and install the token on the gateway"
+            "  auth <target>      run MCP OAuth locally and install the token on the gateway\n"
+            "                     (targets: linear, metabase)"
         ),
     )
     parser.add_argument("legacy_profile", nargs="?")

@@ -52,6 +52,7 @@ LOCAL_MCP_AUTH_DIR = "~/.mcp-auth/mcp-remote-v1"
 # Linear removed SSE support; the current endpoint is the streamable HTTP /mcp.
 AUTH_SERVER_URLS = {
     "linear": "https://mcp.linear.app/mcp",
+    "metabase": "https://metabase.readpeak.com/api/metabase-mcp",
 }
 # 1Password agent socket bridge. When the portal is open, the launcher forwards
 # the operator's local 1Password agent socket to REMOTE_AGENT_SOCKET on the box
@@ -81,7 +82,7 @@ COMMANDS = (
     "ssh",
     "auth",
 )
-AUTH_TARGETS = ("linear",)
+AUTH_TARGETS = ("linear", "metabase")
 CONFIG_KEYS = {
     "DEFAULT_PROFILE",
     "DEFAULT_REGION",

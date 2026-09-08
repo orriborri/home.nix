@@ -15,6 +15,8 @@ let
   crgVersion = "2.3.8";
   crgBin = "/var/lib/kirocrew/.local/bin/code-review-graph";
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
+  skillsTools = import ./kirocrew-skills-package.nix { inherit pkgs; };
+  skillsRepo = lib.findFirst (repo: repo.path == "code/mattpocock-skills") null manifest.repos;
   headlessRepos = builtins.filter (
     repo:
     builtins.elem "headless" (
@@ -57,13 +59,15 @@ let
     fetch_mirror \
       ${lib.escapeShellArg repo.remote} \
       ${lib.escapeShellArg (mirrorFor repo)} \
-      ${if (repo.shallow or true) then "1" else "0"}
+      ${if (repo.shallow or true) then "1" else "0"} \
+      ${lib.escapeShellArg (repo.revision or "")}
   '') headlessRepos;
 
   checkoutCommands = lib.concatMapStringsSep "\n" (repo: ''
     update_checkout \
       ${lib.escapeShellArg (mirrorFor repo)} \
-      ${lib.escapeShellArg (destinationFor repo)}
+      ${lib.escapeShellArg (destinationFor repo)} \
+      ${lib.escapeShellArg (repo.revision or "")}
   '') headlessRepos;
 
   graphCommands = lib.concatMapStringsSep "\n" (repo: ''
@@ -103,7 +107,18 @@ let
         local remote="$1"
         local mirror="$2"
         local shallow="$3"
+        local revision="$4"
         local clone_args=(--mirror)
+
+        if [[ -n "$revision" ]]; then
+          if ! ${skillsTools.pinnedRepo}/bin/kirocrew-pinned-repo fetch \
+            --remote "$remote" --destination "$mirror" --revision "$revision"; then
+            failures=$((failures + 1))
+            return
+          fi
+          chmod -R u+rwX,g+rX,go-w "$mirror"
+          return
+        fi
 
         if [[ "$shallow" == "1" ]]; then
           clone_args+=(--depth=1)
@@ -187,8 +202,19 @@ let
       update_checkout() {
         local mirror="$1"
         local destination="$2"
+        local revision="$3"
         local name
         name="$(basename "$destination")"
+
+        if [[ -n "$revision" ]]; then
+          if ! ${skillsTools.pinnedRepo}/bin/kirocrew-pinned-repo checkout \
+            --remote "$mirror" --destination "$destination" --revision "$revision"; then
+            failures=$((failures + 1))
+          fi
+          enforce_git_perms "$destination"
+          prune_worktrees "$destination"
+          return
+        fi
 
         if [[ ! -d "$mirror/objects" ]]; then
           echo "Skipping unavailable mirror: $name" >&2
@@ -548,49 +574,33 @@ in
     };
   };
 
-  # ── Skill sync: copy agentskills.io SKILL.md files into the gateway ────────
-  # After repo-sync refreshes the mattpocock-skills checkout, this oneshot
-  # copies every SKILL.md into the KiroCrew skills directory where the gateway
-  # picks them up automatically (no restart needed). Each skill is named by its
-  # directory path (e.g. "tdd.md", "grill-with-docs.md") so it's identifiable
-  # in the dashboard and via Slack slash-commands.
+  # Reconcile complete skill directories. Ownership state and recoverable
+  # previous versions live outside the gateway's discovery tree.
   systemd.services.kirocrew-skill-sync = {
     description = "Sync agent skills from managed checkouts into KiroCrew";
     after = [ "repo-sync.service" ];
-    wantedBy = [ ]; # not standalone; triggered by repo-sync success
+    wantedBy = [ ]; # triggered by repo-sync success or failure
     serviceConfig = {
       Type = "oneshot";
       User = "kirocrew";
       Group = "kirocrew";
       UMask = "0022";
-      ExecStart = pkgs.writeShellScript "kirocrew-skill-sync" ''
-        set -euo pipefail
-        skills_dir="/var/lib/kirocrew/.kiro/crew/skills"
-        source_dir="${codeDir}/mattpocock-skills/skills"
-        mkdir -p "$skills_dir"
-
-        if [[ ! -d "$source_dir" ]]; then
-          echo "Skills source not yet checked out at $source_dir; skipping."
-          exit 0
-        fi
-
-        synced=0
-        # Walk every SKILL.md in the repo and copy it into the gateway skills
-        # dir, named by its parent directory (the skill's slug).
-        while IFS= read -r -d "" skill_file; do
-          skill_dir="$(dirname "$skill_file")"
-          skill_name="$(basename "$skill_dir")"
-          dest="$skills_dir/$skill_name.md"
-
-          # Only copy if the source is newer or the destination is missing.
-          if [[ ! -e "$dest" ]] || [[ "$skill_file" -nt "$dest" ]]; then
-            cp "$skill_file" "$dest"
-            synced=$((synced + 1))
-          fi
-        done < <(find "$source_dir" -name 'SKILL.md' -print0)
-
-        echo "Skill sync complete: $synced file(s) updated."
-      '';
+      ExecStart = lib.escapeShellArgs (
+        [
+          "${skillsTools.sync}/bin/kirocrew-skill-sync"
+          "--archive-legacy"
+          "--source"
+          "${destinationFor skillsRepo}/skills"
+          "--destination"
+          "/var/lib/kirocrew/.kiro/crew/skills"
+          "--state"
+          "/var/lib/kirocrew/.kiro/crew/skill-sync/mattpocock"
+        ]
+        ++ lib.optionals (skillsRepo ? revision) [
+          "--revision"
+          skillsRepo.revision
+        ]
+      );
       ReadOnlyPaths = [ codeDir ];
       ReadWritePaths = [ "/var/lib/kirocrew" ];
       ProtectSystem = "strict";
