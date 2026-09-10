@@ -34,7 +34,10 @@
   users.users.kirocrew = {
     isSystemUser = true;
     group = "kirocrew";
-    extraGroups = [ "vault-readers" "code-writers" ];
+    extraGroups = [
+      "vault-readers"
+      "code-writers"
+    ];
     home = "/var/lib/kirocrew";
     createHome = true;
     shell = pkgs.bashInteractive;
@@ -57,7 +60,10 @@
   # can be introduced.
   users.users.orre = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "code-writers" ];
+    extraGroups = [
+      "wheel"
+      "code-writers"
+    ];
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       # Add your SSH public key here before deploying
@@ -87,14 +93,21 @@
   };
 
   # ── Credential isolation ───────────────────────────────────────────────────
-  # Ensure kirocrew and pasta home directories are not world-readable.
+  # Ensure the kirocrew and pasta home directories are not world-readable.
+  #
+  # pasta is 0751 (not 0750): the kirocrew gateway spawns kb-mcp, which must
+  # reach the kb index at /var/lib/pasta/data (group vault-readers, group-
+  # readable). kirocrew is not in the pasta group, so it needs traverse (o+x)
+  # on the pasta home to pass THROUGH to that group-readable subdir. 0751 grants
+  # traverse-only to "other" — no read, no listing of the pasta home itself —
+  # so the credential-isolation intent holds while the index stays reachable.
   system.activationScripts.kirocrew-home-perms = lib.stringAfter [ "users" ] ''
     chmod 750 /var/lib/kirocrew 2>/dev/null || true
-    chmod 750 /var/lib/pasta 2>/dev/null || true
+    chmod 751 /var/lib/pasta 2>/dev/null || true
   '';
 
-  # ── Remove ttyd-zellij (was running as orre, writable, on 0.0.0.0) ────────
-  # Access the workspace through SSM port-forwarding instead.
-  # systemd.services.ttyd-zellij is not defined here; the old definition
-  # in kirocrew-ec2.nix must be removed.
+  # ── No web terminal (ttyd-zellij removed) ──────────────────────────────────
+  # The writable browser terminal that ran as orre is gone (removed from
+  # kirocrew-ec2.nix). Reach the workspace through SSM port-forwarding and the
+  # SSH-over-SSM Zellij session instead.
 }
