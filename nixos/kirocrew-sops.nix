@@ -69,5 +69,16 @@
       mode = "0400";
       path = "/var/lib/kirocrew/secrets/vault-git-crypt-key";
     };
+
+    # Xpra authentication password for the browser-Obsidian session
+    # (kirocrew-obsidian-xpra.nix). Provisioned to the display user's private
+    # state, where the Xpra `file` auth module reads it. sops-nix decrypts as
+    # root using the kirocrew age key, then chowns to obsidian-web.
+    secrets.xpra-password = {
+      owner = config.users.users.obsidian-web.name;
+      inherit (config.users.users.obsidian-web) group;
+      mode = "0400";
+      path = "/var/lib/obsidian-web/secrets/xpra-password";
+    };
   };
 }
