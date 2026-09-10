@@ -444,6 +444,98 @@ in
     };
   };
 
+  # ── Pasta vault indexer (periodic) ──────────────────────────────────────────
+  # The pasta-daemon above provides the IPC socket and runs the credential-gated
+  # fetch cycle (gmail/linear/slack/calendar) plus task housekeeping — but its
+  # scheduler's fetch cycle deliberately EXCLUDES the `vault` source, so it never
+  # refreshes the kb store that kb-mcp serves. On this host the vault is the only
+  # source (the pasta user has no forge/messaging creds), so vault indexing must
+  # be driven explicitly.
+  #
+  # `kb sync --source vault` fetches the vault checkout and indexes it into
+  # ${pastaDataDir} (Parquet -> LanceDB + Tantivy) — the same store kb-mcp reads.
+  # It is credential-free, idempotent ("No new records to sync" when current),
+  # and safe to run on a timer. This keeps the gateway's knowledge base fresh as
+  # the git-crypt vault sync lands new notes, with no manual step.
+  systemd.services.pasta-vault-index = {
+    description = "Index the vault into the pasta kb store (kb sync --source vault)";
+    after = [
+      "network-online.target"
+      "kirocrew-vault-clone.service"
+      "pasta-daemon.service"
+      "ollama.service"
+    ];
+    wants = [
+      "network-online.target"
+      # Prefer the local embedder to be up so the embedding step succeeds;
+      # `wants` (not `requires`) so a degraded Ollama still lets FTS indexing
+      # run rather than blocking the vault index entirely.
+      "ollama.service"
+    ];
+    # The kb binary is built/linked by pasta-daemon's ExecStartPre
+    # (pasta-source-build). Require the daemon so ${pastaHome}/bin/kb exists and
+    # the pinned ${pastaHome}/.pasta/config.toml has been written before we run.
+    requires = [ "kirocrew-vault-clone.service" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      User = "pasta";
+      Group = "pasta";
+      # Build/refresh the pasta binaries + pinned config first, so this unit is
+      # self-sufficient even if it fires before pasta-daemon has started once
+      # (e.g. right after boot, timer-triggered). Reuses the same builder.
+      ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
+      ExecStart = "${pastaHome}/bin/kb sync --source vault";
+      TimeoutStartSec = "30min";
+      WorkingDirectory = pastaHome;
+
+      # ── systemd hardening (mirrors pasta-daemon) ───────────────────────
+      NoNewPrivileges = true;
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      RestrictSUIDSGID = true;
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      MemoryDenyWriteExecute = false; # kb may use JIT for search/embedding
+
+      # Reads the vault, writes only its own index state.
+      ReadOnlyPaths = [ vaultCheckout ];
+      ReadWritePaths = [ pastaHome ];
+
+      # Block IMDS.
+      IPAddressDeny = [ "169.254.169.254/32" ];
+
+      Environment = [
+        "HOME=${pastaHome}"
+        "PASTA_VAULT_PATH=${vaultCheckout}"
+        "PASTA_DATA_DIR=${pastaDataDir}"
+        "PATH=${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+        "LD_LIBRARY_PATH=${pastaLibraryPath}"
+        "PROTOC=${pkgs.protobuf}/bin/protoc"
+        "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+        "RUST_LOG=info"
+      ];
+    };
+  };
+
+  systemd.timers.pasta-vault-index = {
+    description = "Periodically index the vault into the pasta kb store";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      # First run shortly after boot, then every 15 minutes. Persistent catches
+      # up one missed run after the host was stopped (matches the vault sync
+      # cadence and keeps the kb store fresh without hammering the embedder).
+      OnBootSec = "5min";
+      OnUnitActiveSec = "15min";
+      Persistent = true;
+      Unit = "pasta-vault-index.service";
+    };
+  };
+
   # ── 1Password agent socket bridge ──────────────────────────────────────────
   # The launcher (`launch-ec2 portal`) forwards the operator's local 1Password
   # agent socket to /run/kirocrew-agent/orre-1p.sock (owned by orre, created by
