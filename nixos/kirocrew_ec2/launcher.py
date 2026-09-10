@@ -712,10 +712,10 @@ try:
     with open(config_path) as fh:
         data = json.load(fh)
 except FileNotFoundError:
-    print(f"  ⚠ gateway config not found, skipping roots update: {config_path}")
+    print(f"  ⚠ gateway config not found, skipping roots update: {{config_path}}")
     sys.exit(0)
 except PermissionError:
-    print(f"  ⚠ cannot read gateway config (permission denied), skipping: {config_path}")
+    print(f"  ⚠ cannot read gateway config (permission denied), skipping: {{config_path}}")
     sys.exit(0)
 agent = data.setdefault("agent", {{}})
 roots = agent.setdefault("subagent_cwd_allowed_roots", [])
@@ -730,7 +730,7 @@ if changed:
             json.dump(data, fh, indent=2)
             fh.write("\\n")
     except PermissionError:
-        print(f"  ⚠ cannot write gateway config (permission denied): {config_path}")
+        print(f"  ⚠ cannot write gateway config (permission denied): {{config_path}}")
         sys.exit(0)
     print("  ✓ updated subagent_cwd_allowed_roots")
 else:
