@@ -21,6 +21,7 @@ from .models import (
     LEGACY_CODE_DIRS,
     LOCAL_1P_AGENT_SOCKET,
     LOCAL_MCP_AUTH_DIR,
+    OBSIDIAN_PORT,
     PORTAL_LOCAL_PORT,
     PORTAL_PORT,
     REMOTE_AGENT_SOCKET,
@@ -116,6 +117,9 @@ class Launcher:
 
         if self.arguments.command == "portal":
             self._open_portal(state)
+            return
+        if self.arguments.command == "obsidian":
+            self._open_obsidian(state)
             return
         if self.arguments.command == "connect":
             self._open_ssm_session(state)
@@ -305,12 +309,31 @@ class Launcher:
         remote.portal(); we back off briefly and re-establish the tunnel so the
         local portal URL keeps working. Only Ctrl+C ends the loop.
         """
+        self._forward_with_reconnect(
+            remote, PORTAL_PORT, PORTAL_LOCAL_PORT, label="Portal"
+        )
+
+    def _forward_with_reconnect(
+        self,
+        remote: "RemoteHost",
+        remote_port: str,
+        local_port: str,
+        *,
+        label: str,
+    ) -> None:
+        """Hold an SSM port-forward open, reconnecting when it drops.
+
+        Shared by the portal and Obsidian tunnels. The SSM session ends on any
+        network blip, agent restart, or AWS timeout; each returns from
+        remote.portal(), so we back off briefly and re-establish it. Only
+        Ctrl+C ends the loop.
+        """
         backoff = 2
         max_backoff = 30
         while True:
             started = time.monotonic()
             try:
-                remote.portal(PORTAL_PORT, PORTAL_LOCAL_PORT)
+                remote.portal(remote_port, local_port)
             except KeyboardInterrupt:
                 raise
             except LauncherError as error:
@@ -321,13 +344,59 @@ class Launcher:
                 backoff = 2
             try:
                 print(
-                    f"  Portal disconnected; reconnecting in {backoff}s "
+                    f"  {label} disconnected; reconnecting in {backoff}s "
                     "(Ctrl+C to stop)..."
                 )
                 time.sleep(backoff)
             except KeyboardInterrupt:
                 raise
             backoff = min(backoff * 2, max_backoff)
+
+    def _open_obsidian(self, state: InstanceState) -> None:
+        """Open browser Obsidian (Xpra HTML5) through an SSM port-forward.
+
+        Mirrors the portal flow: prefer Tailscale when reachable, otherwise
+        hold an SSM tunnel open (with reconnect) and open the local URL. The
+        Xpra endpoint is TLS with a self-signed certificate, so the browser
+        will warn on first connect — expected for a loopback/tunnelled service.
+        The session persists on the instance; closing this tunnel only ends
+        local access, not the running Obsidian process.
+        """
+        remote = self._remote(state)
+        url_path = "/"
+        tailscale_ip = remote.tailscale_ip()
+        if tailscale_ip and self._port_reachable(tailscale_ip, OBSIDIAN_PORT):
+            url = f"https://{tailscale_ip}:{OBSIDIAN_PORT}{url_path}"
+            print(f"\n» Obsidian: {url}")
+            print("  (via Tailscale — no tunnel needed)")
+            print("  TLS uses a self-signed cert; accept the browser warning.")
+            self._open_browser(url)
+            return
+        if shutil.which("session-manager-plugin") is None:
+            raise LauncherError("The AWS Session Manager plugin is required")
+        url = f"https://127.0.0.1:{OBSIDIAN_PORT}{url_path}"
+        print(f"\n» Opening Obsidian at {url}")
+        print("  TLS uses a self-signed cert; accept the browser warning.")
+        print("  Keep this command running; press Ctrl+C to close the tunnel.")
+        # Open the browser shortly; the tunnel loop below blocks. The page
+        # retries until the forward is established, so a small head start is
+        # fine and avoids needing a second process.
+        self._open_browser(url)
+        self._forward_with_reconnect(
+            remote, OBSIDIAN_PORT, OBSIDIAN_PORT, label="Obsidian"
+        )
+
+    @staticmethod
+    def _port_reachable(ip: str, port: str) -> bool:
+        """Check if a TCP port is reachable on the given IP."""
+        import socket
+
+        try:
+            with socket.create_connection((ip, int(port)), timeout=3):
+                return True
+        except (OSError, TimeoutError):
+            return False
+
 
     def _start_agent_forward(self, remote: "RemoteHost"):
         """Start the 1Password agent socket forward if the local socket exists.
@@ -600,8 +669,14 @@ systemctl is-active --quiet code-review-graph-daemon.service
         cd into them.
         """
         print("\n» Registering project directories (code + vault)...")
-        workspace = "/var/lib/kirocrew/.kiro/crew/workspace"
-        config = "/var/lib/kirocrew/config.json"
+        crew_dir = f"{REMOTE_KIROCREW_HOME}/.kiro/crew"
+        workspace = f"{crew_dir}/workspace"
+        # The gateway reads its config from ${KIROCREW_HOME}/config.json, where
+        # KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew (see kirocrew-services.nix).
+        # An earlier value here (/var/lib/kirocrew/config.json) targeted a stray
+        # file the gateway never reads — so subagent_cwd_allowed_roots edits
+        # silently had no effect (and hit a PermissionError on that 0600 file).
+        config = f"{crew_dir}/config.json"
         script = f"""set -e
 WORKSPACE={shlex.quote(workspace)}
 CONFIG={shlex.quote(config)}
@@ -613,6 +688,7 @@ VAULT_DIR={shlex.quote(REMOTE_VAULT_DIR)}
 sudo -u kirocrew -H bash -s <<'KC'
 set -e
 WORKSPACE="{workspace}"
+CONFIG="{config}"
 CODE_DIR="{REMOTE_CODE_DIR}"
 VAULT_DIR="{REMOTE_VAULT_DIR}"
 mkdir -p "$WORKSPACE/code"
@@ -632,8 +708,15 @@ fi
 python3 - "$CONFIG" "$CODE_DIR" "$VAULT_DIR" <<'PY'
 import json, sys
 config_path, code_dir, vault_dir = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(config_path) as fh:
-    data = json.load(fh)
+try:
+    with open(config_path) as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    print(f"  ⚠ gateway config not found, skipping roots update: {config_path}")
+    sys.exit(0)
+except PermissionError:
+    print(f"  ⚠ cannot read gateway config (permission denied), skipping: {config_path}")
+    sys.exit(0)
 agent = data.setdefault("agent", {{}})
 roots = agent.setdefault("subagent_cwd_allowed_roots", [])
 changed = False
@@ -642,9 +725,13 @@ for root in (code_dir, vault_dir):
         roots.append(root)
         changed = True
 if changed:
-    with open(config_path, "w") as fh:
-        json.dump(data, fh, indent=2)
-        fh.write("\\n")
+    try:
+        with open(config_path, "w") as fh:
+            json.dump(data, fh, indent=2)
+            fh.write("\\n")
+    except PermissionError:
+        print(f"  ⚠ cannot write gateway config (permission denied): {config_path}")
+        sys.exit(0)
     print("  ✓ updated subagent_cwd_allowed_roots")
 else:
     print("  ✓ subagent_cwd_allowed_roots already current")
@@ -653,6 +740,24 @@ KC
 """
         remote.run("root", script, check=False)
         print("  ✓ project directories registered")
+
+        # The gateway reads config.json (incl. subagent_cwd_allowed_roots) at
+        # startup, not live. _restart_kirocrew ran earlier in the sequence — i.e.
+        # before this config write — so restart once more here to pick up the
+        # newly registered roots and workspace links this deploy rather than the
+        # next one. Best-effort: a failure here must not fail the whole deploy.
+        remote.run(
+            "root",
+            """set -e
+if systemctl list-unit-files kirocrew-gateway.service >/dev/null 2>&1 && \
+   systemctl is-enabled kirocrew-gateway.service >/dev/null 2>&1; then
+  systemctl restart kirocrew-gateway.service
+  systemctl is-active --quiet kirocrew-gateway.service
+fi
+""",
+            check=False,
+        )
+        print("  ✓ gateway reloaded to apply registered roots")
 
     # ── Session path normalization ──────────────────────────────────────────
     def _normalize_session_paths(self, remote: RemoteHost) -> None:
@@ -826,16 +931,31 @@ PY
             raise LauncherError("npx is required to run the mcp-remote OAuth flow")
 
         auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
+
+        # --force: clear this server's cached token/client so mcp-remote must
+        # run a fresh OAuth flow (which opens the browser). Without this, a
+        # still-valid cached token makes mcp-remote connect silently and no
+        # browser ever opens — the reported "should open firefox" case.
+        if self.arguments.force:
+            removed = self._clear_mcp_cache(auth_dir, server_url)
+            if removed:
+                print(f"  Cleared {removed} cached auth file(s) to force re-login.")
+            else:
+                print("  No cached auth files to clear; proceeding.")
+
         before = self._mcp_token_files(auth_dir)
 
         print(f"\n» Starting {target} OAuth in your browser...")
-        print("  Complete the login/consent, then return here.")
-        print("  Press Ctrl+C once the tools connect (the flow stays open).")
+        print("  Complete the login/consent in the browser.")
+        print("  The proxy stops automatically once the token is cached")
+        print("  (press Ctrl+C to stop early if needed).")
+        # mcp-remote opens the browser via the OS default handler. Make the
+        # spawn environment explicit so it resolves to the operator's browser
+        # even when launch-ec2 was started from a minimal environment.
+        env = inherited_environment()
+        env.setdefault("BROWSER", "firefox")
         try:
-            self.runner.run(
-                ["npx", "-y", "mcp-remote", server_url],
-                check=False,
-            )
+            self._run_mcp_remote(server_url, env)
         except KeyboardInterrupt:
             pass
 
@@ -867,6 +987,116 @@ PY
             "systemctl is-active --quiet kirocrew-gateway.service",
         )
         print(f"  ✓ Gateway restarted; {target} tools should now connect")
+
+    @staticmethod
+    def _mcp_cache_key(server_url: str) -> str:
+        """Reproduce mcp-remote's cache key: md5 hex of the server URL."""
+        import hashlib
+
+        return hashlib.md5(server_url.encode("utf-8")).hexdigest()
+
+    def _clear_mcp_cache(self, auth_dir: Path, server_url: str) -> int:
+        """Delete the cached token/client_info/code_verifier for one server.
+
+        Targets only files whose name begins with md5(server_url), so other
+        servers' cached credentials are left intact. Returns the number of
+        files removed.
+        """
+        if not auth_dir.is_dir():
+            return 0
+        key = self._mcp_cache_key(server_url)
+        removed = 0
+        for entry in auth_dir.iterdir():
+            if entry.is_file() and entry.name.startswith(key):
+                try:
+                    entry.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        return removed
+
+    def _run_mcp_remote(self, server_url: str, env: dict[str, str]) -> None:
+        """Run `npx mcp-remote <url>`, echoing output and opening any auth URL.
+
+        mcp-remote normally opens the browser itself; when that auto-open
+        fails (or is skipped), it prints the authorization URL. We stream its
+        output, forward it to the terminal, and explicitly open the first
+        authorization URL we see so the operator always lands in the browser.
+
+        mcp-remote has no "auth then exit" mode — it stays up as a stdio proxy
+        forever, which previously forced the operator to press Ctrl+C to
+        advance. Instead we watch for the post-authorization signals and, once
+        the cached token file has actually appeared on disk, terminate the
+        process ourselves so the flow continues automatically. Ctrl+C still
+        works as a manual fallback.
+        """
+        import re
+        import threading
+
+        auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
+        token_key = self._mcp_cache_key(server_url)
+
+        opened = False
+        authorized = False
+        url_pattern = re.compile(r"https://\S*(?:oauth|authorize|/auth)\S*")
+        # Signals that the browser step is done and the token has been written.
+        done_pattern = re.compile(
+            r"resolving promise|Completing authorization|Proxy established successfully",
+            re.IGNORECASE,
+        )
+
+        proc = subprocess.Popen(
+            ["npx", "-y", "mcp-remote", server_url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+
+        def token_present() -> bool:
+            if not auth_dir.is_dir():
+                return False
+            return any(
+                entry.name.startswith(token_key) and "tokens" in entry.name
+                for entry in auth_dir.iterdir()
+            )
+
+        def stop_after_auth() -> None:
+            # Give mcp-remote a moment to flush the token to disk, then stop it.
+            for _ in range(20):  # up to ~10s
+                if token_present():
+                    break
+                time.sleep(0.5)
+            print("  Authorization complete; stopping the proxy automatically.")
+            if proc.poll() is None:
+                proc.terminate()
+
+        try:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                print(line, end="")
+                if not opened:
+                    match = url_pattern.search(line)
+                    if match:
+                        opened = True
+                        print(
+                            f"  Opening authorization URL in browser: {match.group(0)}"
+                        )
+                        self._open_browser(match.group(0))
+                if not authorized and done_pattern.search(line):
+                    authorized = True
+                    # Stop in a helper thread so we keep draining stdout (the
+                    # process may print a few more lines before it exits).
+                    threading.Thread(target=stop_after_auth, daemon=True).start()
+            proc.wait()
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
 
     @staticmethod
     def _mcp_token_files(auth_dir: Path) -> dict[str, float]:

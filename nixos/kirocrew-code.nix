@@ -103,6 +103,20 @@ let
 
       export GIT_SSH_COMMAND="ssh -i $git_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$known_hosts -o ControlMaster=no -o ControlPath=none -o ConnectTimeout=15"
 
+      # Recursively normalize mirror permissions, tolerating files that git's
+      # background maintenance (gc/commit-graph) creates and deletes mid-walk.
+      # A plain `chmod -R` races those transient lock files
+      # (objects/maintenance.lock, *.lock) and exits nonzero — which, under
+      # writeShellApplication's `set -e`, would fail the whole unit even though
+      # the fetch itself succeeded. `find -exec ... +` applies per-file and we
+      # swallow the benign ENOENT so a vanished lock can't fail the service.
+      harden_perms() {
+        local target="$1"
+        find "$target" \
+          ! -name '*.lock' \
+          -exec chmod u+rwX,g+rX,go-w {} + 2>/dev/null || true
+      }
+
       fetch_mirror() {
         local remote="$1"
         local mirror="$2"
@@ -116,7 +130,7 @@ let
             failures=$((failures + 1))
             return
           fi
-          chmod -R u+rwX,g+rX,go-w "$mirror"
+          harden_perms "$mirror"
           return
         fi
 
@@ -143,7 +157,7 @@ let
             return
           fi
         fi
-        chmod -R u+rwX,g+rX,go-w "$mirror"
+        harden_perms "$mirror"
       }
 
       ${fetchCommands}

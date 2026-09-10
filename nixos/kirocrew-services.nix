@@ -15,6 +15,11 @@ let
   kirocrewHome = "/var/lib/kirocrew";
   pastaHome = "/var/lib/pasta";
 
+  # The kb store (LanceDB + Tantivy index). Written by the pasta indexer and
+  # read by the kb-mcp server the gateway spawns. Group-readable via the
+  # shared vault-readers group (see kirocrew-security.nix + tmpfiles below).
+  pastaDataDir = "${pastaHome}/data";
+
   # Vault checkout location — kirocrew and pasta read via vault-readers group.
   vaultCheckout = "/var/lib/vault";
 
@@ -98,6 +103,22 @@ let
 
       mkdir -p "$srcRoot" "$binDir" "$CARGO_HOME" "$CARGO_TARGET_DIR"
 
+      # Pin the kb data dir so the indexer (this daemon, HOME=${pastaHome}) and
+      # the kb-mcp server (spawned by the gateway as the kirocrew user with a
+      # different HOME) resolve to the SAME store. pasta reads only
+      # ${pastaHome}/.pasta/config.toml (config_path = $HOME/.pasta/config.toml);
+      # there is no env override, so both users must carry this file. The
+      # kirocrew copy is written by the mcp-config service below.
+      mkdir -p "${pastaHome}/.pasta"
+      cat > "${pastaHome}/.pasta/config.toml" <<EOF
+      [general]
+      vault_path = "${vaultCheckout}"
+      log_level = "info"
+
+      [kb]
+      data_dir = "${pastaDataDir}"
+      EOF
+
       if [ ! -d "$srcRoot/.git" ]; then
         git clone --depth 1 https://github.com/orriborri/pasta.git "$srcRoot"
       else
@@ -116,9 +137,10 @@ let
         cargo build --release
       fi
 
-      # Link whatever got built into the bin dir (names per the repo/KiroCrew
-      # skill: pasta-backend = indexer daemon, kb = MCP stdio server).
-      for b in pasta-backend kb; do
+      # Link whatever got built into the bin dir. Names per the repo/KiroCrew
+      # skill: pasta-backend = indexer daemon, kb = CLI, kb-mcp = MCP stdio
+      # server (spawned by the gateway; see the mcp.json service below).
+      for b in pasta-backend kb kb-mcp; do
         if [ -x "$CARGO_TARGET_DIR/release/$b" ]; then
           ln -sfnT "$CARGO_TARGET_DIR/release/$b" "$binDir/$b"
           echo "linked $b -> $binDir/$b"
@@ -127,8 +149,61 @@ let
         fi
       done
 
-      "$binDir/pasta-backend" --version 2>/dev/null || true
+      # Smoke test only — must never block startup. This binary revision does
+      # not treat --version as print-and-exit; it starts up and blocks, so a
+      # bare `... || true` cannot save us (the process never returns to let
+      # `|| true` fire). Bound it with `timeout` so a hang can't stall the
+      # unit's ExecStartPre until TimeoutStartSec (previously wedged the whole
+      # nixos-rebuild for ~27min, then failed the switch with exit 4).
+      timeout 5 "$binDir/pasta-backend" --version 2>/dev/null || true
       echo "pasta build complete"
+    '';
+  };
+
+  # MCP wiring for the gateway. Writes the gateway's mcp.json (which spawns the
+  # kb-mcp stdio server built by the pasta-daemon) and the kirocrew user's
+  # pasta config so kb-mcp resolves the SAME data_dir as the indexer. Runs as
+  # kirocrew so file ownership matches the gateway. Idempotent: overwrites both
+  # files each start so config drift can't accumulate.
+  kirocrewMcpConfig = pkgs.writeShellApplication {
+    name = "kirocrew-mcp-config";
+    runtimeInputs = with pkgs; [ coreutils ];
+    text = ''
+      crewDir="${kirocrewHome}/.kiro/crew"
+      pastaCfgDir="${kirocrewHome}/.pasta"
+      mkdir -p "$crewDir" "$pastaCfgDir"
+
+      # kb-mcp resolves [kb] data_dir from $HOME/.pasta/config.toml. The gateway
+      # spawns kb-mcp with HOME=${kirocrewHome}, so this file must point at the
+      # shared store the pasta indexer writes.
+      cat > "$pastaCfgDir/config.toml" <<EOF
+      [general]
+      vault_path = "${vaultCheckout}"
+      log_level = "info"
+
+      [kb]
+      data_dir = "${pastaDataDir}"
+      EOF
+
+
+      # Gateway MCP registry. kb-evidence spawns the locally-built kb-mcp stdio
+      # server (linked into ${pastaHome}/bin by the pasta-daemon build step).
+      cat > "$crewDir/mcp.json" <<EOF
+      {
+        "mcpServers": {
+          "kb-evidence": {
+            "command": "${pastaHome}/bin/kb-mcp",
+            "args": [],
+            "env": {
+              "HOME": "${kirocrewHome}",
+              "RUST_LOG": "error"
+            },
+            "disabled": false
+          }
+        }
+      }
+      EOF
+      echo "wrote $crewDir/mcp.json and $pastaCfgDir/config.toml"
     '';
   };
 
@@ -172,17 +247,32 @@ in
     };
   };
 
+  systemd.services.kirocrew-mcp-config = {
+    description = "Write the KiroCrew gateway MCP config (kb-evidence → kb-mcp)";
+    before = [ "kirocrew-gateway.service" ];
+    requiredBy = [ "kirocrew-gateway.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "kirocrew";
+      Group = "kirocrew";
+      ExecStart = "${kirocrewMcpConfig}/bin/kirocrew-mcp-config";
+      RemainAfterExit = true;
+    };
+  };
+
   # ── KiroCrew gateway ───────────────────────────────────────────────────────
   systemd.services.kirocrew-gateway = {
     description = "KiroCrew Gateway";
     after = [
       "network-online.target"
       "kirocrew-legacy-kiro-read-access.service"
+      "kirocrew-mcp-config.service"
       "kirocrew-vault-clone.service"
     ];
     wants = [ "network-online.target" ];
     requires = [
       "kirocrew-legacy-kiro-read-access.service"
+      "kirocrew-mcp-config.service"
       "kirocrew-vault-clone.service"
     ];
     wantedBy = [ "multi-user.target" ];
@@ -258,6 +348,11 @@ in
         "-${vaultCheckout}/.obsidian"
         "-${vaultCheckout}/.lancedb"
         "-${vaultCheckout}/.semantic_search"
+        # Pasta's kb store: the gateway spawns kb-mcp (as the kirocrew user),
+        # which reads this index. Group read access comes from the shared
+        # vault-readers group; ProtectSystem=strict still needs the path
+        # exposed read-only into the gateway's mount namespace.
+        "-${pastaDataDir}"
       ];
 
       # Block IMDS access from agents.
@@ -335,8 +430,12 @@ in
 
       Environment = [
         "HOME=${pastaHome}"
+        # Pasta resolves vault_path and [kb] data_dir from
+        # ${pastaHome}/.pasta/config.toml (written by the build ExecStartPre).
+        # These two are not read by the current binary's config path, but are
+        # kept as documentation of the effective values.
         "PASTA_VAULT_PATH=${vaultCheckout}"
-        "PASTA_DATA_DIR=${pastaHome}/data"
+        "PASTA_DATA_DIR=${pastaDataDir}"
         "PATH=${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${pastaLibraryPath}"
         "PROTOC=${pkgs.protobuf}/bin/protoc"
@@ -393,9 +492,12 @@ in
     "d /run/kirocrew 0750 kirocrew kirocrew -"
     # Pasta build/runtime dirs (pasta user owns its home tree). The build
     # script also mkdir -p's these, but declaring them guarantees ownership
-    # and that PASTA_DATA_DIR exists before the daemon starts.
+    # and that PASTA_DATA_DIR exists before the daemon starts. The data dir is
+    # group-owned by vault-readers and setgid (2750) so the index files the
+    # pasta user writes are readable by the kirocrew gateway (which spawns
+    # kb-mcp), and new files inherit the group.
     "d ${pastaHome}/bin 0755 pasta pasta -"
-    "d ${pastaHome}/data 0750 pasta pasta -"
+    "d ${pastaDataDir} 2750 pasta vault-readers -"
     # KiroCrew skill files (synced from managed skill checkouts by
     # kirocrew-skill-sync.service in kirocrew-code.nix).
     "d ${kirocrewHome}/.kiro/crew/skills 0755 kirocrew kirocrew -"
