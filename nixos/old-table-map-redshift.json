@@ -1,0 +1,1 @@
+[{"table_id" : 141, "table_name" : "part__mbarchiv__1776776701", "schema" : "public", "active" : false}, {"table_id" : 154, "table_name" : "ad_delivery_by_day", "schema" : "public", "active" : true}, {"table_id" : 800, "table_name" : "numbers", "schema" : "public", "active" : true}, {"table_id" : 142, "table_name" : "ad_delivery", "schema" : "public", "active" : true}]
