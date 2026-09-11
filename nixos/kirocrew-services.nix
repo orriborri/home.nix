@@ -49,6 +49,108 @@ let
     pkgs.openssl
   ];
 
+  # ── Pasta external-source fetch helpers ─────────────────────────────────────
+  # The slack and linear kb-fetchers shell out to small helper CLIs (`slack-api`,
+  # `linear-api`) rather than embedding tokens. On the workstation these live in
+  # the vault's .scripts/bin; here we package the exact same scripts as store
+  # binaries with pinned interpreters so they run under the pasta unit's strict
+  # sandbox with no PATH assumptions. Each reads its token from
+  # ~/.config/<tool>-api/token.json, which the fetch unit reconstructs from sops.
+  pastaSlackApi = pkgs.writeShellApplication {
+    name = "slack-api";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''exec ${pkgs.python3}/bin/python3 ${./pasta-fetch-bin/slack-api} "$@"'';
+  };
+  pastaLinearApi = pkgs.writeShellApplication {
+    name = "linear-api";
+    runtimeInputs = [ pkgs.bash pkgs.curl pkgs.python3 ];
+    text = ''exec ${pkgs.bash}/bin/bash ${./pasta-fetch-bin/linear-api} "$@"'';
+  };
+  # Directory placed on the fetch unit's PATH so pasta's binary auto-detection
+  # (empty [binaries].slack_api/linear_api = "resolve from PATH") finds them.
+  pastaFetchBin = pkgs.symlinkJoin {
+    name = "pasta-fetch-bin";
+    paths = [ pastaSlackApi pastaLinearApi ];
+  };
+
+  # Secret-dependent setup for the external fetch, run as an ExecStartPre of the
+  # pasta-fetch-external unit (so it executes as the pasta user, which owns the
+  # decrypted sops secrets). It (1) reconstructs the token.json files the helper
+  # CLIs read, (2) logs glab in with the token for MR fetch, and (3) clones or
+  # updates the git repos over HTTPS using the same token (no SSH key needed).
+  # Idempotent: safe to run on every timer firing.
+  pastaFetchSetup = pkgs.writeShellApplication {
+    name = "pasta-fetch-setup";
+    runtimeInputs = with pkgs; [ coreutils git glab jq ];
+    text = ''
+      set -euo pipefail
+      secrets="${pastaHome}/secrets"
+      home="${pastaHome}"
+
+      # Ignore any user/system git url-rewrites (e.g. https->ssh insteadOf) and
+      # never prompt for credentials, so the tokenized HTTPS clones can't be
+      # redirected to an SSH transport needing a key. Mirrors pastaSourceBuild.
+      export GIT_CONFIG_GLOBAL=/dev/null
+      export GIT_CONFIG_NOSYSTEM=1
+      export GIT_TERMINAL_PROMPT=0
+
+      # Mark the repo tree as safe for pasta's git fetcher. The kb `git log`
+      # step runs in a SEPARATE process (the unit's ExecStart) under
+      # HOME=${pastaHome} WITHOUT GIT_CONFIG_GLOBAL, so it reads this persistent
+      # ~/.gitconfig. Recent git refuses to operate on a repo dir unless trusted,
+      # which otherwise makes the git source flaky ("detected dubious ownership").
+      # This setup step keeps GIT_CONFIG_GLOBAL=/dev/null above (its own git ops
+      # act on repos it owns in-process), so the url-rewrite guard still holds.
+      printf '[safe]\n\tdirectory = *\n' > "${pastaHome}/.gitconfig"
+
+      # ── slack + linear token files (mode 600, pasta-owned) ──────────────
+      install -d -m 700 "$home/.config/slack-api" "$home/.config/linear-api"
+      slack_token="$(cat "$secrets/slack-token")"
+      linear_key="$(cat "$secrets/linear-api-key")"
+      # slack-api expects {access_token, token_type} (static xoxp-, no refresh).
+      jq -n --arg t "$slack_token" \
+        '{access_token:$t, refresh_token:null, token_type:"user"}' \
+        > "$home/.config/slack-api/token.json"
+      jq -n --arg k "$linear_key" '{api_key:$k}' \
+        > "$home/.config/linear-api/token.json"
+      chmod 600 "$home/.config/slack-api/token.json" "$home/.config/linear-api/token.json"
+
+      # ── glab auth (GitLab MR fetch) ─────────────────────────────────────
+      # Feed the token via stdin; never appears in argv or the store.
+      GITLAB_HOST=gitlab.com
+      glab auth login --hostname "$GITLAB_HOST" --stdin < "$secrets/gitlab-token" || \
+        echo "warn: glab auth login failed (MR fetch may be degraded)" >&2
+
+      # ── git repos: clone/update over HTTPS with the token ───────────────
+      gl_token="$(cat "$secrets/gitlab-token")"
+      auth="https://oauth2:$gl_token@gitlab.com"
+      install -d -m 755 "$home/repos"
+      clone_or_pull() {
+        # $1 = local dir name, $2 = repo path on gitlab.com
+        # Clone with history depth so pasta's `git log --since` fetcher sees more
+        # than the latest commit (a --depth 1 clone yields only HEAD, starving
+        # the git source). 500 commits covers the fetch window cheaply.
+        local dir="$home/repos/$1" url="$auth/$2.git"
+        if [ -d "$dir/.git" ]; then
+          git -C "$dir" remote set-url origin "$url"
+          git -C "$dir" fetch --depth 500 origin HEAD && \
+            git -C "$dir" reset --hard FETCH_HEAD || \
+            echo "warn: update $1 failed" >&2
+        else
+          git clone --depth 500 "$url" "$dir" || echo "warn: clone $1 failed" >&2
+        fi
+        # Scrub the tokenized URL from git config so the secret isn't persisted.
+        git -C "$dir" remote set-url origin "https://gitlab.com/$2.git" 2>/dev/null || true
+      }
+      clone_or_pull wiki          "readpeak.wiki"
+      clone_or_pull eks-workloads "readpeak/eks-workloads"
+      clone_or_pull cdk           "readpeak/cdk"
+      clone_or_pull mononode      "readpeak/mononode"
+
+      echo "pasta-fetch-setup complete"
+    '';
+  };
+
   # Source builder for the Pasta vault indexer + kb MCP server, run as an
   # ExecStartPre of the pasta-daemon system service (pasta user). Builds the
   # whole workspace so both `pasta-backend` (indexer) and `kb` (MCP stdio
@@ -117,6 +219,31 @@ let
 
       [kb]
       data_dir = "${pastaDataDir}"
+
+      # External-source fetch wiring (secrets are provisioned separately by the
+      # pasta-fetch-external unit; only non-secret paths/globs live here).
+      [binaries]
+      glab = "${pkgs.glab}/bin/glab"
+      slack_api = "${pastaSlackApi}/bin/slack-api"
+      linear_api = "${pastaLinearApi}/bin/linear-api"
+
+      # Repos indexed for git history/search. Cloned over HTTPS by the fetch
+      # unit's ExecStartPre using the gitlab token (no SSH key on the box).
+      [[repos]]
+      path = "${pastaHome}/repos/wiki"
+      include = ["*.md"]
+
+      [[repos]]
+      path = "${pastaHome}/repos/eks-workloads"
+      include = ["**/*.ts", "README.md"]
+
+      [[repos]]
+      path = "${pastaHome}/repos/cdk"
+      include = ["**/*.ts", "README.md", "config/*.toml"]
+
+      [[repos]]
+      path = "${pastaHome}/repos/mononode"
+      include = ["README.md", "docs/**", "**/*.ts"]
       EOF
 
       if [ ! -d "$srcRoot/.git" ]; then
@@ -333,7 +460,7 @@ in
       # Repositories and the vault are both writable agent workspaces now. The
       # vault is a git-crypt checkout owned by kirocrew (see
       # kirocrew-vault-git.nix); the agent edits notes in place and the
-      # vault-push service commits and pushes them.
+      # vault-sync service commits, reconciles, and pushes them.
       ReadWritePaths = [
         kirocrewHome
         codeCheckout
@@ -533,6 +660,91 @@ in
       OnUnitActiveSec = "15min";
       Persistent = true;
       Unit = "pasta-vault-index.service";
+    };
+  };
+
+  # ── Pasta external-source fetch (periodic) ──────────────────────────────────
+  # Fetches the forge/messaging sources — slack, linear, gitlab (MRs), git
+  # (commits) — into the same kb store the vault indexer writes, so the evidence
+  # graph gains real cross-source edges (commit→Linear-issue references, MR↔issue
+  # links, message mentions). Credentials come from sops (owned by pasta); the
+  # ExecStartPre (pastaFetchSetup) materializes the token files, logs glab in,
+  # and clones the git repos before the sync runs. Gmail/calendar are handled
+  # separately (their gogcli keyring auth doesn't transplant to a headless box).
+  systemd.services.pasta-fetch-external = {
+    description = "Fetch external sources (slack/linear/gitlab/git) into the pasta kb store";
+    after = [
+      "network-online.target"
+      "pasta-daemon.service"
+      "ollama.service"
+      "sops-install-secrets.service"
+    ];
+    wants = [
+      "network-online.target"
+      "ollama.service"
+    ];
+    # The kb binary + pinned config are produced by pasta-daemon's ExecStartPre.
+    requires = [ "pasta-daemon.service" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      User = "pasta";
+      Group = "pasta";
+      # Refresh binaries/config, then provision creds + repos, then sync.
+      ExecStartPre = [
+        "${pastaSourceBuild}/bin/pasta-source-build"
+        "${pastaFetchSetup}/bin/pasta-fetch-setup"
+      ];
+      ExecStart = "${pastaHome}/bin/kb sync --source slack,linear,gitlab,git";
+      TimeoutStartSec = "30min";
+      WorkingDirectory = pastaHome;
+
+      # ── systemd hardening (mirrors pasta-vault-index) ──────────────────
+      NoNewPrivileges = true;
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      RestrictSUIDSGID = true;
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      MemoryDenyWriteExecute = false;
+
+      # Writes its own index state + repo clones + token files, all under
+      # ${pastaHome}. Reads the decrypted sops secrets from the same tree.
+      ReadWritePaths = [ pastaHome ];
+
+      # External fetch must reach the internet, but never IMDS.
+      IPAddressDeny = [ "169.254.169.254/32" ];
+
+      Environment = [
+        "HOME=${pastaHome}"
+        "PASTA_VAULT_PATH=${vaultCheckout}"
+        "PASTA_DATA_DIR=${pastaDataDir}"
+        # Helpers (slack-api/linear-api) + glab + git + system tools on PATH so
+        # pasta's binary auto-detection and the git fetcher resolve them.
+        "PATH=${pastaFetchBin}/bin:${pkgs.glab}/bin:${pkgs.git}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+        "LD_LIBRARY_PATH=${pastaLibraryPath}"
+        "PROTOC=${pkgs.protobuf}/bin/protoc"
+        "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+        "RUST_LOG=info"
+      ];
+    };
+  };
+
+  systemd.timers.pasta-fetch-external = {
+    description = "Periodically fetch external sources into the pasta kb store";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      # Offset from the vault indexer (which runs at boot+5m/every 15m) so the
+      # two don't contend for the embedder. Hourly matches the workstation's
+      # per-source schedule cadence and respects API rate limits.
+      OnBootSec = "12min";
+      OnUnitActiveSec = "1h";
+      Persistent = true;
+      Unit = "pasta-fetch-external.service";
     };
   };
 

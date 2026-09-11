@@ -1,0 +1,17 @@
+#!/bin/bash
+# linear-api — query Linear GraphQL API
+# Usage: linear-api '<graphql query>'
+# Example: linear-api '{ viewer { assignedIssues(filter: { state: { type: { in: ["started","unstarted"] } } }) { nodes { identifier title priority state { name } project { name } } } } }'
+
+TOKEN_FILE="$HOME/.config/linear-api/token.json"
+API_KEY=$(python3 -c "import json; print(json.load(open('$TOKEN_FILE'))['api_key'])")
+
+if [ -z "$1" ]; then
+  echo "Usage: linear-api '<graphql query>'" >&2
+  exit 1
+fi
+
+curl -s -X POST https://api.linear.app/graphql \
+  -H "Authorization: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"query\": $(echo "$1" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")}"

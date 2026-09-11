@@ -80,5 +80,42 @@
       mode = "0400";
       path = "/var/lib/obsidian-web/secrets/xpra-password";
     };
+
+    # ── Pasta external-source fetch credentials ─────────────────────────────
+    # Consumed by the pasta-fetch-external service (kirocrew-services.nix),
+    # which runs `kb sync` for the forge/messaging sources. Owned by the pasta
+    # user (the fetcher's identity) and decrypted to its private secrets dir.
+    # The fetch unit's ExecStartPre reconstructs the exact token files the
+    # helper CLIs expect (`~/.config/{slack,linear}-api/token.json`) and logs
+    # glab in from these — the raw values never land in the Nix store or config.
+
+    # Linear GraphQL API key (`lin_api_...`). Read by the `linear-api` helper.
+    secrets.pasta-linear-api-key = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/linear-api-key";
+      key = "linear-api-key";
+    };
+
+    # Slack user token (`xoxp-...`). Read by the `slack-api` helper.
+    secrets.pasta-slack-token = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/slack-token";
+      key = "slack-token";
+    };
+
+    # GitLab personal access token (`glpat-...`). Used both for `glab` auth
+    # (MR fetch) and to clone the `[repos]` over HTTPS (git fetch), so the
+    # pasta user needs no SSH key on the box.
+    secrets.pasta-gitlab-token = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/gitlab-token";
+      key = "gitlab-token";
+    };
   };
 }
