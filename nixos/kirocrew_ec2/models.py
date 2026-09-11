@@ -16,7 +16,10 @@ ROLE_NAME = "kirocrew-ssm"
 SECURITY_GROUP_NAME = "kirocrew-ssm"
 PORTAL_PORT = "5476"
 PORTAL_LOCAL_PORT = "7780"
-TTYD_PORT = "7681"
+# Xpra HTML5 endpoint for browser Obsidian (kirocrew-obsidian-xpra.nix). The
+# service binds 127.0.0.1:14500 on the instance over TLS; `launch-ec2 obsidian`
+# forwards it to the same local port and opens the browser.
+OBSIDIAN_PORT = "14500"
 # Shared code repository tree on the instance. Repos are cloned/pulled here by
 # orre and edited by the kirocrew gateway agent; the tree is owned
 # orre:code-writers and setgid so both identities can read and write it (see
@@ -72,6 +75,7 @@ GITLAB_ED25519_KEY = (
 COMMANDS = (
     "start",
     "portal",
+    "obsidian",
     "connect",
     "stop",
     "destroy",
@@ -104,6 +108,7 @@ class Arguments:
     ami: str | None
     assume_yes: bool
     auth_target: str | None = None
+    force: bool = False
 
 
 @dataclass(frozen=True)

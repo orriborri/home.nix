@@ -48,39 +48,54 @@ and the gateway falls back to the SSH agent socket.
 
 ## Dashboard access
 
-The dashboard is accessible over Tailscale. After deploy, the instance joins
-your tailnet as `kirocrew`:
+Access is SSM-only. There is no Tailscale, VPN, or public inbound port, and no
+browser terminal. The launcher holds an AWS Session Manager port-forward open
+and points a loopback URL at it; the security group needs no inbound rule.
 
-```
-http://kirocrew:5476/?token=...
-```
+Requires the AWS Session Manager plugin locally (`session-manager-plugin` on
+`PATH`) and an instance profile carrying `AmazonSSMManagedInstanceCore`.
 
-### First-time Tailscale setup
-
-1. Deploy with Tailscale enabled (already in `kirocrew-ec2.nix`):
+1. Deploy / start the instance:
    ```bash
    ./nixos/launch-ec2 start
    ```
 
-2. SSH into the instance and authenticate:
+2. Open the KiroCrew portal (SSM tunnel + browser):
    ```bash
-   ./nixos/launch-ec2 ssh
-   sudo tailscale up
+   ./nixos/launch-ec2 portal   # opens http://127.0.0.1:7780
    ```
-   Follow the printed URL to authorize the node in your Tailscale admin console.
+   Keep the command running; it reconnects automatically if the SSM session
+   drops. Press Ctrl+C to close the tunnel. While the portal is open, the
+   operator's forwarded 1Password agent lets the gateway push to git (each
+   signature gated by a 1Password prompt); closing the portal revokes it.
 
-3. On your laptop, ensure Tailscale is running and on the same tailnet.
-
-4. Access the dashboard directly:
+3. Open browser Obsidian (Xpra HTML5 over the same SSM tunnel):
    ```bash
-   ./nixos/launch-ec2 portal   # opens browser to http://<tailscale-ip>:5476
+   ./nixos/launch-ec2 obsidian   # opens https://127.0.0.1:14500
+   ```
+   The Xpra endpoint uses a self-signed certificate, so the browser warns on
+   first connect — expected for a tunnelled loopback service.
+
+4. Get an interactive shell over SSH-over-SSM (with X11 forwarding):
+   ```bash
+   ./nixos/launch-ec2 ssh       # or: ./nixos/launch-ec2 connect
    ```
 
-5. Access the web terminal (Zellij):
-   ```
-   http://kirocrew:7681
-   ```
-   Every browser tab attaches to the same persistent Zellij session.
+### Terminal multiplexer (Zellij)
 
-If Tailscale is not yet configured, `portal` falls back to an SSM port-forward
-tunnel on `http://127.0.0.1:7780`.
+There is no web terminal. Reach the persistent Zellij session over the
+SSH-over-SSM connection instead — either interactively:
+
+```bash
+./nixos/launch-ec2 ssh
+zellij attach --create kirocrew   # shared persistent session on the instance
+```
+
+or via the local `kirocrew-zellij` helper, which opens COSMIC Terminal and
+runs `zellij attach --create` over SSH (requires a `kirocrew` SSH host alias
+pointing through the SSM ProxyCommand):
+
+```bash
+./nixos/kirocrew-zellij            # defaults to the "kirocrew" session
+```
+

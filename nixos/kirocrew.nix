@@ -14,12 +14,15 @@
 # This module provides source-build dependencies, the kiro-cli symlink,
 # and the glab symlink that all profiles need.
 {
-  # Allow unfree kiro packages at the system level (activation script references them)
+  # Allow unfree kiro packages at the system level (activation script references
+  # them). "obsidian" is permitted here for the browser-Obsidian service
+  # (kirocrew-obsidian-xpra.nix).
   nixpkgs.config.allowUnfreePredicate =
     pkg:
     builtins.elem (lib.getName pkg) [
       "kiro-cli"
       "kiro-cli-unwrapped"
+      "obsidian"
     ];
 
   # ── Dependencies ───────────────────────────────────────────────────────────

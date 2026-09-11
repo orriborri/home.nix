@@ -10,6 +10,7 @@ from .models import AUTH_TARGETS, COMMANDS, Arguments, LauncherError
 def parse_arguments(argv: Sequence[str]) -> Arguments:
     aliases = {
         "--portal": "portal",
+        "--obsidian": "obsidian",
         "--stop": "stop",
         "--destroy": "destroy",
         "--rebuild": "rebuild",
@@ -46,6 +47,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "commands:\n"
             "  start              launch or resume and rebuild (default)\n"
             "  portal             start or resume and open http://127.0.0.1:7780\n"
+            "  obsidian           start or resume and open Obsidian at https://127.0.0.1:14500\n"
             "  connect            open a direct SSM session to the instance\n"
             "  ssh                open interactive shell with X11 forwarding\n"
             "  stop               stop the saved instance\n"
@@ -71,9 +73,16 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
     parser.add_argument(
         "--yes", action="store_true", help="skip confirmation for migrate-kirocrew"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="auth: clear the cached token first to force a fresh browser login",
+    )
     parsed = parser.parse_args(normalized)
     if parsed.yes and command != "migrate-kirocrew":
         parser.error("--yes is only valid with migrate-kirocrew")
+    if parsed.force and command != "auth":
+        parser.error("--force is only valid with auth")
     return Arguments(
         command=command,
         profile=parsed.profile_option or parsed.legacy_profile,
@@ -82,4 +91,5 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         ami=parsed.ami_option or parsed.legacy_ami,
         assume_yes=parsed.yes,
         auth_target=auth_target,
+        force=parsed.force,
     )

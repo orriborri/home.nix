@@ -406,17 +406,6 @@ class RemoteHost:
             ),
         )
 
-    def tailscale_ip(self) -> str | None:
-        """Return the remote instance's Tailscale IPv4 address, or None."""
-        result = self.run(
-            "root",
-            "tailscale ip -4 2>/dev/null || true",
-            capture=True,
-            check=False,
-        )
-        ip = result.stdout.strip() if result.returncode == 0 else ""
-        return ip if ip and not ip.startswith("error") else None
-
     def x11_ssh(self, user: str) -> None:
         """Open an interactive SSH session with X11 forwarding.
 

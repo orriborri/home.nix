@@ -29,7 +29,6 @@ from .models import (
     REMOTE_KIROCREW_HOME,
     REMOTE_MCP_AUTH_DIR,
     REMOTE_VAULT_DIR,
-    TTYD_PORT,
     Arguments,
     InstanceState,
     LauncherError,
@@ -266,28 +265,11 @@ class Launcher:
         # portal.
         agent_forward = self._start_agent_forward(remote)
         try:
-            tailscale_ip = remote.tailscale_ip()
-            if tailscale_ip and self._tailscale_reachable(tailscale_ip):
-                url = f"http://{tailscale_ip}:{PORTAL_PORT}"
-                print(f"\n» KiroCrew portal: {url}")
-                print("  (via Tailscale — no tunnel needed)")
-                self._open_browser(url)
-                if agent_forward is not None:
-                    print(
-                        "  Agent git-push enabled while this stays open; "
-                        "press Ctrl+C to close."
-                    )
-                    try:
-                        agent_forward.wait()
-                    except KeyboardInterrupt:
-                        pass
-                return
-            # Fallback: SSM port-forward tunnel
+            # Access is SSM-only: hold an SSM port-forward open (with reconnect)
+            # and open the local URL. There is no direct/VPN path.
             if shutil.which("session-manager-plugin") is None:
                 raise LauncherError("The AWS Session Manager plugin is required")
             print(f"\n» Opening KiroCrew portal at http://127.0.0.1:{PORTAL_LOCAL_PORT}")
-            if tailscale_ip:
-                print("  Tailscale IP found but not reachable locally; using SSM tunnel.")
             if agent_forward is not None:
                 print("  Agent git-push enabled while the portal is open (1Password will prompt).")
             print("  Keep this command running; press Ctrl+C to close the tunnel.")
@@ -355,23 +337,15 @@ class Launcher:
     def _open_obsidian(self, state: InstanceState) -> None:
         """Open browser Obsidian (Xpra HTML5) through an SSM port-forward.
 
-        Mirrors the portal flow: prefer Tailscale when reachable, otherwise
-        hold an SSM tunnel open (with reconnect) and open the local URL. The
-        Xpra endpoint is TLS with a self-signed certificate, so the browser
-        will warn on first connect — expected for a loopback/tunnelled service.
-        The session persists on the instance; closing this tunnel only ends
-        local access, not the running Obsidian process.
+        Access is SSM-only: hold an SSM tunnel open (with reconnect) and open
+        the local URL. The Xpra endpoint is TLS with a self-signed certificate,
+        so the browser will warn on first connect — expected for a
+        loopback/tunnelled service. The session persists on the instance;
+        closing this tunnel only ends local access, not the running Obsidian
+        process.
         """
         remote = self._remote(state)
         url_path = "/"
-        tailscale_ip = remote.tailscale_ip()
-        if tailscale_ip and self._port_reachable(tailscale_ip, OBSIDIAN_PORT):
-            url = f"https://{tailscale_ip}:{OBSIDIAN_PORT}{url_path}"
-            print(f"\n» Obsidian: {url}")
-            print("  (via Tailscale — no tunnel needed)")
-            print("  TLS uses a self-signed cert; accept the browser warning.")
-            self._open_browser(url)
-            return
         if shutil.which("session-manager-plugin") is None:
             raise LauncherError("The AWS Session Manager plugin is required")
         url = f"https://127.0.0.1:{OBSIDIAN_PORT}{url_path}"
@@ -385,18 +359,6 @@ class Launcher:
         self._forward_with_reconnect(
             remote, OBSIDIAN_PORT, OBSIDIAN_PORT, label="Obsidian"
         )
-
-    @staticmethod
-    def _port_reachable(ip: str, port: str) -> bool:
-        """Check if a TCP port is reachable on the given IP."""
-        import socket
-
-        try:
-            with socket.create_connection((ip, int(port)), timeout=3):
-                return True
-        except (OSError, TimeoutError):
-            return False
-
 
     def _start_agent_forward(self, remote: "RemoteHost"):
         """Start the 1Password agent socket forward if the local socket exists.
@@ -439,17 +401,6 @@ class Launcher:
         if not webbrowser.open(url):
             print(f"  Open this URL in your browser: {url}")
 
-    @staticmethod
-    def _tailscale_reachable(ip: str) -> bool:
-        """Check if the portal port is reachable on a Tailscale IP."""
-        import socket
-
-        try:
-            with socket.create_connection((ip, int(PORTAL_PORT)), timeout=3):
-                return True
-        except (OSError, TimeoutError):
-            return False
-
     # ── Deploy workflow ────────────────────────────────────────────────────────
 
     def _deploy(self, state: InstanceState) -> None:
@@ -474,7 +425,7 @@ class Launcher:
         self._setup_code_review_graph(remote)
         self._register_project_dirs(remote)
         self._normalize_session_paths(remote)
-        self._print_result(state, failures, remote)
+        self._print_result(state, failures)
 
     def _bootstrap_age_key(self, remote: RemoteHost) -> None:
         print("\n» Ensuring age decryption key is on the remote...")
@@ -1289,15 +1240,10 @@ PY
             raise LauncherError("Cannot connect without an instance ID")
         return RemoteHost(self.runner, self.aws, state.instance_id, self.key_file)
 
-    def _print_result(self, state: InstanceState, failures: list[str], remote: RemoteHost) -> None:
+    def _print_result(self, state: InstanceState, failures: list[str]) -> None:
         print(f"\n✓ Done — instance {state.instance_id} is deployed")
-        tailscale_ip = remote.tailscale_ip()
-        if tailscale_ip and self._tailscale_reachable(tailscale_ip):
-            print(f"  Portal:   http://{tailscale_ip}:{PORTAL_PORT}  (Tailscale)")
-            print(f"  Terminal: http://{tailscale_ip}:{TTYD_PORT}  (Zellij web)")
-        else:
-            print(f"  Portal:   {self.script_dir / 'launch-ec2'} portal")
-            print(f"            {self.script_dir / 'launch-portal'}")
+        print(f"  Portal:   {self.script_dir / 'launch-ec2'} portal")
+        print(f"            {self.script_dir / 'launch-portal'}")
         print(f"  Connect:  {self.script_dir / 'launch-ec2'} connect")
         print(f"  SSH:      {self.script_dir / 'launch-ec2'} ssh")
         if failures:

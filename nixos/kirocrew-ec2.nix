@@ -80,36 +80,15 @@
     xauth
     dejavu_fonts
     liberation_ttf
-    # ── Web terminal ─────────────────────────────────────────────────────────
-    ttyd
+    # ── Terminal multiplexer ─────────────────────────────────────────────────
+    # Zellij stays available for the SSH-over-SSM connection and the
+    # `kirocrew-zellij` launcher. There is no browser terminal: administrator
+    # shell access is SSM-only (no writable web terminal on any port).
     zellij
     # ── Vault git management ──────────────────────────────────────────────────
     git
     git-crypt
   ];
-
-  # ── Web terminal: ttyd + zellij on port 7681 ──────────────────────────────
-  # Every browser tab attaches to the same persistent Zellij session.
-  # Accessible via SSM port-forward or Tailscale.
-  systemd.services.ttyd-zellij = {
-    description = "Web terminal (ttyd + zellij)";
-    after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "simple";
-      User = "orre";
-      Group = "users";
-      ExecStart = ''
-        ${pkgs.ttyd}/bin/ttyd \
-          --port 7681 \
-          --interface 127.0.0.1 \
-          --writable \
-          ${pkgs.zellij}/bin/zellij attach --create main
-      '';
-      Restart = "always";
-      RestartSec = 3;
-    };
-  };
 
   # Vault storage is a git-crypt-encrypted git checkout managed by
   # kirocrew-vault-git.nix (KiroCrew owns the repo). The former read-only S3
