@@ -361,8 +361,61 @@ let
         -exec setfacl --modify default:user:kirocrew:r-X {} +
     '';
   };
+  # Grant the pasta user write access to the vault's .feeds/ directory only.
+  # The daemon's fetch cycle calls write_feeds() to rewrite
+  # ${vaultCheckout}/.feeds/{slack,gmail,linear,calendar}.md every cycle, but a
+  # persisted `user:pasta:r-x` ACL (and its matching default) on that dir denies
+  # the write, so the feed markdown never refreshes. This grants pasta rwX there
+  # and sets a default ACL so files pasta creates stay writable. Scoped to
+  # .feeds only — the rest of the vault stays read-only to pasta (it reads the
+  # tree via the vault-readers group). Mirrors the setfacl cross-user pattern
+  # used by obsidian-web-vault-grant and legacyKiroReadAccess. Idempotent.
+  pastaFeedsWriteAccess = pkgs.writeShellApplication {
+    name = "pasta-feeds-write-access";
+    runtimeInputs = with pkgs; [
+      acl
+      coreutils
+    ];
+    text = ''
+      set -euo pipefail
+      feeds="${vaultCheckout}/.feeds"
+
+      # The vault dir itself is 2750 kirocrew:vault-readers; pasta traverses and
+      # reads it via the vault-readers group. Ensure the .feeds subdir exists and
+      # is owned so the group (which pasta is in) can also write, then layer an
+      # explicit ACL that overrides any stale user:pasta:r-x entry.
+      install -d -o kirocrew -g vault-readers -m 2770 "$feeds"
+
+      # Replace the restrictive entry: grant pasta rwX on the dir and default so
+      # feed files pasta (re)writes inherit write permission for pasta.
+      setfacl --modify user:pasta:rwX "$feeds"
+      setfacl --modify default:user:pasta:rwX "$feeds"
+
+      # Existing feed files may carry the old user:pasta:r-x from the default
+      # ACL at creation time; re-grant on each so write_feeds can overwrite them.
+      for f in "$feeds"/*.md; do
+        [ -e "$f" ] || continue
+        setfacl --modify user:pasta:rw- "$f"
+      done
+
+      echo "pasta-feeds-write-access complete"
+    '';
+  };
 in
 {
+  systemd.services.pasta-feeds-write-access = {
+    description = "Grant the pasta user write access to the vault .feeds directory";
+    after = [ "kirocrew-vault-clone.service" ];
+    requires = [ "kirocrew-vault-clone.service" ];
+    before = [ "pasta-daemon.service" ];
+    requiredBy = [ "pasta-daemon.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pastaFeedsWriteAccess}/bin/pasta-feeds-write-access";
+      RemainAfterExit = true;
+    };
+  };
+
   systemd.services.kirocrew-legacy-kiro-read-access = {
     description = "Grant KiroCrew read-only access to the operator's legacy Kiro state";
     before = [ "kirocrew-gateway.service" ];
@@ -513,6 +566,7 @@ in
     after = [
       "network-online.target"
       "kirocrew-vault-clone.service"
+      "pasta-feeds-write-access.service"
     ];
     wants = [ "network-online.target" ];
     requires = [ "kirocrew-vault-clone.service" ];
@@ -544,12 +598,21 @@ in
       LockPersonality = true;
       MemoryDenyWriteExecute = false; # Pasta may use JIT for search
 
-      # Pasta reads the vault, writes only its own index state.
+      # Pasta reads the vault, writes only its own index state — plus the
+      # vault's .feeds/ dir, which the daemon's fetch cycle rewrites via
+      # write_feeds(). The vault stays read-only except for that one subdir:
+      # systemd applies the most-specific path rule, so listing .feeds under
+      # ReadWritePaths re-grants write to only it while the rest of the vault
+      # remains read-only. The leading '-' makes it non-fatal if the dir is
+      # absent (fresh box before the vault clone). The pasta user also needs a
+      # filesystem-level ACL grant on this dir (pasta-feeds-write-access below),
+      # since a persisted `user:pasta:r-x` ACL otherwise denies the write.
       ReadOnlyPaths = [
         vaultCheckout
       ];
       ReadWritePaths = [
         pastaHome
+        "-${vaultCheckout}/.feeds"
       ];
 
       # Block IMDS.

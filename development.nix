@@ -35,6 +35,8 @@
     zsh
 
     # AI coding tools
+    claude-code # Anthropic Claude Code CLI
+    codex # OpenAI Codex CLI
 
     # AWS tools
     ssm-session-manager-plugin # SSM tunnel for kirocrew EC2 instance

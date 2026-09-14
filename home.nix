@@ -41,6 +41,7 @@ in
           "kiro"
           "kiro-cli"
           "kiro-cli-unwrapped"
+          "claude-code"
         ];
       permittedInsecurePackages = [ ];
     };
@@ -59,6 +60,15 @@ in
       pkgs.zlib
     ];
   };
+
+  # Login-independent PATH additions. Written into the session environment
+  # (hm-session-vars.sh + imported into the systemd user environment), so
+  # non-interactive contexts such as AI coding-agent hooks resolve these too,
+  # not only interactive zsh. ~/.local/bin holds curl-installed tools (aidlc,
+  # kirocrew, code-review-graph) that AI-DLC's hooks must find.
+  home.sessionPath = [
+    "$HOME/.local/bin"
+  ];
 
   # System packages
   home.packages =
@@ -184,6 +194,7 @@ in
     ./development.nix
     ./utilities.nix
     ./security.nix
+    ./aidlc.nix
     # KiroCrew declarative config (options + repos.toml + known_hosts)
     ./kirocrew-config.nix
     # Services

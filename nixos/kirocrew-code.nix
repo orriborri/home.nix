@@ -309,6 +309,22 @@ let
         exit 1
       fi
 
+      # Keep the CRG graph store group-writable for code-writers. The SQLite
+      # graph.db is opened read/write by whoever runs a build. It may have been
+      # created by the operator (orre) via an interactive CRG run at 0644, which
+      # leaves it read-only to the group — so this service, running as kirocrew
+      # (a code-writers member, not the owner), hits "attempt to write a
+      # readonly database". Reassert group ownership + write and setgid on dirs,
+      # mirroring enforce_git_perms for .git. Best-effort; never fails the sync.
+      enforce_graph_perms() {
+        local repository="$1"
+        local graphdir="$repository/.code-review-graph"
+        [[ -d "$graphdir" ]] || return 0
+        chgrp -R code-writers "$graphdir" 2>/dev/null || true
+        chmod -R g+rwX "$graphdir" 2>/dev/null || true
+        find "$graphdir" -type d -exec chmod g+s {} + 2>/dev/null || true
+      }
+
       sync_graph() {
         local repository="$1"
         local alias="$2"
@@ -334,6 +350,9 @@ let
             return
           fi
         fi
+        # Fix perms before any build so a graph.db created 0644 by another user
+        # (e.g. the operator) is group-writable when SQLite opens it read/write.
+        enforce_graph_perms "$repository"
         if [[ "$fingerprint" != "$previous" ]]; then
           echo "Building graph: $alias"
           if ! "$crg" build --repo "$repository"; then
@@ -342,6 +361,8 @@ let
             return
           fi
           printf '%s\n' "$fingerprint" > "$stamp"
+          # A build may create fresh db/wal/shm files; keep them group-writable.
+          enforce_graph_perms "$repository"
         else
           echo "Graph current: $alias"
         fi

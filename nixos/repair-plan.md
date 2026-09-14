@@ -152,7 +152,34 @@ Acceptance:
 - A git-crypt fixture proves synchronized note content remains encrypted in
   the remote repository. Failed sync never discards notes or local commits.
 
-## 5. Back up native KiroCrew snapshots to S3
+Status (2026-09-11): implemented and verified at the evaluation/unit level;
+live EC2 verification pending.
+
+- Sync logic extracted from the inline shell into a tested script,
+  `scripts/kirocrew_vault_sync.py`, invoked by a thin `vaultSync` wrapper in
+  `kirocrew-vault-git.nix` (mirrors the existing skill-sync/pinned-repo
+  pattern). Commit happens only on a dirty tree; fetch, reconcile, and push run
+  every timer tick regardless, so a push that failed while the tree was dirty
+  is retried on a later clean tree. Incoming history is fast-forwarded when
+  clean and rebased when divergent; an unrebasable divergence aborts and
+  preserves local commits. A single `fcntl` lock (shared path with the clone
+  service) serializes overlapping runs, an in-progress merge/rebase is detected
+  and left alone, and the tracked upstream is validated before any push
+  (detached HEAD and missing upstream both refuse). The systemd unit/timer were
+  renamed `kirocrew-vault-push` -> `kirocrew-vault-sync`.
+- Verified: `tests/test_vault_sync.py` (10 local bare-repo cases: clean no-op,
+  commit+push, incoming fast-forward, push-failure-then-clean-retry, divergence
+  rebase, conflicting-divergence abort/preserve, missing upstream, in-progress
+  rebase, overlapping lock, detached HEAD) plus the full 35-test suite pass.
+  The `kirocrew-ec2` config evaluates to a system derivation, and both vault
+  wrappers build on x86_64 (so `writeShellApplication`'s ShellCheck/`bash -n`
+  gate passes and the embedded script path resolves).
+- Not yet verified: an aarch64 build of the wrappers (no aarch64 builder was
+  available in this environment) and any live-host behavior. A git-crypt
+  fixture proving remote content stays encrypted is still outstanding — the
+  sync script deliberately does not touch git-crypt (unlock lives in the clone
+  service), so that acceptance item needs a separate fixture test against the
+  clone/unlock path.
 
 Files: a small snapshot/upload service and the EC2 IAM policy.
 

@@ -23,6 +23,12 @@ let
   cryptKey = "${keyDir}/vault-git-crypt-key";
   repoHost = "gitlab.com";
   repoPath = "orriborri/Vault.git";
+  repoBranch = "main";
+
+  # One advisory lock guards both clone and sync so overlapping timer runs and
+  # a late-starting clone cannot race each other. The sync script takes this
+  # same path via fcntl; the clone service takes it via flock(1) (util-linux).
+  lockFile = "${vaultDir}/.git/kirocrew-sync.lock";
 
   # GIT_ASKPASS helper: git calls it for "Username" and "Password" prompts.
   # We answer from the sops-provisioned secret files, so the token is never
@@ -53,6 +59,7 @@ let
       coreutils
       git
       git-crypt
+      util-linux
     ];
     text = ''
       set -euo pipefail
@@ -78,22 +85,23 @@ let
         echo "Vault repo already present; fetching."
         git -C "${vaultDir}" remote set-url origin "$REMOTE_URL"
         git -C "${vaultDir}" fetch --prune origin
-        if [[ -z "$(git -C "${vaultDir}" status --porcelain)" ]]; then
-          git -C "${vaultDir}" merge --ff-only "@{upstream}" || \
-            echo "Non-fast-forward upstream; leaving working tree for push/merge to reconcile." >&2
-        else
-          echo "Working tree dirty; skipping merge (push service will commit)."
-        fi
       else
         # Fresh clone. The vault dir already exists (tmpfiles) and may be
         # empty; git clone refuses a non-empty target, so clone into a temp
         # dir and move everything (including .git) in one glob.
         tmp="$(mktemp -d)"
-        git clone "$REMOTE_URL" "$tmp/repo"
+        git clone --branch ${repoBranch} "$REMOTE_URL" "$tmp/repo"
         shopt -s dotglob
         mv "$tmp/repo"/* "${vaultDir}/"
         rm -rf "$tmp"
       fi
+
+      # Ensure the branch tracks its upstream so the sync script can validate a
+      # push destination instead of guessing. Reconciling incoming/divergent
+      # history is the sync script's job (under the shared lock); clone only
+      # establishes and unlocks the checkout.
+      git -C "${vaultDir}" branch --set-upstream-to=origin/${repoBranch} ${repoBranch} \
+        2>/dev/null || true
 
       # Unlock git-crypt content. The sops secret holds base64 of the raw key.
       raw="$(mktemp)"
@@ -108,8 +116,14 @@ let
     '';
   };
 
-  vaultPush = pkgs.writeShellApplication {
-    name = "kirocrew-vault-push";
+  # Retryable commit + reconcile + push. The heavy logic lives in a tested
+  # Python script (scripts/kirocrew_vault_sync.py, tests/test_vault_sync.py);
+  # this wrapper only supplies the git environment and PATH. The script takes
+  # the shared lock (${lockFile}) via fcntl, commits only when the tree is
+  # dirty, always fetches, fast-forwards or rebases conservatively, and pushes
+  # any outgoing commits — so a previously failed push retries on a clean tree.
+  vaultSync = pkgs.writeShellApplication {
+    name = "kirocrew-vault-sync";
     runtimeInputs = with pkgs; [
       coreutils
       git
@@ -119,31 +133,11 @@ let
       set -euo pipefail
       umask 0007
       ${gitEnv}
-
-      cd "${vaultDir}"
-      if [[ ! -d .git ]]; then
-        echo "Vault repo not initialized; run the clone service first." >&2
-        exit 1
-      fi
-      git remote set-url origin "$REMOTE_URL"
-
-      if [[ -z "$(git status --porcelain)" ]]; then
-        echo "Vault clean; nothing to commit."
-        exit 0
-      fi
-
-      git add -A
-      git commit -m "KiroCrew vault update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-      # Integrate concurrent workstation commits before pushing.
-      git fetch --prune origin
-      git rebase "@{upstream}" || {
-        echo "Rebase conflict; leaving state for manual resolution." >&2
-        git rebase --abort || true
-        exit 1
-      }
-      git push origin HEAD:main
-      echo "Vault committed and pushed."
+      git -C "${vaultDir}" remote set-url origin "$REMOTE_URL" 2>/dev/null || true
+      exec ${pkgs.python3}/bin/python3 ${./scripts/kirocrew_vault_sync.py} \
+        --vault-dir "${vaultDir}" \
+        --lock-file "${lockFile}" \
+        --message "KiroCrew vault update $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     '';
   };
 in
@@ -183,8 +177,8 @@ in
     };
   };
 
-  systemd.services.kirocrew-vault-push = {
-    description = "Commit and push KiroCrew vault changes";
+  systemd.services.kirocrew-vault-sync = {
+    description = "Commit, reconcile, and push KiroCrew vault changes (retryable)";
     after = [ "kirocrew-vault-clone.service" ];
     requires = [ "kirocrew-vault-clone.service" ];
     serviceConfig = {
@@ -192,7 +186,7 @@ in
       User = "kirocrew";
       Group = "kirocrew";
       UMask = "0007";
-      ExecStart = "${vaultPush}/bin/kirocrew-vault-push";
+      ExecStart = "${vaultSync}/bin/kirocrew-vault-sync";
       ReadWritePaths = [
         vaultDir
         "/var/lib/kirocrew"
@@ -204,16 +198,18 @@ in
     };
   };
 
-  # Periodically persist and push agent edits.
-  systemd.timers.kirocrew-vault-push = {
-    description = "Push KiroCrew vault changes every 10 minutes";
+  # Periodically persist and push agent edits. A run that fails (e.g. push
+  # rejected, remote briefly unreachable) leaves local commits intact; the next
+  # timed run fetches, reconciles, and retries the push even on a clean tree.
+  systemd.timers.kirocrew-vault-sync = {
+    description = "Sync KiroCrew vault every 10 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnBootSec = "5m";
       OnUnitActiveSec = "10m";
       Persistent = true;
       RandomizedDelaySec = "30s";
-      Unit = "kirocrew-vault-push.service";
+      Unit = "kirocrew-vault-sync.service";
     };
   };
 }
