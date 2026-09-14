@@ -626,7 +626,11 @@ in
         # kept as documentation of the effective values.
         "PASTA_VAULT_PATH=${vaultCheckout}"
         "PASTA_DATA_DIR=${pastaDataDir}"
-        "PATH=${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+        # The daemon's feed cycle shells out to slack-api and linear-api.
+        # Use the same packaged helper directory as pasta-fetch-external so
+        # feed generation sees real remote data instead of silently returning
+        # empty Slack/Linear results when the helpers are absent from PATH.
+        "PATH=${pastaFetchBin}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${pastaLibraryPath}"
         "PROTOC=${pkgs.protobuf}/bin/protoc"
         "PROTOC_INCLUDE=${pkgs.protobuf}/include"
