@@ -32,9 +32,13 @@ in
       default = null;
       example = "v0.3.0";
       description = ''
-        Exact stable source tag for headless hosts. When null, the source
-        updater follows the newest stable tag; when set, it stays pinned to
-        that immutable release while the daily check reports newer tags.
+        Exact stable source tag for the KiroCrew source builder. When null, the
+        updater follows the newest stable tag; when set, it stays pinned to that
+        immutable release while the daily check reports newer tags.
+
+        Honoured by both roles: headless hosts build it as the gateway's
+        ExecStartPre, and workstations build it on the daily source-update
+        timer. Normally set from ./kirocrew-source-tag.nix so every host agrees.
       '';
     };
   };

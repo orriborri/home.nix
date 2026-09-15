@@ -33,11 +33,13 @@ let
   ];
 
   # Source builder shared with the workstation profile (kirocrew-service.nix).
-  # Follows the newest stable tag (pinnedSourceTag = ""). The gateway service
-  # runs it as an ExecStartPre, then starts the freshly built venv, so no
-  # restart wiring is needed here (systemd's own ExecStart picks it up).
+  # Pinned to the release in ../kirocrew-source-tag.nix — the same tag the
+  # Home Manager outputs set via kirocrew.sourceTag — so this system service
+  # and the operator profile never build different revisions. The gateway
+  # service runs it as an ExecStartPre, then starts the freshly built venv, so
+  # no restart wiring is needed here (systemd's own ExecStart picks it up).
   kirocrewSourceUpdate = import ../kirocrew-source-build.nix { inherit pkgs lib; } {
-    pinnedSourceTag = "";
+    pinnedSourceTag = import ../kirocrew-source-tag.nix;
   };
 
   # Absolute path to the source-built gateway under the kirocrew user's home.

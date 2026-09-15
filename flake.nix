@@ -103,6 +103,11 @@
         sops-nix.homeManagerModules.sops
         ./sops.nix
       ];
+
+      # Pinned KiroCrew release, shared by the workstation and headless outputs
+      # so every host builds the same immutable tag. Bump the one file to
+      # upgrade. See ./kirocrew-source-tag.nix for the rationale.
+      kirocrewSourceTag = import ./kirocrew-source-tag.nix;
     in
     {
       # Export overlays for reuse in other flakes
@@ -136,6 +141,9 @@
             {
               kirocrew.enable = true;
               kirocrew.role = "workstation";
+              # Pin the daily source-update timer to the same release the
+              # headless hosts run (./kirocrew-source-tag.nix).
+              kirocrew.sourceTag = kirocrewSourceTag;
             }
           ];
         };
@@ -156,6 +164,9 @@
             {
               kirocrew.enable = true;
               kirocrew.role = "workstation";
+              # Pin the daily source-update timer to the same release the
+              # headless hosts run (./kirocrew-source-tag.nix).
+              kirocrew.sourceTag = kirocrewSourceTag;
             }
           ];
         };
@@ -235,9 +246,10 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              # sourceTag = null (default) → follow the newest stable tag.
-              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
-              kirocrew.sourceTag = null;
+              # Pinned to an immutable release tag (single source of truth:
+              # ./kirocrew-source-tag.nix) so a new upstream release cannot
+              # deploy itself unreviewed. Set to null to follow newest stable.
+              kirocrew.sourceTag = kirocrewSourceTag;
             };
           }
         ];
@@ -266,9 +278,10 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              # sourceTag = null (default) → follow the newest stable tag.
-              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
-              kirocrew.sourceTag = null;
+              # Pinned to an immutable release tag (single source of truth:
+              # ./kirocrew-source-tag.nix) so a new upstream release cannot
+              # deploy itself unreviewed. Set to null to follow newest stable.
+              kirocrew.sourceTag = kirocrewSourceTag;
             };
           }
         ];
@@ -298,9 +311,10 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              # sourceTag = null (default) → follow the newest stable tag.
-              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
-              kirocrew.sourceTag = null;
+              # Pinned to an immutable release tag (single source of truth:
+              # ./kirocrew-source-tag.nix) so a new upstream release cannot
+              # deploy itself unreviewed. Set to null to follow newest stable.
+              kirocrew.sourceTag = kirocrewSourceTag;
             };
           }
         ];
@@ -327,9 +341,10 @@
               imports = kirocrewModules;
               kirocrew.enable = true;
               kirocrew.role = "headless";
-              # sourceTag = null (default) → follow the newest stable tag.
-              # Pin to an immutable "vX.Y.Z" tag for reproducible headless builds.
-              kirocrew.sourceTag = null;
+              # Pinned to an immutable release tag (single source of truth:
+              # ./kirocrew-source-tag.nix) so a new upstream release cannot
+              # deploy itself unreviewed. Set to null to follow newest stable.
+              kirocrew.sourceTag = kirocrewSourceTag;
             };
           }
         ];
