@@ -45,6 +45,57 @@ let
   # Absolute path to the source-built gateway under the kirocrew user's home.
   kirocrewSourceBin = "${kirocrewHome}/.local/share/kirocrew-source/current/.venv/bin/kirocrew";
 
+  # Operator-facing `kirocrew` command.
+  #
+  # On this host the gateway runs as the dedicated kirocrew user and ALL of its
+  # state — config, sessions, sockets — lives under ${kirocrewHome}. Nothing
+  # installs the CLI for the operator (the Home Manager user service and its
+  # source-update timer are workstation-only), so administering the box meant
+  # becoming the kirocrew user by hand first.
+  #
+  # Merely putting the built binary on the operator's PATH would be worse than
+  # missing: the CLI resolves its state from $HOME/$KIROCREW_HOME, so as `orre`
+  # it would silently address a DIFFERENT, empty instance — `config get` would
+  # read a config the gateway never sees. This wrapper re-enters as the kirocrew
+  # user with the gateway's own environment, so it always reports the live
+  # instance.
+  #
+  # Not a privilege grant: `orre` already holds passwordless sudo through wheel
+  # (kirocrew-security.nix), while the kirocrew user has no sudo at all. This
+  # only removes the `sudo -u kirocrew env HOME=... KIROCREW_HOME=...`
+  # incantation. The setuid sudo from the system wrapper dir is required —
+  # pkgs.sudo in a store path is not setuid.
+  kirocrewCli = pkgs.writeShellApplication {
+    name = "kirocrew";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = ''
+      bin=${kirocrewSourceBin}
+      if [ ! -x "$bin" ]; then
+        echo "kirocrew is not built yet ($bin is missing)." >&2
+        echo "The kirocrew-gateway service builds it on start; check:" >&2
+        echo "  systemctl status kirocrew-gateway" >&2
+        exit 1
+      fi
+
+      # The kirocrew user already IS the right identity with the right HOME, and
+      # it has no sudo — so it must exec directly. root can too. Only the
+      # operator needs to cross the identity boundary.
+      case "$(id -un)" in
+        kirocrew | root) exec "$bin" "$@" ;;
+      esac
+
+      # Set the environment with env(1) rather than `sudo VAR=val`: sudo only
+      # accepts command-line variable assignments when sudoers grants SETENV,
+      # so env keeps this working under the default env_reset policy.
+      exec /run/wrappers/bin/sudo -u kirocrew -- env \
+        HOME=${kirocrewHome} \
+        KIROCREW_HOME=${kirocrewHome}/.kiro/crew \
+        LD_LIBRARY_PATH=${kirocrewLibraryPath} \
+        PATH=${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin \
+        "$bin" "$@"
+    '';
+  };
+
   pastaLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -405,6 +456,12 @@ let
   };
 in
 {
+  # Operator `kirocrew` command (wrapper above). Lands at
+  # /run/current-system/sw/bin/kirocrew. It does not shadow the kirocrew user's
+  # own CLI: that user's PATH puts ${kirocrewHome}/.local/bin first, and the
+  # wrapper execs the real binary directly for kirocrew and root anyway.
+  environment.systemPackages = [ kirocrewCli ];
+
   systemd.services.pasta-feeds-write-access = {
     description = "Grant the pasta user write access to the vault .feeds directory";
     after = [ "kirocrew-vault-clone.service" ];
