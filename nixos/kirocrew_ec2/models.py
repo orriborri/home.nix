@@ -47,6 +47,12 @@ REMOTE_VAULT_DIR = "/var/lib/vault"
 # kirocrew-services.nix). The gateway reads MCP OAuth tokens from
 # REMOTE_MCP_AUTH_DIR under this home.
 REMOTE_KIROCREW_HOME = "/var/lib/kirocrew"
+# Source-built gateway CLI under the kirocrew service user's home (see
+# kirocrew-services.nix: kirocrewSourceBin). `launch-ec2 token` invokes this to
+# mint a dashboard access URL on headless hosts.
+REMOTE_KIROCREW_BIN = (
+    "/var/lib/kirocrew/.local/share/kirocrew-source/current/.venv/bin/kirocrew"
+)
 REMOTE_MCP_AUTH_DIR = "/var/lib/kirocrew/.mcp-auth/mcp-remote-v1"
 # Local mcp-remote OAuth cache. `npx mcp-remote <url>` completes the browser
 # flow and writes the cached token here on the workstation.
@@ -80,13 +86,19 @@ COMMANDS = (
     "stop",
     "destroy",
     "rebuild",
+    "resize",
     "new",
     "migrate-kirocrew",
     "sync-state",
     "ssh",
     "auth",
+    "token",
 )
 AUTH_TARGETS = ("linear", "metabase")
+# Freshness floor for a cached OAuth token, re-exported from the probe module so
+# there is exactly one definition. See token_probe for why it is capped by each
+# token's own lifetime.
+from .token_probe import DEFAULT_MIN_REMAINING_SECS as AUTH_MIN_REMAINING_SECS  # noqa: E402
 CONFIG_KEYS = {
     "DEFAULT_PROFILE",
     "DEFAULT_REGION",

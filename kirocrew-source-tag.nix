@@ -13,7 +13,13 @@
 #   - nixos/kirocrew-services.nix → pinnedSourceTag for the headless system
 #                            service's ExecStartPre builder
 #
-# Must be an immutable "vX.Y.Z" tag that exists upstream (the builder fails
-# fast if it does not). Verify with:
+# Must be an immutable tag that exists upstream (the builder fails fast if it
+# does not). Verify with:
 #   git ls-remote --tags https://github.com/kirodotdev/KiroCrew.git
-"v0.6.0"
+#
+# Pinned to v0.7.0-insider.4 for the crew-chat routing fixes. This pre-release
+# has a higher memory footprint; on this host (15G, no swap) it peaked ~13.5G
+# and exited 1 under concurrent member load. Addressed by adding swap and
+# capping concurrent agent instances rather than rolling back — see
+# kirocrew-services.nix and the gateway's instances.warm_set_cap.
+"v0.7.0-insider.4"

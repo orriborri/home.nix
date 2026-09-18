@@ -40,7 +40,39 @@
 
     # AWS tools
     ssm-session-manager-plugin # SSM tunnel for kirocrew EC2 instance
+
+    # Containers (rootless, daemonless — Docker alternative)
+    podman # Container/pod manager; `docker` alias set below
+    podman-compose # docker-compose workflows on the podman backend
   ];
+
+  # Docker-compatible CLI shim so existing muscle memory and scripts work.
+  home.shellAliases.docker = "podman";
+
+  # docker-compose (the compose plugin) talks to a Docker-compatible API socket,
+  # not the podman CLI. Nix's podman package ships no podman.socket unit on
+  # non-NixOS, so we run `podman system service` as a user service and point
+  # DOCKER_HOST / compose at the socket it creates.
+  systemd.user.services.podman-socket = {
+    Unit = {
+      Description = "Podman API socket for docker-compose compatibility";
+      Documentation = [ "man:podman-system-service(1)" ];
+    };
+    Service = {
+      Type = "simple";
+      # --time=0 keeps the service running indefinitely (no idle shutdown).
+      ExecStart = "${pkgs.podman}/bin/podman system service --time=0 unix://%t/podman/podman.sock";
+      Restart = "on-failure";
+      RestartSec = "5";
+    };
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  # Point Docker-compatible tooling (compose plugin, testcontainers, etc.) at
+  # the rootless podman socket. %t expands to $XDG_RUNTIME_DIR (/run/user/UID).
+  home.sessionVariables.DOCKER_HOST = "unix:///run/user/1000/podman/podman.sock";
 
   # Development environment variables
   home.sessionVariables = {

@@ -1,6 +1,7 @@
 """Main coordinator that ties AWS resources, state, and remote host together."""
 from __future__ import annotations
 
+import base64
 import os
 import shlex
 import shutil
@@ -12,11 +13,14 @@ from datetime import datetime
 from pathlib import Path
 
 from .aws_resources import AwsResources
+from .token_probe import classify
 from .models import (
     DEFAULT_AMI,
     DEFAULT_INSTANCE_TYPE,
     DEFAULT_REGION,
     AUTH_SERVER_URLS,
+    AUTH_TARGETS,
+    AUTH_MIN_REMAINING_SECS,
     KEY_NAME,
     LEGACY_CODE_DIRS,
     LOCAL_1P_AGENT_SOCKET,
@@ -26,6 +30,7 @@ from .models import (
     PORTAL_PORT,
     REMOTE_AGENT_SOCKET,
     REMOTE_CODE_DIR,
+    REMOTE_KIROCREW_BIN,
     REMOTE_KIROCREW_HOME,
     REMOTE_MCP_AUTH_DIR,
     REMOTE_VAULT_DIR,
@@ -99,6 +104,9 @@ class Launcher:
         if self.arguments.command == "destroy":
             self._destroy()
             return
+        if self.arguments.command == "resize":
+            self._resize()
+            return
 
         if self.saved_state is not None:
             self.saved_state = self.resources.bind_identity(self.saved_state)
@@ -122,6 +130,9 @@ class Launcher:
             return
         if self.arguments.command == "connect":
             self._open_ssm_session(state)
+            return
+        if self.arguments.command == "token":
+            self._print_token(state)
             return
         if self.arguments.command == "ssh":
             self._open_ssh(state)
@@ -237,6 +248,117 @@ class Launcher:
         self._persist(state, "stopping")
         self.aws.run("ec2", "stop-instances", "--instance-ids", state.instance_id)
         print("  ✓ Stop initiated; ownership retained")
+
+    def _resize(self) -> None:
+        """Change the EC2 instance type in place: stop, modify, start.
+
+        A running EC2 instance's type is immutable; AWS only allows the change
+        while the instance is stopped. This does the full cycle and restarts the
+        box, so the root/EBS volume and ALL state (the built source release, the
+        vault, MCP tokens, config) are preserved — only the compute shape
+        changes. The instance is briefly DOWN during the stop/start, which
+        interrupts any in-flight agent sessions, the same as `stop` + `start`.
+
+        The new type is persisted to the saved state so a later `start`/`rebuild`
+        relaunch (which reads `instance_type` from state) keeps the new shape
+        rather than reverting to the packaged default. The user-level
+        DEFAULT_INSTANCE_TYPE in .kirocrew-ec2.config is NOT rewritten here (it is
+        an operator-owned file); this prints a reminder when the two disagree.
+        """
+        state = self._require_bound_state()
+        target = self.instance_type
+        if not target:
+            raise LauncherError("resize requires a target instance type")
+
+        current = self.resources.instance_state(state.instance_id)
+        if current in {"terminated", "shutting-down", "not-found"}:
+            raise LauncherError(
+                f"Instance {state.instance_id} is {current}; cannot resize"
+            )
+
+        # The saved type may be blank on older state; only skip when we can
+        # positively confirm the live instance already runs the target type.
+        live_type = self._live_instance_type(state.instance_id)
+        if live_type == target and current == "running":
+            print(f"Instance {state.instance_id} is already {target}; nothing to do.")
+            if state.instance_type != target:
+                self._persist_type(state, target, "running")
+            return
+
+        print(
+            f"» Resizing {state.instance_id}: "
+            f"{live_type or state.instance_type or 'unknown'} → {target}"
+        )
+
+        # 1. Stop (idempotent: skip if already stopped).
+        if current != "stopped":
+            print("  Stopping instance...")
+            self._persist(state, "stopping")
+            self.aws.run("ec2", "stop-instances", "--instance-ids", state.instance_id)
+            self.aws.run(
+                "ec2", "wait", "instance-stopped", "--instance-ids", state.instance_id
+            )
+            print("  ✓ Stopped")
+
+        # 2. Modify the immutable-while-running instance type.
+        print(f"  Setting instance type to {target}...")
+        self.aws.run(
+            "ec2",
+            "modify-instance-attribute",
+            "--instance-id",
+            state.instance_id,
+            "--instance-type",
+            f"Value={target}",
+        )
+        # Persist the new type NOW, before the start: if the start races or the
+        # process dies, the saved state already reflects the type the instance
+        # actually carries, so a later `start` cannot relaunch the old shape.
+        state = self._persist_type(state, target, "starting")
+
+        # 3. Start and wait for the SSM agent to come back.
+        print("  Starting instance...")
+        self.aws.run("ec2", "start-instances", "--instance-ids", state.instance_id)
+        self.aws.run(
+            "ec2", "wait", "instance-running", "--instance-ids", state.instance_id
+        )
+        self.resources.wait_for_ssm(state.instance_id)
+        state = self._persist(state, "running")
+        print(f"  ✓ Instance is running as {target}")
+
+        # Nudge the operator to keep the packaged default in step, since state
+        # (this JSON) and the .config default are separate sources.
+        config_default = self.defaults.get("DEFAULT_INSTANCE_TYPE")
+        if config_default and config_default != target:
+            print(
+                f"  Note: DEFAULT_INSTANCE_TYPE in {self.config_file} is still "
+                f"{config_default!r}. Update it to {target!r} to make this the "
+                "default for future launches."
+            )
+
+    def _live_instance_type(self, instance_id: str) -> str:
+        """The instance type AWS currently reports, or '' if unreadable."""
+        result = self.aws.run(
+            "ec2",
+            "describe-instances",
+            "--instance-ids",
+            instance_id,
+            "--query",
+            "Reservations[0].Instances[0].InstanceType",
+            "--output",
+            "text",
+            capture=True,
+            check=False,
+        )
+        value = (result.stdout or "").strip()
+        return "" if not value or value == "None" else value
+
+    def _persist_type(
+        self, state: InstanceState, instance_type: str, lifecycle: str
+    ) -> InstanceState:
+        updated = state.updated(instance_type=instance_type, lifecycle=lifecycle)
+        self.store.save(updated)
+        self.saved_state = updated
+        return updated
 
     def _destroy(self) -> None:
         state = self._require_bound_state()
@@ -392,6 +514,86 @@ class Launcher:
         self.aws.run(
             "ssm", "start-session", "--target", state.instance_id,
         )
+
+    def _print_token(self, state: InstanceState) -> None:
+        """Print a KiroCrew dashboard access URL minted on the instance.
+
+        The dashboard token is a KiroCrew application feature: the gateway
+        signs it with its own token_signing.key and validates the signature,
+        independent of the SSM tunnel. `kirocrew token` prints
+        ``http://localhost:<port>?token=<jwt>``. On headless hosts the gateway
+        runs as the kirocrew service user, so the CLI is run as kirocrew; on
+        workstation profiles it runs as orre with a login environment. The
+        gateway binds the dashboard on PORTAL_PORT (5476), but access is
+        through the SSM tunnel on PORTAL_LOCAL_PORT (7780) — the token is
+        signature-validated, not port-bound, so we rewrite the host port to the
+        local one for a paste-ready URL.
+        """
+        remote = self._remote(state)
+        print("\n» Minting a KiroCrew dashboard token on the instance...")
+        # System profile (EC2/headless): kirocrew-gateway runs as the kirocrew
+        # user from the source-built venv binary. Workstation profile: the
+        # kirocrew CLI is on the orre user's PATH. Try the system layout first,
+        # then fall back, mirroring _restart_kirocrew.
+        remote_script = f"""set -e
+BIN={shlex.quote(REMOTE_KIROCREW_BIN)}
+PORT={shlex.quote(PORTAL_PORT)}
+HOME_DIR={shlex.quote(REMOTE_KIROCREW_HOME)}
+# Run from a directory the invoking user can read. kirocrew auto-detects a
+# project dir from CWD on startup; the default SSH CWD (/root) is unreadable to
+# the kirocrew user and makes that probe raise PermissionError.
+if [ -x "$BIN" ]; then
+  cd "$HOME_DIR"
+  sudo -u kirocrew -H env HOME="$HOME_DIR" KIROCREW_PORT="$PORT" \
+    "$BIN" token --port "$PORT"
+else
+  cd /home/orre
+  sudo -u orre -H kirocrew token --port "$PORT"
+fi
+"""
+        result = remote.run("root", remote_script, capture=True, check=False)
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip() or "unknown error"
+            raise LauncherError(f"Failed to mint dashboard token: {detail}")
+
+        url = self._extract_token_url(result.stdout)
+        if url is None:
+            raise LauncherError(
+                "kirocrew token produced no dashboard URL; output was:\n"
+                f"{result.stdout.strip()}"
+            )
+
+        # The dashboard is reached locally through the SSM tunnel on
+        # PORTAL_LOCAL_PORT; rewrite the host port so the URL is paste-ready
+        # against `launch-ec2 portal` / `launch-portal`.
+        local_url = url.replace(
+            f":{PORTAL_PORT}?", f":{PORTAL_LOCAL_PORT}?", 1
+        )
+        print("  ✓ Token minted (default TTL 20h)\n")
+        print("KiroCrew dashboard sign-in URL (paste into the banner):")
+        print(f"  {local_url}")
+        if local_url != url:
+            print("\n  Raw gateway URL (loopback on the box):")
+            print(f"  {url}")
+        print(
+            f"\n  Ensure the tunnel is up first: "
+            f"{self.script_dir / 'launch-ec2'} portal"
+        )
+
+    @staticmethod
+    def _extract_token_url(output: str) -> str | None:
+        """Return the dashboard URL line from `kirocrew token` output.
+
+        The command prints warnings on stderr and the URL on stdout, but be
+        defensive: pick the last line that looks like a dashboard URL carrying
+        a token query parameter.
+        """
+        candidate: str | None = None
+        for line in output.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("http://", "https://")) and "token=" in stripped:
+                candidate = stripped
+        return candidate
 
     @staticmethod
     def _open_browser(url: str) -> None:
@@ -865,79 +1067,305 @@ PY
     # ── MCP OAuth provisioning ─────────────────────────────────────────────
 
     def _auth(self, state: InstanceState) -> None:
-        """Run an MCP OAuth flow locally and install the token on the gateway.
+        """Bootstrap or repair MCP OAuth tokens on the gateway.
 
-        The browser OAuth runs on the workstation (mcp-remote writes a cached
-        token into LOCAL_MCP_AUTH_DIR). Only the actual credential file — not
-        the code_verifier or client_info files — is copied to the gateway's
-        REMOTE_MCP_AUTH_DIR over SSM, then the gateway is restarted so the MCP
-        server picks up the cached token.
+        With no target, every entry in AUTH_SERVER_URLS is processed.
+
+        The gateway is asked FIRST, and that ordering is the whole design. It
+        maintains its own tokens — long-lived `mcp-remote` processes there
+        refresh them on use — so the common case is that it needs nothing, and
+        this command must then be a genuine no-op: no browser, no overwrite, no
+        restart. Its real job is the initial authorisation, which the gateway
+        cannot perform itself because it is headless and cannot open a browser,
+        plus repair when its token is genuinely broken.
+
+        Validity is decided by USING a token, never by inspecting the cache
+        directory. The previous "a new token file appeared" test was wrong in
+        both directions: mcp-remote reuses a still-valid token without
+        rewriting it (reported as "OAuth did not complete" despite a working
+        credential), and an expired token that merely got rewritten looked like
+        success — which would install a 401-ing token and report that the tools
+        should now connect.
         """
-        target = self.arguments.auth_target
-        server_url = AUTH_SERVER_URLS.get(target or "")
-        if server_url is None:
-            raise LauncherError(f"Unknown auth target: {target!r}")
+        requested = self.arguments.auth_target
+        targets = [requested] if requested else list(AUTH_TARGETS)
+        for target in targets:
+            if target not in AUTH_SERVER_URLS:
+                raise LauncherError(f"Unknown auth target: {target!r}")
 
         if shutil.which("npx") is None:
             raise LauncherError("npx is required to run the mcp-remote OAuth flow")
 
         auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
+        installed: list[str] = []
+        healthy: list[str] = []
+        failures: dict[str, str] = {}
 
-        # --force: clear this server's cached token/client so mcp-remote must
-        # run a fresh OAuth flow (which opens the browser). Without this, a
-        # still-valid cached token makes mcp-remote connect silently and no
-        # browser ever opens — the reported "should open firefox" case.
-        if self.arguments.force:
-            removed = self._clear_mcp_cache(auth_dir, server_url)
-            if removed:
-                print(f"  Cleared {removed} cached auth file(s) to force re-login.")
+        for target in targets:
+            server_url = AUTH_SERVER_URLS[target]
+            token_path = self._token_path(auth_dir, server_url)
+            remote_token_path = f"{REMOTE_MCP_AUTH_DIR}/{token_path.name}"
+            print(f"\n» {target}:")
+
+            remote_remaining: float | None = None
+            if not self.arguments.force:
+                # Ask the GATEWAY first. It refreshes its own tokens, so in the
+                # common case there is nothing to do — and doing something would
+                # be actively harmful: a browser login here, an overwrite of a
+                # fresher token there, and a gateway restart that drops live
+                # sessions, all for a credential that already works.
+                print("  checking the gateway's own token...")
+                status, detail, remote_remaining = self._probe_remote_token(
+                    state, server_url, remote_token_path
+                )
+                if status == "ok":
+                    print(f"  ✓ gateway token is valid ({detail}); nothing to do.")
+                    healthy.append(target)
+                    continue
+                print(f"  gateway token needs attention ({status}: {detail}).")
+
+            if self.arguments.force:
+                removed = self._clear_mcp_cache(auth_dir, server_url)
+                print(
+                    f"  Cleared {removed} cached auth file(s) to force re-login."
+                    if removed
+                    else "  No cached auth files to clear; proceeding."
+                )
             else:
-                print("  No cached auth files to clear; proceeding.")
+                status, detail, _ = self._probe_token(server_url, token_path)
+                if status == "ok":
+                    print(f"  ✓ local token valid ({detail}); installing it.")
+                    if self._install_guarded(
+                        state, token_path, target, remote_remaining, failures
+                    ):
+                        installed.append(target)
+                    continue
+                if status == "unknown":
+                    # The probe could not reach the server. Refusing to guess is
+                    # the point: a browser login would not fix a network fault,
+                    # and installing an unverified token is what we removed.
+                    failures[target] = detail
+                    print(f"  ✗ {target}: {detail}")
+                    continue
+                print(f"  local token needs renewing ({detail}).")
 
-        before = self._mcp_token_files(auth_dir)
+                # An EXPIRED token often renews silently from its refresh token,
+                # so try that before sending anyone to a browser. A STALE one
+                # cannot: mcp-remote reuses a token that is still valid instead
+                # of refreshing it, so its cache has to be cleared first.
+                if status == "expired":
+                    print("  attempting a silent refresh from the cached refresh token...")
+                    try:
+                        self._run_mcp_remote(server_url, self._browser_env())
+                    except KeyboardInterrupt:
+                        pass
+                    status, detail, _ = self._probe_token(server_url, token_path)
+                    if status == "ok":
+                        print(f"  ✓ refreshed without a browser ({detail}).")
+                        if self._install_guarded(
+                            state, token_path, target, remote_remaining, failures
+                        ):
+                            installed.append(target)
+                        continue
+                    print(f"  silent refresh insufficient ({detail}); falling back to login.")
 
-        print(f"\n» Starting {target} OAuth in your browser...")
-        print("  Complete the login/consent in the browser.")
-        print("  The proxy stops automatically once the token is cached")
-        print("  (press Ctrl+C to stop early if needed).")
-        # mcp-remote opens the browser via the OS default handler. Make the
-        # spawn environment explicit so it resolves to the operator's browser
-        # even when launch-ec2 was started from a minimal environment.
+                removed = self._clear_mcp_cache(auth_dir, server_url)
+                if removed:
+                    print(f"  Cleared {removed} cached auth file(s) to force a fresh login.")
+
+            print(f"  complete the {target} login/consent in the browser.")
+            print("  the proxy stops automatically once the token is cached")
+            print("  (press Ctrl+C to stop early if needed).")
+            try:
+                self._run_mcp_remote(server_url, self._browser_env())
+            except KeyboardInterrupt:
+                pass
+
+            status, detail, _ = self._probe_token(server_url, token_path)
+            if status not in ("ok", "stale"):
+                failures[target] = detail
+                print(f"  ✗ {target}: {detail}")
+                continue
+            if status == "stale":
+                # A provider whose whole token lifetime is shorter than the floor
+                # lands here even immediately after a successful login. Install
+                # it — it is the best this provider can issue — but say so,
+                # because the gateway's copy expires that soon.
+                print(
+                    f"  ! {target}: freshly issued token is already short-lived "
+                    f"({detail}); installing anyway."
+                )
+            else:
+                print(f"  ✓ local token valid ({detail}).")
+            if self._install_guarded(
+                state, token_path, target, remote_remaining, failures
+            ):
+                installed.append(target)
+
+        # Restart once for the whole batch rather than per target: each restart
+        # drops live agent sessions, so N targets must not mean N interruptions.
+        # Skipped entirely when nothing was installed — a run that found every
+        # gateway token healthy must not disturb the gateway at all.
+        if installed:
+            print("\n» Restarting the gateway to pick up the token(s)...")
+            self._remote(state).run(
+                "root",
+                "set -e; systemctl restart kirocrew-gateway.service; "
+                "systemctl is-active --quiet kirocrew-gateway.service",
+            )
+            print(f"  ✓ Gateway restarted; {', '.join(installed)} tools should connect")
+        elif healthy:
+            print(
+                f"\n  ✓ Nothing to do — {', '.join(healthy)} already valid on the "
+                "gateway; it was not restarted."
+            )
+        else:
+            print("\n  Nothing installed; gateway left running as-is.")
+
+        if failures:
+            summary = "; ".join(f"{name}: {why}" for name, why in failures.items())
+            raise LauncherError(f"auth failed for {len(failures)} target(s) — {summary}")
+
+    def _install_guarded(
+        self,
+        state: InstanceState,
+        token_path: Path,
+        target: str,
+        remote_remaining: float | None,
+        failures: dict[str, str],
+    ) -> bool:
+        """Install a token unless the gateway's copy is fresher. Returns installed.
+
+        The gateway refreshes its own tokens, so a local snapshot can easily be
+        the older of the two. Replacing a longer-lived remote token with a
+        shorter-lived local one is a downgrade, and with a shared refresh-token
+        lineage it risks invalidating the gateway's refresh chain.
+        """
+        _, detail, local_remaining = self._probe_token(
+            AUTH_SERVER_URLS[target], token_path
+        )
+        if (
+            remote_remaining is not None
+            and local_remaining is not None
+            and remote_remaining > local_remaining
+        ):
+            print(
+                f"  · skipping install: the gateway's token has "
+                f"{remote_remaining / 3600:.1f}h left vs {local_remaining / 3600:.1f}h "
+                "locally — refusing to downgrade it."
+            )
+            return False
+        self._install_token(state, token_path, target)
+        return True
+
+        # Restart once for the whole batch rather than per target: each restart
+        # drops live agent sessions, so N targets must not mean N interruptions.
+        if installed:
+            print("\n» Restarting the gateway to pick up the token(s)...")
+            self._remote(state).run(
+                "root",
+                "set -e; systemctl restart kirocrew-gateway.service; "
+                "systemctl is-active --quiet kirocrew-gateway.service",
+            )
+            print(f"  ✓ Gateway restarted; {', '.join(installed)} tools should connect")
+        else:
+            print("\n  Nothing installed; gateway left running as-is.")
+
+        if failures:
+            summary = "; ".join(f"{name}: {why}" for name, why in failures.items())
+            raise LauncherError(f"auth failed for {len(failures)} target(s) — {summary}")
+
+    @staticmethod
+    def _browser_env() -> dict[str, str]:
+        """Spawn environment for mcp-remote's browser hand-off.
+
+        mcp-remote opens the browser via the OS default handler, so make the
+        choice explicit — launch-ec2 may have been started from a minimal
+        environment where no default resolves.
+        """
         env = inherited_environment()
         env.setdefault("BROWSER", "firefox")
-        try:
-            self._run_mcp_remote(server_url, env)
-        except KeyboardInterrupt:
-            pass
+        return env
 
-        after = self._mcp_token_files(auth_dir)
-        token_file = self._select_token_file(after, before)
-        if token_file is None:
-            raise LauncherError(
-                f"No new token file appeared in {auth_dir}; OAuth did not complete"
-            )
-        print(f"  ✓ Local token cached: {token_file.name}")
-
-        remote = self._remote(state)
-        remote_path = f"{REMOTE_MCP_AUTH_DIR}/{token_file.name}"
-        print("\n» Installing the token on the gateway...")
-        with token_file.open("rb") as handle:
-            remote.run(
+    def _install_token(
+        self, state: InstanceState, token_path: Path, target: str
+    ) -> None:
+        """Copy one validated token file to the gateway's mcp-remote cache."""
+        remote_path = f"{REMOTE_MCP_AUTH_DIR}/{token_path.name}"
+        print(f"  » installing {target} token on the gateway...")
+        with token_path.open("rb") as handle:
+            self._remote(state).run(
                 "root",
                 "set -e; "
                 f"install -d -m 700 -o kirocrew -g kirocrew {shlex.quote(REMOTE_MCP_AUTH_DIR)}; "
                 f"install -m 600 -o kirocrew -g kirocrew /dev/stdin {shlex.quote(remote_path)}",
                 stdin=handle,
             )
-        print(f"  ✓ Installed {remote_path}")
+        print(f"    ✓ {remote_path}")
 
-        print("\n» Restarting the gateway to pick up the token...")
-        remote.run(
-            "root",
-            "set -e; systemctl restart kirocrew-gateway.service; "
-            "systemctl is-active --quiet kirocrew-gateway.service",
+    def _token_path(self, auth_dir: Path, server_url: str) -> Path:
+        """Path of the token file mcp-remote caches for exactly this server.
+
+        Scoping by cache key matters: the directory holds one set of files per
+        server, and picking "the most recently changed file" instead could
+        select a SIBLING server's token and install it under that sibling's
+        name — the wrong credential, with no error.
+        """
+        return auth_dir / f"{self._mcp_cache_key(server_url)}_tokens.json"
+
+    @staticmethod
+    def _probe_token(server_url: str, token_path: Path) -> tuple[str, str, float | None]:
+        """Classify the workstation's cached token. See `token_probe.classify`."""
+        return classify(server_url, token_path, AUTH_MIN_REMAINING_SECS)
+
+    def _probe_remote_token(
+        self, state: InstanceState, server_url: str, remote_token_path: str
+    ) -> tuple[str, str, float | None]:
+        """Classify the token as the GATEWAY sees it, using the same rules.
+
+        Asked before any local work because the gateway maintains its own
+        tokens: long-lived `mcp-remote` processes there refresh them on use, so
+        a healthy gateway needs nothing from us. Overwriting it would replace a
+        freshly-refreshed token with a staler local snapshot — and because both
+        hosts share a refresh-token lineage, a provider that rotates refresh
+        tokens on use could then invalidate the gateway's ability to refresh at
+        all, breaking the very mechanism that was working.
+
+        The probe module is shipped base64-encoded on the command line rather
+        than piped, because RemoteHost.run cannot both capture stdout and write
+        stdin. Runs as root: the token files are 0600 and owned by kirocrew.
+        """
+        source = Path(__file__).with_name("token_probe.py").read_bytes()
+        encoded = base64.b64encode(source).decode("ascii")
+        command = (
+            f"echo {shlex.quote(encoded)} | base64 -d | "
+            f"python3 - {shlex.quote(server_url)} {shlex.quote(remote_token_path)} "
+            f"{int(AUTH_MIN_REMAINING_SECS)}"
         )
-        print(f"  ✓ Gateway restarted; {target} tools should now connect")
+        try:
+            result = self._remote(state).run("root", command, capture=True, check=False)
+        except Exception as error:  # transport/SSM failure
+            return "unknown", f"remote probe failed: {type(error).__name__}: {error}", None
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip().splitlines()
+            return (
+                "unknown",
+                f"remote probe exited {result.returncode}: {detail[-1][:120] if detail else 'no output'}",
+                None,
+            )
+        line = (result.stdout or "").strip().splitlines()
+        if not line:
+            return "unknown", "remote probe produced no output", None
+        parts = line[-1].split("\t")
+        if len(parts) < 2:
+            return "unknown", f"unparseable remote probe output: {line[-1][:120]}", None
+        remaining = None
+        if len(parts) > 2 and parts[2]:
+            try:
+                remaining = float(parts[2])
+            except ValueError:
+                remaining = None
+        return parts[0], parts[1], remaining
 
     @staticmethod
     def _mcp_cache_key(server_url: str) -> str:
@@ -1048,41 +1476,6 @@ PY
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
-
-    @staticmethod
-    def _mcp_token_files(auth_dir: Path) -> dict[str, float]:
-        """Map candidate token filenames to their mtimes.
-
-        Only the real credential is a candidate: mcp-remote writes companion
-        code_verifier and client_info files that are not the token itself.
-        """
-        if not auth_dir.is_dir():
-            return {}
-        candidates: dict[str, float] = {}
-        for entry in auth_dir.iterdir():
-            if not entry.is_file():
-                continue
-            name = entry.name
-            if "code_verifier" in name or "client_info" in name:
-                continue
-            candidates[name] = entry.stat().st_mtime
-        return candidates
-
-    @staticmethod
-    def _select_token_file(
-        after: dict[str, float], before: dict[str, float]
-    ) -> Path | None:
-        """Pick the token file created or refreshed by this OAuth run."""
-        auth_dir = Path(os.path.expanduser(LOCAL_MCP_AUTH_DIR))
-        changed = [
-            name
-            for name, mtime in after.items()
-            if name not in before or mtime > before[name]
-        ]
-        if not changed:
-            return None
-        newest = max(changed, key=lambda name: after[name])
-        return auth_dir / newest
 
     # ── State sync ───────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@
     "${modulesPath}/virtualisation/amazon-image.nix"
     ./kirocrew-security.nix
     ./kirocrew-services.nix
+    ./kirocrew-review-agents.nix
     ./kirocrew-vault-git.nix
     ./kirocrew-sops.nix
     ./kirocrew-code.nix
@@ -49,6 +50,20 @@
       # (1Password agent bridge) to replace a stale socket on reconnect.
       StreamLocalBindUnlink yes
     '';
+  };
+
+  # ── Memory: compressed RAM swap ────────────────────────────────────────────
+  # A safety net against transient memory spikes. The gateway on the pinned
+  # v0.7.0-insider build can peak >13G under concurrent member load; the box was
+  # resized to t4g.2xlarge (30G) which fits that with headroom, but a spike must
+  # never OOM-kill or crash-loop the gateway again. A swap FILE is not viable —
+  # the root volume is ~99% full — so use zram: compressed, RAM-backed swap that
+  # needs no disk. Sized to 50% of RAM (~15G of compressed backing) so a burst
+  # pages into compressed RAM instead of hitting the wall.
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;
   };
 
   # ── SSM agent: the box's outbound control channel ──────────────────────────

@@ -90,6 +90,19 @@ path = "code/readpeak/Prebid.js"
 remote = "git@github.com:orriborri/pasta.git"
 path = "code/pasta"
 
+# AWS cost-optimization MCP server (aws-samples). Cloned to the gateway only;
+# the cfm-tips-source-build service (kirocrew-services.nix) builds a pinned
+# venv from this checkout and the gateway spawns it as a stdio MCP server.
+# Pinned to an immutable SHA — this server reads the account's cost/resource
+# surface via read-only credentials passed in its MCP env block, so it must not
+# track a moving branch. Not code under review — excluded from the Code Review Graph.
+[[repos]]
+remote = "https://github.com/aws-samples/sample-cfm-tips-mcp.git"
+path = "code/sample-cfm-tips-mcp"
+targets = ["headless"]
+revision = "dcf19f1ed6905bc0c9f556ac28a1d33dd7128a67"
+graph = false
+
 # ─── Agent skills ─────────────────────────────────────────────────
 
 # Matt Pocock's engineering skills (agentskills.io format). The skill-sync

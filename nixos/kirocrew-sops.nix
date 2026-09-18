@@ -117,5 +117,45 @@
       path = "/var/lib/pasta/secrets/gitlab-token";
       key = "gitlab-token";
     };
+
+    # ── CFM Tips MCP server AWS credentials ─────────────────────────────────
+    # Read-only AWS keys for the cfm-tips cost-optimization MCP server the
+    # gateway spawns (kirocrew-services.nix mcp.json). These belong to a
+    # DEDICATED IAM principal that carries ONLY the consolidated read-only cost
+    # policy from the CFM Tips README — not the instance role, which the gateway
+    # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew and
+    # composed into an EnvironmentFile by the sops template below, so the
+    # gateway process holds CFM_TIPS_AWS_* and KiroCrew resolves the
+    # ${env:CFM_TIPS_AWS_*} refs in mcp.json at session runtime.
+    secrets.cfm-tips-aws-access-key-id = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/cfm-tips-aws-access-key-id";
+      key = "cfm-tips-aws-access-key-id";
+    };
+    secrets.cfm-tips-aws-secret-access-key = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/cfm-tips-aws-secret-access-key";
+      key = "cfm-tips-aws-secret-access-key";
+    };
+  };
+
+  # Compose the two AWS secrets into a systemd EnvironmentFile (KEY=value
+  # lines). sops secrets are raw values, so they cannot be an EnvironmentFile
+  # directly; a template renders the KEY=value form with the secrets spliced in
+  # via config.sops.placeholder (substituted at activation, never in the Nix
+  # store). The gateway unit references this path as an EnvironmentFile.
+  sops.templates."cfm-tips-aws.env" = {
+    owner = config.users.users.kirocrew.name;
+    inherit (config.users.users.kirocrew) group;
+    mode = "0400";
+    path = "/var/lib/kirocrew/secrets/cfm-tips-aws.env";
+    content = ''
+      CFM_TIPS_AWS_ACCESS_KEY_ID=${config.sops.placeholder."cfm-tips-aws-access-key-id"}
+      CFM_TIPS_AWS_SECRET_ACCESS_KEY=${config.sops.placeholder."cfm-tips-aws-secret-access-key"}
+    '';
   };
 }

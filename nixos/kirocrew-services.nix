@@ -340,6 +340,85 @@ let
     '';
   };
 
+  # CFM Tips MCP server builder — an ExecStartPre of the gateway (runs as the
+  # kirocrew user, inside the gateway's sandbox). Clones the pinned aws-samples
+  # checkout and builds a self-contained venv the gateway's mcp.json spawns as
+  # a stdio MCP server. Everything lives under ${kirocrewHome}/cfm-tips, which
+  # is already the gateway unit's single ReadWritePath.
+  #
+  # Pinned to an immutable SHA (repos.toml carries the same one for the human
+  # checkout): this server is handed read-only AWS cost/resource credentials,
+  # so it must not silently follow a moving branch.
+  #
+  # python312, NOT the nixpkgs default python3 (3.14): this AWS-samples repo
+  # targets 3.11+ and is not tested against 3.14. Wheels for the deps
+  # (boto3/botocore/psutil/mcp) are pulled from PyPI; `mcp` is installed
+  # explicitly because the repo's requirements.txt omits it even though the
+  # server imports mcp.server/.stdio/.types. gcc + the interpreter's dev
+  # headers are on PATH so a dep with no aarch64 wheel (this is a Graviton
+  # t4g box) falls back to a source build instead of failing the unit.
+  cfmTipsPython = pkgs.python312;
+  cfmTipsRev = "dcf19f1ed6905bc0c9f556ac28a1d33dd7128a67";
+  cfmTipsDir = "${kirocrewHome}/cfm-tips";
+  cfmTipsServerBin = "${cfmTipsDir}/.venv/bin/python";
+  cfmTipsServerScript = "${cfmTipsDir}/src/mcp_server_with_runbooks.py";
+  # Region the cost server queries. Matches the launcher's DEFAULT_REGION
+  # (kirocrew_ec2/models.py). Cost Explorer is global, but boto3 still needs a
+  # region set; several playbooks (EC2/EBS/RDS describes) are regional.
+  cfmTipsAwsRegion = "eu-central-1";
+  cfmTipsSourceBuild = pkgs.writeShellApplication {
+    name = "cfm-tips-source-build";
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+      cfmTipsPython
+      gcc # source-build fallback for any dep without an aarch64 wheel
+      gnumake
+    ];
+    text = ''
+      srcRoot="${cfmTipsDir}/src"
+      venv="${cfmTipsDir}/.venv"
+      export PIP_CACHE_DIR="${cfmTipsDir}/.pip-cache"
+
+      # Public, read-only checkout: ignore user Git URL rewrites so an HTTPS
+      # clone can't be redirected to an SSH clone needing credentials.
+      export GIT_CONFIG_GLOBAL=/dev/null
+      export GIT_CONFIG_NOSYSTEM=1
+      export GIT_TERMINAL_PROMPT=0
+
+      mkdir -p "$srcRoot" "$PIP_CACHE_DIR"
+
+      # Clone once, then pin to the exact revision. Fetch the specific SHA so a
+      # shallow clone can still check it out (a bare --depth 1 clone only has
+      # the branch tip).
+      if [ ! -d "$srcRoot/.git" ]; then
+        git clone --filter=blob:none https://github.com/aws-samples/sample-cfm-tips-mcp.git "$srcRoot"
+      fi
+      git -C "$srcRoot" fetch --depth 1 origin "${cfmTipsRev}"
+      git -C "$srcRoot" checkout --quiet --detach "${cfmTipsRev}"
+
+      # (Re)build the venv only when the interpreter or the pin changed. A
+      # stamp file records the revision the current venv was built against.
+      stamp="$venv/.cfm-tips-rev"
+      if [ ! -x "${cfmTipsServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "${cfmTipsRev}" ]; then
+        echo "Building CFM Tips venv (${cfmTipsRev})..."
+        rm -rf "$venv"
+        ${cfmTipsPython}/bin/python3 -m venv "$venv"
+        "$venv/bin/pip" install --upgrade pip
+        # requirements.txt omits mcp (the server imports it) — add it explicitly.
+        "$venv/bin/pip" install -r "$srcRoot/requirements.txt" mcp
+        echo "${cfmTipsRev}" > "$stamp"
+      fi
+
+      # Smoke test: the module must import (proves boto3 + mcp resolved). Bounded
+      # by timeout and non-fatal so a transient import hiccup can't wedge the
+      # gateway's startup — the dashboard MCP probe is the real health signal.
+      timeout 30 "$venv/bin/python" -c "import boto3, mcp" 2>/dev/null \
+        || echo "warning: cfm-tips venv import smoke test failed" >&2
+      echo "cfm-tips build complete"
+    '';
+  };
+
   # MCP wiring for the gateway. Writes the gateway's mcp.json (which spawns the
   # kb-mcp stdio server built by the pasta-daemon) and the kirocrew user's
   # pasta config so kb-mcp resolves the SAME data_dir as the indexer. Runs as
@@ -368,6 +447,13 @@ let
 
       # Gateway MCP registry. kb-evidence spawns the locally-built kb-mcp stdio
       # server (linked into ${pastaHome}/bin by the pasta-daemon build step).
+      # cfm-tips spawns the aws-samples cost-optimization server from the venv
+      # built by cfm-tips-source-build (an ExecStartPre above). Its AWS creds
+      # come from the gateway environment as ''${env:...} references, which
+      # KiroCrew resolves at session runtime (see kirocrew-services env +
+      # SOPS). They are written LITERALLY here — the \$ stops both Nix
+      # interpolation and this bash heredoc from expanding them, so the token
+      # reaches mcp.json intact for KiroCrew to resolve.
       cat > "$crewDir/mcp.json" <<EOF
       {
         "mcpServers": {
@@ -377,6 +463,18 @@ let
             "env": {
               "HOME": "${kirocrewHome}",
               "RUST_LOG": "error"
+            },
+            "disabled": false
+          },
+          "cfm-tips": {
+            "command": "${cfmTipsServerBin}",
+            "args": ["${cfmTipsServerScript}"],
+            "env": {
+              "HOME": "${kirocrewHome}",
+              "AWS_REGION": "${cfmTipsAwsRegion}",
+              "AWS_DEFAULT_REGION": "${cfmTipsAwsRegion}",
+              "AWS_ACCESS_KEY_ID": "\''${env:CFM_TIPS_AWS_ACCESS_KEY_ID}",
+              "AWS_SECRET_ACCESS_KEY": "\''${env:CFM_TIPS_AWS_SECRET_ACCESS_KEY}"
             },
             "disabled": false
           }
@@ -507,6 +605,10 @@ in
       "kirocrew-legacy-kiro-read-access.service"
       "kirocrew-mcp-config.service"
       "kirocrew-vault-clone.service"
+      # Ordering only (no requires): the cfm-tips EnvironmentFile is rendered by
+      # sops-install-secrets. Non-fatal — the '-' EnvironmentFile above and the
+      # server's own disabled-until-creds behaviour tolerate its absence.
+      "sops-install-secrets.service"
     ];
     wants = [ "network-online.target" ];
     requires = [
@@ -538,8 +640,68 @@ in
         # First build compiles the dashboard + Python venv, hence the long
         # TimeoutStartSec above.
         "${kirocrewSourceUpdate}/bin/kirocrew-source-update"
+        # Build/update the CFM Tips MCP server venv (aws-samples cost tooling)
+        # before the gateway starts, so the mcp.json entry below has a working
+        # interpreter to spawn. Non-fatal: a '-' prefix keeps a transient PyPI
+        # or build failure from blocking the whole gateway — the server simply
+        # probes unhealthy in the dashboard until the next start rebuilds it.
+        "-${cfmTipsSourceBuild}/bin/cfm-tips-source-build"
         "${pkgs.coreutils}/bin/mkdir -p ${kirocrewHome}/.kiro/crew"
+        # Existing generated agent specs can retain the legacy installer path
+        # ~/.kiro/crew-venv/bin/kirocrew even after the gateway moved to the
+        # source-built release. That venv is 0.4.1rc1 here while the gateway is
+        # 0.7.0rc1. Since #8467, session_pid_<pid>.txt is a TWO-line record
+        # (<session-key> + process start token); the old MCP reader treats the
+        # whole file as the HTTP session header and produces an illegal embedded
+        # newline. Keep the stable legacy entrypoint but point it at the exact
+        # source-built CLI the gateway runs, so stale specs and fresh specs share
+        # one parser/identity contract. mkdir makes this safe on source-only
+        # installs where the legacy venv never existed.
+        "${pkgs.coreutils}/bin/mkdir -p ${kirocrewHome}/.kiro/crew-venv/bin"
+        "${pkgs.coreutils}/bin/ln -sfnT ${kirocrewSourceBin} ${kirocrewHome}/.kiro/crew-venv/bin/kirocrew"
         "${kirocrewSourceBin} config set --local agent.sandbox auto"
+        # v0.7 defaults member chats to the KAS/v3 backend. The system nixpkgs
+        # pin currently provides kiro-cli 2.18.1, whose `acp` parser accepts
+        # `--agent-engine v3` but NOT the `--auth-method cli` argument KAS adds;
+        # every member (observed first on kirocrew-research) therefore dies at
+        # startup with rc=2. Keep members on the compatible kiro/v2 backend
+        # until the package pin is upgraded to a CLI that supports that flag.
+        # This is a hard compatibility gate, not a preference: if the setting
+        # cannot be asserted, starting a gateway whose member processes all
+        # crash would be a false-success boot.
+        "${kirocrewSourceBin} config set --local agent.member_acp_backend kiro"
+        # v0.6.0 introduced a two-hour ceiling on unattended auto-run plans
+        # (orchestrator.max_plan_duration_seconds, default 7200). This host runs
+        # long-horizon unattended work — the conductor and heartbeat agents — so
+        # the stock ceiling silently cuts a plan mid-flight. Raised to 8h, which
+        # keeps a runaway backstop; 0 would remove the ceiling entirely. A
+        # stage-gated plan is never cut regardless.
+        # The `-` prefix makes these non-fatal. Every ExecStartPre is otherwise a
+        # hard gate on the gateway starting, and `config set` exits non-zero on a
+        # key this build does not know — so an upstream rename would stop the
+        # gateway booting rather than merely skipping a preference. v0.6.0
+        # retiring the `strict` value for agent.sandbox is exactly that shape of
+        # change. These four are operational preferences, so degrade to the
+        # build's own default instead of wedging the service. The agent.sandbox
+        # line above deliberately keeps NO `-`: if the sandbox posture cannot be
+        # asserted, failing closed is correct.
+        "-${kirocrewSourceBin} config set --local orchestrator.max_plan_duration_seconds 28800"
+        # Session summaries: an intent-level "why / what happened / what next"
+        # panel that makes re-entering a session cheap for a HUMAN. It does not
+        # shrink agent context — it costs an extra model call at turn end, which
+        # is why upstream ships it off. regenerate_after_turns is raised from 1
+        # (every turn) to 50 so unattended sessions nobody reads don't pay per
+        # turn: one summary generates early, and an explicit on-demand refresh
+        # bypasses the cadence gate. Enabling is required even for that
+        # on-demand pass — `force` does not lift the `disabled` gate.
+        "-${kirocrewSourceBin} config set --local session_summary.enabled true"
+        "-${kirocrewSourceBin} config set --local session_summary.regenerate_after_turns 50"
+        # Per-turn tokens, spend and latency across cron, heartbeat, subagents,
+        # workflows and channels — the cheapest way to see what the unattended
+        # agents on this host actually cost. Local JSONL sink; OTLP egress stays
+        # opt-in behind the separate `otlp` extra. telemetry.beacon_enabled (the
+        # phone-home) is deliberately NOT set and remains off.
+        "-${kirocrewSourceBin} config set --local telemetry.enabled true"
       ];
 
       # ── systemd hardening ──────────────────────────────────────────────
@@ -597,6 +759,12 @@ in
       # Block IMDS access from agents.
       IPAddressDeny = [ "169.254.169.254/32" ];
 
+      # Read-only AWS creds for the cfm-tips MCP server, composed by the sops
+      # template (kirocrew-sops.nix) into KEY=value lines. The leading '-' makes
+      # it non-fatal when absent (a box without the CFM Tips secrets still
+      # boots; the server just gets no creds and its tools error until set).
+      EnvironmentFile = [ "-/var/lib/kirocrew/secrets/cfm-tips-aws.env" ];
+
       Environment = [
         "KIROCREW_HOME=${kirocrewHome}/.kiro/crew"
         "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
@@ -604,6 +772,18 @@ in
         "TMPDIR=/tmp/kirocrew"
         "PATH=${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
+        # Pin npm/npx entirely inside the kirocrew home. The agent runs MCP
+        # servers via `npx -y mcp-remote …` (metabase, linear). Without these,
+        # npm resolves its cache/user-config/prefix relative to $HOME *and* the
+        # process cwd — and if a runtime is ever spawned with cwd under another
+        # user's home (e.g. /home/orre, mode 0700), npm's attempt to read that
+        # dir's .npmrc and `spawn sh` there fails with EACCES and the MCP server
+        # dies with "connection closed: initialize response", taking chat down.
+        # Anchoring all three to ${kirocrewHome} makes `npx` cwd-independent and
+        # keeps every npm write inside the one ReadWritePath the unit owns.
+        "NPM_CONFIG_CACHE=${kirocrewHome}/.npm"
+        "NPM_CONFIG_USERCONFIG=${kirocrewHome}/.npmrc"
+        "NPM_CONFIG_PREFIX=${kirocrewHome}/.npm-global"
         "KIROCREW_BIND=127.0.0.1"
         "KIROCREW_DEVFLEET_BIN_GIT=${pkgs.git}/bin/git"
         # 1Password agent socket, relayed from the operator's forwarded socket

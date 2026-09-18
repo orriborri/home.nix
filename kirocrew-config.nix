@@ -28,7 +28,9 @@ in
       '';
     };
     sourceTag = lib.mkOption {
-      type = lib.types.nullOr (lib.types.strMatching "v[0-9]+\\.[0-9]+\\.[0-9]+");
+      type = lib.types.nullOr (
+        lib.types.strMatching "v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.]+)?"
+      );
       default = null;
       example = "v0.3.0";
       description = ''
