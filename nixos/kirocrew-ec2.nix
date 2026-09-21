@@ -15,6 +15,7 @@
     ./kirocrew-security.nix
     ./kirocrew-services.nix
     ./kirocrew-review-agents.nix
+    ./kirocrew-review-skills.nix
     ./kirocrew-assistant.nix
     ./kirocrew-vault-git.nix
     ./kirocrew-sops.nix
