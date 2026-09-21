@@ -399,21 +399,33 @@ let
 
       # (Re)build the venv only when the interpreter or the pin changed. A
       # stamp file records the revision the current venv was built against.
+      # RECIPE is appended so a change to the build recipe (e.g. the mcp pin
+      # below) forces a rebuild even when the source revision is unchanged.
       stamp="$venv/.cfm-tips-rev"
-      if [ ! -x "${cfmTipsServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "${cfmTipsRev}" ]; then
-        echo "Building CFM Tips venv (${cfmTipsRev})..."
+      cfmRecipe=2  # 2: pin mcp<2 (server uses the v1 low-level Server API)
+      want="$cfmRecipe:${cfmTipsRev}"
+      if [ ! -x "${cfmTipsServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
+        echo "Building CFM Tips venv ($want)..."
         rm -rf "$venv"
         ${cfmTipsPython}/bin/python3 -m venv "$venv"
         "$venv/bin/pip" install --upgrade pip
         # requirements.txt omits mcp (the server imports it) — add it explicitly.
-        "$venv/bin/pip" install -r "$srcRoot/requirements.txt" mcp
-        echo "${cfmTipsRev}" > "$stamp"
+        # Pin mcp<2: the server is written against the v1 low-level Server API
+        # (@server.list_tools / @server.call_tool). mcp 2.x removed those
+        # decorators, so an unpinned install pulls 2.x and the module fails to
+        # import at spawn (AttributeError: 'Server' object has no attribute
+        # 'list_tools') — verified broken on the box before this pin.
+        "$venv/bin/pip" install -r "$srcRoot/requirements.txt" "mcp<2"
+        echo "$want" > "$stamp"
       fi
 
       # Smoke test: the module must import (proves boto3 + mcp resolved). Bounded
       # by timeout and non-fatal so a transient import hiccup can't wedge the
       # gateway's startup — the dashboard MCP probe is the real health signal.
-      timeout 30 "$venv/bin/python" -c "import boto3, mcp" 2>/dev/null \
+      # Smoke test: boto3 must import AND the v1 low-level Server API the server
+      # uses must exist (v2 imports fine but lacks the decorators). Bounded and
+      # non-fatal — the dashboard MCP probe is the real health signal.
+      timeout 30 "$venv/bin/python" -c "import boto3; from mcp.server import Server; s=Server('t'); assert hasattr(s,'list_tools') and hasattr(s,'call_tool')" 2>/dev/null \
         || echo "warning: cfm-tips venv import smoke test failed" >&2
       echo "cfm-tips build complete"
     '';
