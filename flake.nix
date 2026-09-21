@@ -137,6 +137,7 @@
           system = "x86_64-linux";
           extraModules = [
             ./packages/kiro.nix
+            ./packages/aws-vpn-client
             ./kirocrew-service.nix
             {
               kirocrew.enable = true;
