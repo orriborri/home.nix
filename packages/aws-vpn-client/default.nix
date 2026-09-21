@@ -21,6 +21,8 @@
 #   * aws-vpn-connect-{staging,prod}
 #                          — thin wrappers defaulting to the matching per-env
 #                            profile under ~/.config/aws-vpn-client/.
+#   * aws-vpn-fetch-config — download + prepare a profile from AWS (SSM endpoint
+#                            lookup, export, strip conflicting directives).
 #
 # Bringing up the tunnel needs root on the host, so `aws-vpn-connect` calls
 # sudo for the final openvpn invocation — that part is inherently a privileged
@@ -96,12 +98,26 @@ let
 
   aws-vpn-connect-staging = mkEnvConnect "staging";
   aws-vpn-connect-prod = mkEnvConnect "prod";
+
+  # Fetch + prepare a profile: SSM endpoint lookup, export, strip conflicting
+  # directives. Needs the AWS CLI and a valid session (aws login).
+  aws-vpn-fetch-config = pkgs.writeShellApplication {
+    name = "aws-vpn-fetch-config";
+    runtimeInputs = [
+      pkgs.awscli2
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+    text = builtins.readFile ./aws-vpn-fetch-config.sh;
+  };
 in
 {
   home.packages = [
     aws-vpn-connect
     aws-vpn-connect-staging
     aws-vpn-connect-prod
+    aws-vpn-fetch-config
     openvpn-aws-bin
     saml-server
   ];
