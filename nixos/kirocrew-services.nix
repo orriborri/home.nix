@@ -477,8 +477,6 @@ let
         "$venv/bin/pip" install "mcp<2"
         echo "$want" > "$stamp"
       fi
-        echo "$want" > "$stamp"
-      fi
 
       # Smoke test: assert the v1 low-level Server API the module actually uses
       # is present (not just that `mcp` imports — v2 imports too but lacks these
