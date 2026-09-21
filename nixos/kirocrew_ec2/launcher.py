@@ -542,13 +542,23 @@ HOME_DIR={shlex.quote(REMOTE_KIROCREW_HOME)}
 # Run from a directory the invoking user can read. kirocrew auto-detects a
 # project dir from CWD on startup; the default SSH CWD (/root) is unreadable to
 # the kirocrew user and makes that probe raise PermissionError.
+#
+# LD_LIBRARY_PATH: the v0.7 dashboard code path `kirocrew token` imports pulls in
+# numpy (via the STT engine), whose C-extension needs libstdc++.so.6. The
+# gateway UNIT sets this in its own Environment, but a `sudo -u kirocrew -H env`
+# invocation is a non-login shell that does NOT source environment.shellInit
+# (where kirocrew.nix exports it), so numpy fails with
+# "libstdc++.so.6: cannot open shared object file". /run/current-system/sw/lib
+# is the stable, rebuild-independent system path carrying libstdc++.
 if [ -x "$BIN" ]; then
   cd "$HOME_DIR"
   sudo -u kirocrew -H env HOME="$HOME_DIR" KIROCREW_PORT="$PORT" \
+    LD_LIBRARY_PATH=/run/current-system/sw/lib \
     "$BIN" token --port "$PORT"
 else
   cd /home/orre
-  sudo -u orre -H kirocrew token --port "$PORT"
+  sudo -u orre -H env LD_LIBRARY_PATH=/run/current-system/sw/lib \
+    kirocrew token --port "$PORT"
 fi
 """
         result = remote.run("root", remote_script, capture=True, check=False)
