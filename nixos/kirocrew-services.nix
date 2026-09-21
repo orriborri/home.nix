@@ -455,24 +455,37 @@ let
       # writable runtime dir. cp -f each start so a server.py change lands.
       cp -f ${slackMcpSrc}/server.py "$dir/server.py"
 
-      # (Re)build the venv when the interpreter or the source hash changed. The
-      # stamp records the store path of the source dir, which changes whenever
-      # server.py changes.
+      # (Re)build the venv when the interpreter, the source hash, OR the build
+      # recipe changed. The stamp records "<recipe-version>:<source store path>";
+      # bump RECIPE whenever the pip pin or build steps change so an existing
+      # venv is rebuilt rather than silently kept.
+      RECIPE=2  # 2: pin mcp<2 (v1 low-level Server API)
       stamp="$venv/.slack-mcp-src"
-      want="${slackMcpSrc}"
+      want="$RECIPE:${slackMcpSrc}"
       if [ ! -x "${slackMcpServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
         echo "Building slack-mcp venv ($want)..."
         rm -rf "$venv"
         ${slackMcpPython}/bin/python3 -m venv "$venv"
         "$venv/bin/pip" install --upgrade pip
-        "$venv/bin/pip" install mcp
+        # Pin mcp<2: this server is written against the v1 low-level Server API
+        # (@server.list_tools / @server.call_tool + stdio_server). mcp 2.x
+        # removed those decorators (FastMCP became MCPServer), so an unpinned
+        # `pip install mcp` pulls 2.x and the module fails to import at spawn.
+        # Verified on the box: mcp 1.30.0 loads the decorators and auth.test
+        # succeeds. (The isolated venv means this pin doesn't affect any other
+        # server.)
+        "$venv/bin/pip" install "mcp<2"
+        echo "$want" > "$stamp"
+      fi
         echo "$want" > "$stamp"
       fi
 
-      # Smoke test: the module must import (proves mcp resolved). Bounded and
-      # non-fatal — the dashboard MCP probe is the real health signal.
-      timeout 30 "$venv/bin/python" -c "import mcp" 2>/dev/null \
-        || echo "warning: slack-mcp venv import smoke test failed" >&2
+      # Smoke test: assert the v1 low-level Server API the module actually uses
+      # is present (not just that `mcp` imports — v2 imports too but lacks these
+      # decorators). Bounded and non-fatal; the dashboard MCP probe is the real
+      # health signal.
+      timeout 30 "$venv/bin/python" -c "from mcp.server import Server; from mcp.server.stdio import stdio_server; s=Server('t'); assert hasattr(s,'list_tools') and hasattr(s,'call_tool')" 2>/dev/null \
+        || echo "warning: slack-mcp venv v1-API smoke test failed" >&2
       echo "slack-mcp build complete"
     '';
   };
