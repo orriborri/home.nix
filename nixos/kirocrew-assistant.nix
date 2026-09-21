@@ -21,10 +21,11 @@
 #                  here — the gateway resolves it.
 #   - Linear    -> @linear (gateway-provided namespace, read-write). NOT
 #                  redefined here.
-#   - Slack     -> NOT a tool. Slack is a gateway MESSAGING CHANNEL
-#                  (config slack.tracking_channels / open_channels); the gateway
-#                  relays Slack messages to/from the session. Nothing to allowlist
-#                  on the agent — enabling Slack is a gateway-level concern.
+#   - Slack     -> @slack MCP server (kirocrew-services.nix) reusing the shared
+#                  sops slack-token; read (search/history/users) + post
+#                  (chat.postMessage). Slack is ALSO a gateway messaging channel
+#                  (config slack.tracking_channels / open_channels) that relays
+#                  messages to the session — the two are complementary.
 #   - GitLab    -> no GitLab MCP exists on the box, so live GitLab actions go
 #                  through the `glab` CLI, which needs execute_bash. The operator
 #                  approved shell access for this (interactive, approvals gate it).
@@ -78,6 +79,7 @@ let
       "@kirocrew-core"
       "@pasta-kb"
       "@linear"
+      "@slack"
     ];
     resources = [
       "file://.kiro/steering/**/*.md"
@@ -94,7 +96,7 @@ let
       - Vault (read AND write): you may add and edit notes when the operator asks. Follow the existing note's structure and the PARA location that fits; match the vault's conventions rather than inventing new ones. Do not restructure or mass-edit unprompted.
       - Linear (@linear, read-write): query and manage issues, projects, and cycles when asked.
       - GitLab (via `glab` in the shell): read MRs/pipelines/issues and act when asked. Prefer read-only `glab` subcommands; for anything that changes state (push, merge, close, comment) confirm intent first.
-      - Slack: the gateway relays Slack to this session — you reply in the channel; you have no separate Slack tool.
+      - Slack: you have direct Slack tools (@slack) — search messages, read channel history, look up users, and post messages (chat.postMessage). Posting is a WRITE action: confirm intent before you post. The gateway ALSO relays Slack channel messages to this session, so you can converse in a channel directly.
       - pasta history: read what pasta has synced from Slack/Linear/GitLab/Gmail/git as of the last sync; say "as of last sync" when recency matters.
 
       HOW YOU WORK.

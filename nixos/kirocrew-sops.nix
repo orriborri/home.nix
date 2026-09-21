@@ -141,6 +141,27 @@
       path = "/var/lib/kirocrew/secrets/cfm-tips-aws-secret-access-key";
       key = "cfm-tips-aws-secret-access-key";
     };
+
+    # ── Slack MCP server token (gateway) ────────────────────────────────────
+    # A SECOND decrypt target for the SAME sops `slack-token` (the pasta user
+    # gets its own copy above at /var/lib/pasta/secrets/slack-token). The
+    # gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
+    # so it needs its own kirocrew-owned copy of the identical secret. Consumed
+    # by the Slack MCP server the gateway spawns (kirocrew-services.nix
+    # mcp.json), composed into an EnvironmentFile by the template below so the
+    # gateway process holds SLACK_TOKEN and KiroCrew resolves the
+    # ${env:SLACK_TOKEN} ref in mcp.json at session runtime.
+    #
+    # This is a Slack USER token (`xoxp-...`) with scopes proven by the pasta
+    # helper: channels/groups/im/mpim history + read, users:read, search:read,
+    # and chat:write (so the MCP can post as the user).
+    secrets.kirocrew-slack-token = {
+      owner = config.users.users.kirocrew.name;
+      inherit (config.users.users.kirocrew) group;
+      mode = "0400";
+      path = "/var/lib/kirocrew/secrets/slack-token";
+      key = "slack-token";
+    };
   };
 
   # Compose the two AWS secrets into a systemd EnvironmentFile (KEY=value
@@ -156,6 +177,22 @@
     content = ''
       CFM_TIPS_AWS_ACCESS_KEY_ID=${config.sops.placeholder."cfm-tips-aws-access-key-id"}
       CFM_TIPS_AWS_SECRET_ACCESS_KEY=${config.sops.placeholder."cfm-tips-aws-secret-access-key"}
+    '';
+  };
+
+  # Slack token as a systemd EnvironmentFile (KEY=value) for the gateway. Same
+  # rationale as cfm-tips: sops secrets are raw values, so a template renders
+  # the KEY=value line with the secret spliced in via config.sops.placeholder
+  # (substituted at activation, never written to the Nix store). The gateway
+  # unit references this path as an EnvironmentFile, and mcp.json's slack entry
+  # reads ${env:SLACK_TOKEN}.
+  sops.templates."kirocrew-slack.env" = {
+    owner = config.users.users.kirocrew.name;
+    inherit (config.users.users.kirocrew) group;
+    mode = "0400";
+    path = "/var/lib/kirocrew/secrets/kirocrew-slack.env";
+    content = ''
+      SLACK_TOKEN=${config.sops.placeholder."kirocrew-slack-token"}
     '';
   };
 }

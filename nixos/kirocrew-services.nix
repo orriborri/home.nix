@@ -419,6 +419,64 @@ let
     '';
   };
 
+  # Slack MCP server builder — an ExecStartPre of the gateway (runs as the
+  # kirocrew user, inside the gateway's sandbox). Copies the in-repo server
+  # module into ${slackMcpDir} and builds a minimal venv whose ONLY non-stdlib
+  # dependency is `mcp` (the server talks to the Slack Web API over stdlib
+  # urllib). The gateway's mcp.json spawns it over stdio with the shared
+  # SLACK_TOKEN in its environment. Everything lives under ${kirocrewHome},
+  # already the gateway unit's ReadWritePath.
+  #
+  # python312 to match the cfm-tips server (nixpkgs default python3 is 3.14,
+  # which the mcp wheels are not yet uniformly built against on aarch64); gcc +
+  # make on PATH give a source-build fallback for any dep lacking a Graviton
+  # wheel. The server source is pinned by the Nix store path of ./kirocrew-slack-mcp,
+  # so a change to server.py changes the store hash and rebuilds the copy.
+  slackMcpPython = pkgs.python312;
+  slackMcpDir = "${kirocrewHome}/slack-mcp";
+  slackMcpSrc = ./kirocrew-slack-mcp;
+  slackMcpServerBin = "${slackMcpDir}/.venv/bin/python";
+  slackMcpServerScript = "${slackMcpDir}/server.py";
+  slackMcpSourceBuild = pkgs.writeShellApplication {
+    name = "kirocrew-slack-mcp-build";
+    runtimeInputs = with pkgs; [
+      coreutils
+      slackMcpPython
+      gcc
+      gnumake
+    ];
+    text = ''
+      dir="${slackMcpDir}"
+      venv="$dir/.venv"
+      export PIP_CACHE_DIR="$dir/.pip-cache"
+      mkdir -p "$dir" "$PIP_CACHE_DIR"
+
+      # Copy the pinned server module out of the Nix store (read-only) into the
+      # writable runtime dir. cp -f each start so a server.py change lands.
+      cp -f ${slackMcpSrc}/server.py "$dir/server.py"
+
+      # (Re)build the venv when the interpreter or the source hash changed. The
+      # stamp records the store path of the source dir, which changes whenever
+      # server.py changes.
+      stamp="$venv/.slack-mcp-src"
+      want="${slackMcpSrc}"
+      if [ ! -x "${slackMcpServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
+        echo "Building slack-mcp venv ($want)..."
+        rm -rf "$venv"
+        ${slackMcpPython}/bin/python3 -m venv "$venv"
+        "$venv/bin/pip" install --upgrade pip
+        "$venv/bin/pip" install mcp
+        echo "$want" > "$stamp"
+      fi
+
+      # Smoke test: the module must import (proves mcp resolved). Bounded and
+      # non-fatal — the dashboard MCP probe is the real health signal.
+      timeout 30 "$venv/bin/python" -c "import mcp" 2>/dev/null \
+        || echo "warning: slack-mcp venv import smoke test failed" >&2
+      echo "slack-mcp build complete"
+    '';
+  };
+
   # MCP wiring for the gateway. Writes the gateway's mcp.json (which spawns the
   # kb-mcp stdio server built by the pasta-daemon) and the kirocrew user's
   # pasta config so kb-mcp resolves the SAME data_dir as the indexer. Runs as
@@ -475,6 +533,15 @@ let
               "AWS_DEFAULT_REGION": "${cfmTipsAwsRegion}",
               "AWS_ACCESS_KEY_ID": "\''${env:CFM_TIPS_AWS_ACCESS_KEY_ID}",
               "AWS_SECRET_ACCESS_KEY": "\''${env:CFM_TIPS_AWS_SECRET_ACCESS_KEY}"
+            },
+            "disabled": false
+          },
+          "slack": {
+            "command": "${slackMcpServerBin}",
+            "args": ["${slackMcpServerScript}"],
+            "env": {
+              "HOME": "${kirocrewHome}",
+              "SLACK_TOKEN": "\''${env:SLACK_TOKEN}"
             },
             "disabled": false
           }
@@ -646,6 +713,11 @@ in
         # or build failure from blocking the whole gateway — the server simply
         # probes unhealthy in the dashboard until the next start rebuilds it.
         "-${cfmTipsSourceBuild}/bin/cfm-tips-source-build"
+        # Build/update the Slack MCP server venv before the gateway starts, so
+        # the mcp.json `slack` entry has a working interpreter to spawn.
+        # Non-fatal ('-'): a transient PyPI/build failure just leaves the Slack
+        # server probing unhealthy until the next start rebuilds it.
+        "-${slackMcpSourceBuild}/bin/kirocrew-slack-mcp-build"
         "${pkgs.coreutils}/bin/mkdir -p ${kirocrewHome}/.kiro/crew"
         # Existing generated agent specs can retain the legacy installer path
         # ~/.kiro/crew-venv/bin/kirocrew even after the gateway moved to the
@@ -763,7 +835,13 @@ in
       # template (kirocrew-sops.nix) into KEY=value lines. The leading '-' makes
       # it non-fatal when absent (a box without the CFM Tips secrets still
       # boots; the server just gets no creds and its tools error until set).
-      EnvironmentFile = [ "-/var/lib/kirocrew/secrets/cfm-tips-aws.env" ];
+      EnvironmentFile = [
+        "-/var/lib/kirocrew/secrets/cfm-tips-aws.env"
+        # Slack user token for the `slack` MCP server (mcp.json reads
+        # ${env:SLACK_TOKEN}). Composed by the sops template in kirocrew-sops.nix
+        # from the SAME `slack-token` secret pasta uses. Non-fatal when absent.
+        "-/var/lib/kirocrew/secrets/kirocrew-slack.env"
+      ];
 
       Environment = [
         "KIROCREW_HOME=${kirocrewHome}/.kiro/crew"
