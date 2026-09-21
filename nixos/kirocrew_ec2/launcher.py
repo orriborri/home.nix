@@ -539,25 +539,49 @@ class Launcher:
 BIN={shlex.quote(REMOTE_KIROCREW_BIN)}
 PORT={shlex.quote(PORTAL_PORT)}
 HOME_DIR={shlex.quote(REMOTE_KIROCREW_HOME)}
-# Run from a directory the invoking user can read. kirocrew auto-detects a
-# project dir from CWD on startup; the default SSH CWD (/root) is unreadable to
-# the kirocrew user and makes that probe raise PermissionError.
-#
 # LD_LIBRARY_PATH: the v0.7 dashboard code path `kirocrew token` imports pulls in
 # numpy (via the STT engine), whose C-extension needs libstdc++.so.6. The
-# gateway UNIT sets this in its own Environment, but a `sudo -u kirocrew -H env`
-# invocation is a non-login shell that does NOT source environment.shellInit
-# (where kirocrew.nix exports it), so numpy fails with
-# "libstdc++.so.6: cannot open shared object file". /run/current-system/sw/lib
-# is the stable, rebuild-independent system path carrying libstdc++.
+# gateway UNIT sets this in its own Environment, but our invocation does not
+# source environment.shellInit (where kirocrew.nix exports it), so numpy fails
+# with "libstdc++.so.6: cannot open shared object file" without it.
+# /run/current-system/sw/lib is the stable, rebuild-independent system path.
+LD=/run/current-system/sw/lib
 if [ -x "$BIN" ]; then
+  # System/headless profile: the gateway runs as the `kirocrew` user INSIDE a
+  # private mount-namespace sandbox. Since v0.7, `/api/token/local` refuses any
+  # caller that is not a "verified host process" — on Linux that means sharing
+  # the gateway's user AND mount namespaces (member_memory_auth
+  # .local_owner_bootstrap_allowed -> platform_compat.process_namespaces_match).
+  # A fresh `sudo -u kirocrew kirocrew token` runs in the host mount namespace,
+  # so it is refused with `member_owner_token_refused`. (This gate activates
+  # once any V2 private-memory store exists, e.g. a registered crew.)
+  #
+  # Fix: run `kirocrew token` INSIDE the gateway's namespaces so it IS a verified
+  # host process. The gateway is on the host USER ns but a private MOUNT ns, so
+  # enter -m (mount) and -p (pid) only — NOT -U — keeping root's credentials,
+  # then drop to the kirocrew user with runuser. Absolute Nix-store paths and an
+  # explicit env are required because the mount namespace does not carry the
+  # invoking shell's PATH. Fall back to a direct run if the gateway PID or
+  # nsenter is unavailable (e.g. a not-yet-hardened build) — it simply reproduces
+  # the prior behaviour rather than failing outright.
   cd "$HOME_DIR"
-  sudo -u kirocrew -H env HOME="$HOME_DIR" KIROCREW_PORT="$PORT" \
-    LD_LIBRARY_PATH=/run/current-system/sw/lib \
-    "$BIN" token --port "$PORT"
+  GPID="$(systemctl show kirocrew-gateway.service -p MainPID --value 2>/dev/null || true)"
+  if [ -n "$GPID" ] && [ "$GPID" != 0 ] && command -v nsenter >/dev/null 2>&1 \
+     && command -v runuser >/dev/null 2>&1 && [ -r "/proc/$GPID/ns/mnt" ]; then
+    nsenter -t "$GPID" -m -p --preserve-credentials -- \
+      runuser -u kirocrew -- \
+        env HOME="$HOME_DIR" KIROCREW_HOME="$HOME_DIR/.kiro/crew" \
+            KIROCREW_PORT="$PORT" LD_LIBRARY_PATH="$LD" \
+        "$BIN" token --port "$PORT"
+  else
+    # Fallback (no hardened owner gate, or nsenter/runuser missing).
+    sudo -u kirocrew -H env HOME="$HOME_DIR" KIROCREW_PORT="$PORT" \
+      LD_LIBRARY_PATH="$LD" \
+      "$BIN" token --port "$PORT"
+  fi
 else
   cd /home/orre
-  sudo -u orre -H env LD_LIBRARY_PATH=/run/current-system/sw/lib \
+  sudo -u orre -H env LD_LIBRARY_PATH="$LD" \
     kirocrew token --port "$PORT"
 fi
 """
