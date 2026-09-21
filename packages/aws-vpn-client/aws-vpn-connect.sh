@@ -37,6 +37,16 @@ if [[ -z "${VPN_HOST:-}" ]]; then
   exit 1
 fi
 
+# The AWS Client VPN SAML flow reserves local TCP port 35001 for the callback.
+# If something is already bound there, the SAML server cannot start and the
+# connect fails with a confusing timeout — check up front instead.
+if (exec 3<>/dev/tcp/127.0.0.1/35001) 2>/dev/null; then
+  exec 3>&- 3<&-
+  echo "error: local port 35001 is already in use — the SAML callback needs it." >&2
+  echo "A previous aws-vpn-connect or the AWS VPN Client may still be running." >&2
+  exit 1
+fi
+
 # Private working dir for the SAML response (never in cwd).
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/aws-vpn.XXXXXX")"
 export SAML_RESPONSE_PATH="$WORKDIR/saml-response.txt"
