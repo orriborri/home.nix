@@ -18,6 +18,9 @@
 #   * aws-vpn-connect      — wrapper that runs openvpn to get the SAML redirect,
 #                            opens the browser, waits for the token, then
 #                            reconnects authenticated (via sudo for the tun dev).
+#   * aws-vpn-connect-{staging,prod}
+#                          — thin wrappers defaulting to the matching per-env
+#                            profile under ~/.config/aws-vpn-client/.
 #
 # Bringing up the tunnel needs root on the host, so `aws-vpn-connect` calls
 # sudo for the final openvpn invocation — that part is inherently a privileged
@@ -76,10 +79,29 @@ let
     runtimeInputs = runtimeDeps;
     text = builtins.readFile ./aws-vpn-connect.sh;
   };
+
+  # Per-environment convenience wrappers. ReadPeak runs two separate Client VPN
+  # endpoints (staging and prod, each its own SAML application), so each has its
+  # own downloaded profile. These default to a fixed per-env path under
+  # ~/.config/aws-vpn-client/ but still accept an explicit config argument.
+  mkEnvConnect =
+    env:
+    pkgs.writeShellApplication {
+      name = "aws-vpn-connect-${env}";
+      runtimeInputs = [ aws-vpn-connect ];
+      text = ''
+        exec aws-vpn-connect "''${1:-$HOME/.config/aws-vpn-client/${env}.ovpn}"
+      '';
+    };
+
+  aws-vpn-connect-staging = mkEnvConnect "staging";
+  aws-vpn-connect-prod = mkEnvConnect "prod";
 in
 {
   home.packages = [
     aws-vpn-connect
+    aws-vpn-connect-staging
+    aws-vpn-connect-prod
     openvpn-aws-bin
     saml-server
   ];
