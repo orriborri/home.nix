@@ -46,14 +46,27 @@ let
   agentName = "assistant";
 
   # @kirocrew-core MCP — the one server we must declare (command/env verified).
-  # @linear, @pasta-kb, @metabase are gateway-provided namespaces and are NOT
-  # declared here; listing them in `tools` is enough for the gateway to mount.
+  # @pasta-kb, @metabase are gateway-provided namespaces and are NOT declared
+  # here; listing them in `tools` is enough for the gateway to mount.
   kirocrewCoreMcp = {
     command = kirocrewBin;
     args = [ "mcp-core" ];
     env = {
       KIROCREW_HOME = crewHome;
     };
+  };
+
+  # @linear — declared EXPLICITLY as a remote MCP server (not left to the
+  # gateway's Connections registry). This pins the mount to the exact endpoint
+  # `launch-ec2 auth linear` authenticates (models.py AUTH_SERVER_URLS.linear =
+  # https://mcp.linear.app/mcp), so the token store the launcher manages
+  # (~/.mcp-auth/mcp-remote-v1 -> gateway REMOTE_MCP_AUTH_DIR) is what backs it.
+  # Per docs/guides/connecting-remote-oauth-mcp-server.md a remote OAuth server
+  # needs an mcpServers entry AND its @ref in `tools`; kiro-cli runs the OAuth
+  # flow itself on session start (the token is installed by `launch-ec2 auth`).
+  # No static Authorization header — auth is the mcp-remote OAuth grant.
+  linearMcp = {
+    url = "https://mcp.linear.app/mcp";
   };
 
   assistant = {
@@ -86,6 +99,7 @@ let
     ];
     mcpServers = {
       kirocrew-core = kirocrewCoreMcp;
+      linear = linearMcp;
     };
     prompt = ''
       You are the operator's personal assistant, running as an interactive Kiro Crew crew. The operator talks to you in the dashboard or a Slack channel. You act on their behalf across their working life: the Obsidian vault, Linear, GitLab, and their synced Slack/Linear/GitLab history.
