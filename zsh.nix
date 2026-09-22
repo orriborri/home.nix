@@ -163,6 +163,9 @@
     EDITOR = "nvim";
     VISUAL = "nvim";
 
+    # Don't pipe AWS CLI output through a pager
+    AWS_PAGER = "";
+
     # Vi mode configuration
     ZVM_VI_INSERT_ESCAPE_BINDKEY = "jj";
 
