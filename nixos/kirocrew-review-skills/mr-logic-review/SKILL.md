@@ -51,9 +51,32 @@ value is that the human validates quickly, not that the agent pre-approves.
 
 1. **Get the real changed code, with context.** Do not work from diff hunks
    alone.
-   - GitLab: `glab mr diff <id>` for the changeset, then read the *full* changed
-     files at the MR's head SHA (`glab mr checkout <id>`, or read the files in
-     the working tree). GitHub: `gh pr diff <n>` + read the files.
+   - **Reuse the existing checkout via a git worktree — never clone the repo.**
+     readpeak repos are already checked out under `/var/lib/code/readpeak/<repo>`
+     (cdk, cloudformation, eks-workloads, mononode, nativeflow) with bare mirrors
+     kept fresh by the `repo-fetch` timer, and a pre-created worktree root at
+     `/var/lib/code/wt/<repo>/`. To read an MR's code, fetch just its head into
+     the existing checkout and add a worktree at that SHA — this reuses the
+     already-downloaded objects and isolates the MR from the shared checkout:
+     ```bash
+     REPO=/var/lib/code/readpeak/<repo>
+     git -C "$REPO" fetch origin "refs/merge-requests/<IID>/head" \
+       || git -C "$REPO" fetch "https://gitlab.com/readpeak/<repo>.git" \
+              "refs/merge-requests/<IID>/head"
+     SHA=$(git -C "$REPO" rev-parse FETCH_HEAD)
+     git -C "$REPO" worktree add /var/lib/code/wt/readpeak/<repo>/mr-<IID> "$SHA"
+     # read files under /var/lib/code/wt/readpeak/<repo>/mr-<IID>, then when done:
+     git -C "$REPO" worktree remove /var/lib/code/wt/readpeak/<repo>/mr-<IID>
+     ```
+     If you only need to read a file or two (no build), skip the worktree:
+     `git -C "$REPO" show "$SHA:<path>"`, or fetch over the API:
+     `glab api projects/readpeak%2F<repo>/repository/files/<url-encoded-path>/raw?ref=<source-branch>`.
+   - `glab mr diff <id>` gives the changeset text. Do **not** run
+     `glab mr checkout <id>` in a fresh/empty directory, `git clone` the repo, or
+     `git checkout` the MR branch in the shared checkout — use a worktree off
+     `/var/lib/code/readpeak/<repo>` as above.
+   - GitHub: `gh pr diff <n>` for the changeset; read files from a worktree off
+     the existing checkout the same way.
    - For each changed function, pull the **entire** function body plus anything
      it calls that also changed. A branch you cannot see is a branch you cannot
      validate.
