@@ -818,6 +818,21 @@ in
       ProtectHome = "tmpfs";
       BindReadOnlyPaths = [ "/home/orre/.kiro" ];
       PrivateTmp = true;
+      # MountFlags=shared: PrivateTmp gives this unit a private mount namespace
+      # in which systemd leaves its mounts (and the ReadOnlyPaths submounts under
+      # ${vaultCheckout} — .git/.obsidian/.lancedb/.semantic_search) with SLAVE
+      # (master:) propagation. KiroCrew's strict sandbox builds each agent's
+      # "private memory view" with a NON-recursive bind mount of every view root
+      # (sandbox.py `_mount_or_die(_root, _lower, MS_BIND, "pinning private memory
+      # view source")`). The first view root is the vault, which carries those
+      # slave child mounts, and a non-recursive bind of a slave subtree that has
+      # child mounts returns EINVAL — so the agent dies at spawn with
+      # `AcpRuntimeDead: sandbox: BLOCKED -- pinning private memory view source
+      # failed: errno 22`. Forcing shared propagation matches the host namespace,
+      # where the same binds succeed, and keeps PrivateTmp/ProtectHome/
+      # ProtectSystem and every ReadOnlyPaths seal intact. The real isolation
+      # remains the agent's own user+mount-namespace + seccomp sandbox.
+      MountFlags = "shared";
       ProtectKernelTunables = true;
       ProtectKernelModules = true;
       ProtectControlGroups = true;

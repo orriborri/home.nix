@@ -16,7 +16,9 @@
     ./kirocrew-services.nix
     ./kirocrew-review-agents.nix
     ./kirocrew-review-skills.nix
+    ./kirocrew-steering.nix
     ./kirocrew-assistant.nix
+    ./kirocrew-dev-crew.nix
     ./kirocrew-vault-git.nix
     ./kirocrew-sops.nix
     ./kirocrew-code.nix
@@ -33,6 +35,20 @@
     "nix-command"
     "flakes"
   ];
+
+  # ── Automatic store cleanup ────────────────────────────────────────────────
+  # This box is a long-lived agent workspace on a fixed 79G root and had filled
+  # to 100% because every `nixos-rebuild switch` pins another system generation
+  # as a live GC root, so a plain `nix-collect-garbage` reclaims nothing until
+  # old generations are deleted. Delete generations older than 14 days weekly
+  # (keeps recent rollback points) and hard-link identical store paths to shrink
+  # the store further. Manual `nixos-rebuild switch` still works unchanged.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 14d";
+  };
+  nix.settings.auto-optimise-store = true;
 
   # ── SSH: key-only, reachable over SSM (no public port) ─────────────────────
   # sshd still runs, but you reach it THROUGH the SSM tunnel (AWS-StartSSHSession),
