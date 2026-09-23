@@ -15,7 +15,7 @@ let
   # dedicated pasta user (nixos/kirocrew-services.nix). This Home Manager
   # user-level service is available for workstation profiles if needed.
   isPastaHost = cfg.enable && cfg.role == "workstation";
-  pastaRoot = "${config.home.homeDirectory}/pasta";
+  pastaRoot = "${config.home.homeDirectory}/code/pasta";
   pastaLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -75,6 +75,15 @@ in
           "LD_LIBRARY_PATH=${pastaLibraryPath}"
           "PROTOC=${pkgs.protobuf}/bin/protoc"
           "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+          "OPENSSL_DIR=${pkgs.openssl.dev}"
+          "OPENSSL_LIB_DIR=${pkgs.openssl.out}/lib"
+          "OPENSSL_INCLUDE_DIR=${pkgs.openssl.dev}/include"
+          "PKG_CONFIG_PATH=${pkgs.openssl.dev}/lib/pkgconfig"
+          # nixpkgs' pinned rustc mis-lowers the avx512vnni vpdpwssd
+          # intrinsic (stdarch/LLVM signature mismatch) when lance-linalg
+          # compiles its SIMD kernels. This host's CPU lacks avx512vnni
+          # anyway, so disable AVX512 codegen to sidestep the bad lowering.
+          "RUSTFLAGS=-Ctarget-feature=-avx512f,-avx512bw,-avx512cd,-avx512dq,-avx512vl,-avx512vnni"
         ];
       };
       Install = {
