@@ -36,15 +36,11 @@ let
     text = ''
       cd ${lib.escapeShellArg pastaRoot}
 
-      # Build if binary is missing or source is newer.
-      if [ ! -f target/release/pasta-backend ] || \
-         [ "$(find crates -name '*.rs' -newer target/release/pasta-backend 2>/dev/null | head -1)" ]; then
-        echo "Building pasta-backend..."
-        cargo build --release -p pasta-backend -p kb-cli
-      fi
+      echo "Building pasta-backend..."
+      cargo build --release -p pasta-backend -p kb-cli
 
       export PATH="${lib.escapeShellArg pastaRoot}/target/release:$PATH"
-      exec ./target/release/pasta-backend
+      exec ${lib.escapeShellArg pastaRoot}/target/release/pasta-backend
     '';
   };
 in
