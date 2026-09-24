@@ -14,10 +14,36 @@
 # (see nixos/kirocrew-services.nix). This module remains active only on
 # workstation profiles where everything runs under the operator user.
 #
-# Sandbox is set to auto: KiroCrew v0.5.0 retired the 'strict' value (allowed
-# values are now 'auto' and 'off'). 'auto' enables the namespace-based
-# isolation that prevents agents from accessing operator credentials, IMDS,
-# and system resources.
+# Sandbox is set to 'off' on the workstation. KiroCrew v0.5.0 retired the
+# 'strict' value (allowed values are now 'auto' and 'off').
+#
+# WHY 'off' AND NOT 'auto' HERE -- DOUBLE SANDBOXING:
+#   'auto' makes kirocrew wrap every agent child in its OWN namespace sandbox:
+#   fork -> unshare(CLONE_NEWUSER) -> write identity uid/gid map ->
+#   unshare(CLONE_NEWNS) -> bind-mount empty dirs -> exec (see the module
+#   docstring in kiro_crew/sandbox.py). The child it execs is kiro-cli, whose
+#   ACP backend then invokes bubblewrap for its own isolation. bwrap's first
+#   act is mount("/", MS_REC|MS_SLAVE), and inside kirocrew's already-unshared
+#   mount namespace the kernel refuses it:
+#
+#     bwrap: Failed to make / slave: Operation not permitted
+#
+#   Every agent spawn then dies rc=1 (AcpRuntimeDead), which takes down
+#   dashboard chats, suggestions, auto-titles, and crew sessions. Verified on
+#   Fedora: host / IS shared and standalone bwrap succeeds (rc=0), SELinux
+#   logs no denial -- the failure is purely the nesting. 'off' short-circuits
+#   the backend to "none" without probing (sandbox.py: `if config_mode ==
+#   "off": return "none"`), so kiro-cli's bwrap gets a clean host context and
+#   remains the real isolation boundary.
+#
+#   TRADEOFF: kirocrew's own credential masking (hiding ~/.aws, ~/.gnupg and
+#   SSH keys from the child) is implemented BY that outer namespace, so it no
+#   longer applies; kiro-cli's bwrap policy governs instead. Acceptable on a
+#   trusted single-user workstation. kirocrew logs a once-per-process SECURITY
+#   warning in this mode (_warn_mode_off_unconfined) -- expected, not a fault.
+#
+#   The headless EC2 host is UNAFFECTED: it runs the gateway as a system
+#   service (nixos/kirocrew-services.nix) and sets its own posture there.
 let
   cfg = config.kirocrew;
   skillsTools = import ./nixos/kirocrew-skills-package.nix { inherit pkgs; };
@@ -128,7 +154,10 @@ in
         ]
         ++ [
           "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
-          "${kirocrewExecutable} config set --local agent.sandbox auto"
+          # Sandbox posture is asserted on every start so it survives upgrades
+          # and manual drift. MUST be 'off' on the workstation -- see the
+          # double-sandbox note in the header comment.
+          "${kirocrewExecutable} config set --local agent.sandbox off"
         ];
       ExecStart = "${kirocrewExecutable} gateway";
       # A first source install builds the TypeScript dashboard and Python venv.
