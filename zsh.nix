@@ -130,11 +130,10 @@
       *":$HOME/.nix-profile/bin:"*) ;;
       *) export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ;;
     esac
-  '';
 
-  # Profile configuration
-  profileExtra = ''
-    # Development paths
+    # Development paths (every shell, not just login -- most terminal
+    # emulators spawn non-login shells, so profileExtra/.zprofile alone
+    # would leave these unset)
     export PATH="$HOME/.npm-packages/bin:$HOME/.yarn/bin:$PATH"
     export PATH="./node_modules/.bin:$PATH"
     export PATH="$HOME/.local/bin:$PATH"
@@ -142,7 +141,10 @@
 
     # Flatpak applications
     export PATH="/var/lib/flatpak/exports/bin:$PATH"
+  '';
 
+  # Profile configuration (login shells only)
+  profileExtra = ''
     # Load cargo environment if available
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
   ''
