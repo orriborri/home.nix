@@ -93,6 +93,7 @@ COMMANDS = (
     "ssh",
     "auth",
     "token",
+    "codex",
 )
 AUTH_TARGETS = ("linear", "metabase")
 # Freshness floor for a cached OAuth token, re-exported from the probe module so

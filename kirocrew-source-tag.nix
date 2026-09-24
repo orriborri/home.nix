@@ -17,9 +17,10 @@
 # does not). Verify with:
 #   git ls-remote --tags https://github.com/kirodotdev/KiroCrew.git
 #
-# Pinned to v0.7.0-insider.4 for the crew-chat routing fixes. This pre-release
+# Pinned to v0.7.0-insider.6 for the Claude Code and Codex harness selector.
+# This pre-release
 # has a higher memory footprint; on this host (15G, no swap) it peaked ~13.5G
 # and exited 1 under concurrent member load. Addressed by adding swap and
 # capping concurrent agent instances rather than rolling back — see
 # kirocrew-services.nix and the gateway's instances.warm_set_cap.
-"v0.7.0-insider.4"
+"v0.7.0-insider.6"

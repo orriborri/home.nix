@@ -24,6 +24,7 @@
     ./kirocrew-code.nix
     ./kirocrew-obsidian-xpra.nix
     ./kirocrew-ollama.nix
+    ./kirocrew-codex.nix
   ];
 
   # The stock AMI has a 249 MiB /boot partition, which fits two kernel/initrd

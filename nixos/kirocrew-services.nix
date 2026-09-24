@@ -45,6 +45,23 @@ let
   # Absolute path to the source-built gateway under the kirocrew user's home.
   kirocrewSourceBin = "${kirocrewHome}/.local/share/kirocrew-source/current/.venv/bin/kirocrew";
 
+  # KiroCrew's Claude/Codex harnesses are ACP npm adapters, separate from the
+  # claude-code and codex CLI packages. Install them in the dedicated user's
+  # private npm prefix so the Developer -> Agent Backend probes can find them.
+  kirocrewAgentBackends = pkgs.writeShellScript "kirocrew-agent-backends" ''
+    set -eu
+    export HOME=${kirocrewHome}
+    export PATH=${kirocrewHome}/.npm-global/bin:${pkgs.nodejs_22}/bin:${kirocrewHome}/bin:/run/current-system/sw/bin
+    export NPM_CONFIG_PREFIX=${kirocrewHome}/.npm-global
+    export NPM_CONFIG_CACHE=${kirocrewHome}/.npm
+    export NPM_CONFIG_USERCONFIG=${kirocrewHome}/.npmrc
+    install -d -m 0750 ${kirocrewHome}/.npm-global ${kirocrewHome}/.npm
+    command -v claude-agent-acp >/dev/null 2>&1 || \
+      ${pkgs.nodejs_22}/bin/npm install --global @agentclientprotocol/claude-agent-acp
+    command -v codex-acp >/dev/null 2>&1 || \
+      ${pkgs.nodejs_22}/bin/npm install --global @agentclientprotocol/codex-acp
+  '';
+
   # Operator-facing `kirocrew` command.
   #
   # On this host the gateway runs as the dedicated kirocrew user and ALL of its
@@ -730,6 +747,7 @@ in
         # First build compiles the dashboard + Python venv, hence the long
         # TimeoutStartSec above.
         "${kirocrewSourceUpdate}/bin/kirocrew-source-update"
+        "${kirocrewAgentBackends}"
         # Build/update the CFM Tips MCP server venv (aws-samples cost tooling)
         # before the gateway starts, so the mcp.json entry below has a working
         # interpreter to spawn. Non-fatal: a '-' prefix keeps a transient PyPI
@@ -886,7 +904,7 @@ in
         "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
         "HOME=${kirocrewHome}"
         "TMPDIR=/tmp/kirocrew"
-        "PATH=${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+        "PATH=${kirocrewHome}/.npm-global/bin:${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
         # Pin npm/npx entirely inside the kirocrew home. The agent runs MCP
         # servers via `npx -y mcp-remote …` (metabase, linear). Without these,

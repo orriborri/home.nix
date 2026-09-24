@@ -134,6 +134,9 @@ class Launcher:
         if self.arguments.command == "token":
             self._print_token(state)
             return
+        if self.arguments.command == "codex":
+            self._open_codex(state)
+            return
         if self.arguments.command == "ssh":
             self._open_ssh(state)
             return
@@ -504,6 +507,15 @@ class Launcher:
         print("\n» Opening interactive shell with X11 forwarding...")
         print("  Run 'firefox &' or 'chromium &' to launch browsers.")
         remote.x11_ssh("orre")
+
+    def _open_codex(self, state: InstanceState) -> None:
+        """Hold an SSM tunnel to the remote Codex app-server."""
+        remote = self._remote(state)
+        print(
+            "\n» Forwarding Codex app-server to ws://127.0.0.1:4500 "
+            "(Ctrl-C to close)..."
+        )
+        remote.portal("4500", "4500")
 
     def _open_ssm_session(self, state: InstanceState) -> None:
         if not state.instance_id:

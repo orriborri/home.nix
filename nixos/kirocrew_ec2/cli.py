@@ -21,6 +21,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         "--ssh": "ssh",
         "--connect": "connect",
         "--token": "token",
+        "--codex": "codex",
     }
     normalized = [aliases.get(argument, argument) for argument in argv]
     selected_commands = [argument for argument in normalized if argument in COMMANDS]
@@ -86,6 +87,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  connect            open a direct SSM session to the instance\n"
             "  ssh                open interactive shell with X11 forwarding\n"
             "  token              print a KiroCrew dashboard access URL (with auth token)\n"
+            "  codex              forward the remote Codex app-server on localhost:4500\n"
             "  stop               stop the saved instance\n"
             "  destroy            permanently terminate the saved instance\n"
             "  rebuild            rebuild the saved instance\n"

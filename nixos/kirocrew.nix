@@ -23,6 +23,7 @@
       "kiro-cli"
       "kiro-cli-unwrapped"
       "obsidian"
+      "claude-code"
     ];
 
   # ── Dependencies ───────────────────────────────────────────────────────────
@@ -34,6 +35,11 @@
     glab # GitLab CLI — also symlinked for gateway at /usr/local/libexec/kirocrew/
     curl
     openssl # needed by the KiroCrew installer for manifest verification
+    # KiroCrew v0.7.0-insider.6 can launch these ACP harnesses from the
+    # Developer -> Agent Backend selector. Authentication remains per-user and
+    # is not copied from the operator account.
+    claude-code
+    codex
     stdenv.cc.cc.lib # libstdc++.so.6 — needed by KiroCrew's embedded llama.cpp
     uv # installs code-review-graph for the kirocrew user (see launcher.py)
   ];
