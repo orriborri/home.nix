@@ -102,8 +102,17 @@ fi
 VPN_SID="$(echo "$OVPN_OUT" | awk -F : '{print $7}')"
 
 echo "Connecting (sudo required to create the tun device)..."
-sudo openvpn-aws --config "$OVPN_CONF" \
+# sudo resets PATH (secure_path), so the nix-profile-wrapped openvpn-aws
+# isn't visible to it — resolve the full store path first.
+OPENVPN_AWS_BIN="$(command -v openvpn-aws)"
+# sudo closes fds >=3 before exec (closefrom), so a process-substitution fd
+# for --auth-user-pass doesn't survive — write it to a real file instead.
+# Root bypasses the workdir's 700 perms, so it can still read this fine.
+AUTH_FILE="$WORKDIR/auth-user-pass.txt"
+printf "%s\n%s\n" "N/A" "CRV1::${VPN_SID}::$(cat "$SAML_RESPONSE_PATH")" > "$AUTH_FILE"
+chmod 600 "$AUTH_FILE"
+sudo "$OPENVPN_AWS_BIN" --config "$OVPN_CONF" \
   --verb 3 --auth-nocache --inactive 3600 \
   --proto "$PROTO" --remote "$SRV" "$PORT" \
   --script-security 2 \
-  --auth-user-pass <(printf "%s\n%s\n" "N/A" "CRV1::${VPN_SID}::$(cat "$SAML_RESPONSE_PATH")")
+  --auth-user-pass "$AUTH_FILE"
