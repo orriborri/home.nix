@@ -98,13 +98,30 @@
       key = "linear-api-key";
     };
 
-    # Slack user token (`xoxp-...`). Read by the `slack-api` helper.
+    # Legacy Slack user token (`xoxp-...`). Kept as a migration fallback for
+    # the pasta fetch helper and for Slack MCP search.messages.
     secrets.pasta-slack-token = {
       owner = config.users.users.pasta.name;
       inherit (config.users.users.pasta) group;
       mode = "0400";
       path = "/var/lib/pasta/secrets/slack-token";
       key = "slack-token";
+    };
+
+    # Slack bot/app tokens used by the pasta fetcher process environment.
+    secrets.pasta-slack-bot-token = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/slack-bot-token";
+      key = "slack-bot-token";
+    };
+    secrets.pasta-slack-app-token = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/slack-app-token";
+      key = "slack-app-token";
     };
 
     # Slack OAuth app secret used only for auth and refresh-token flows.
@@ -202,6 +219,17 @@
     path = "/var/lib/kirocrew/secrets/kirocrew-slack.env";
     content = ''
       SLACK_TOKEN=${config.sops.placeholder."kirocrew-slack-token"}
+    '';
+  };
+
+  sops.templates."pasta-fetchers.env" = {
+    owner = config.users.users.pasta.name;
+    inherit (config.users.users.pasta) group;
+    mode = "0400";
+    path = "/var/lib/pasta/secrets/pasta-fetchers.env";
+    content = ''
+      SLACK_BOT_TOKEN=${config.sops.placeholder."pasta-slack-bot-token"}
+      SLACK_APP_TOKEN=${config.sops.placeholder."pasta-slack-app-token"}
     '';
   };
 }

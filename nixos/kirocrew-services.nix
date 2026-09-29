@@ -125,7 +125,8 @@ let
   # the vault's .scripts/bin; here we package the exact same scripts as store
   # binaries with pinned interpreters so they run under the pasta unit's strict
   # sandbox with no PATH assumptions. Each reads its token from
-  # ~/.config/<tool>-api/token.json, which the fetch unit reconstructs from sops.
+  # ~/.config/<tool>-api/token.json; the fetch unit reconstructs these from
+  # sops. Slack prefers SLACK_BOT_TOKEN from the unit environment.
   pastaSlackApi = pkgs.writeShellApplication {
     name = "slack-api";
     runtimeInputs = [ pkgs.python3 ];
@@ -176,11 +177,16 @@ let
       # act on repos it owns in-process), so the url-rewrite guard still holds.
       printf '[safe]\n\tdirectory = *\n' > "${pastaHome}/.gitconfig"
 
-      # ── slack + linear token files (mode 600, pasta-owned) ──────────────
+      # ── Slack + Linear credentials (mode 600, pasta-owned) ──────────────
       install -d -m 700 "$home/.config/slack-api" "$home/.config/linear-api"
-      slack_token="$(cat "$secrets/slack-token")"
+      slack_token="''${SLACK_BOT_TOKEN:-}"
+      if [ -z "$slack_token" ]; then
+        # Legacy user-token fallback for older deployments.
+        slack_token="$(cat "$secrets/slack-token")"
+      fi
       linear_key="$(cat "$secrets/linear-api-key")"
-      # slack-api expects {access_token, token_type} (static xoxp-, no refresh).
+      # Maintain the helper's token file for environments without SOPS env.
+      # The helper prefers SLACK_BOT_TOKEN when the service provides it.
       jq -n --arg t "$slack_token" \
         '{access_token:$t, refresh_token:null, token_type:"user"}' \
         > "$home/.config/slack-api/token.json"
@@ -935,7 +941,8 @@ in
   # ── Pasta daemon ───────────────────────────────────────────────────────────
   # Builds pasta-backend from source (as an ExecStartPre) under the pasta
   # user's home, then runs it. Indexes the EC2 vault checkout read-only and
-  # writes its index to ${pastaHome}/data.
+  # writes its index to ${pastaHome}/data. Slack credentials are provided by
+  # sops through pasta-fetchers.env for its inline fetch cycle.
   systemd.services.pasta-daemon = {
     enable = true;
     description = "Pasta vault indexer";
@@ -943,8 +950,9 @@ in
       "network-online.target"
       "kirocrew-vault-clone.service"
       "pasta-feeds-write-access.service"
+      "sops-install-secrets.service"
     ];
-    wants = [ "network-online.target" ];
+    wants = [ "network-online.target" "sops-install-secrets.service" ];
     requires = [ "kirocrew-vault-clone.service" ];
     wantedBy = [ "multi-user.target" ];
 
@@ -952,6 +960,7 @@ in
       Type = "simple";
       User = "pasta";
       Group = "pasta";
+      EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
       # Build/refresh pasta-backend from source before starting it. First build
       # on Graviton can take a while, hence the long TimeoutStartSec below.
       ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
@@ -1051,6 +1060,7 @@ in
       Type = "oneshot";
       User = "pasta";
       Group = "pasta";
+      EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
       # Build/refresh the pasta binaries + pinned config first, so this unit is
       # self-sufficient even if it fires before pasta-daemon has started once
       # (e.g. right after boot, timer-triggered). Reuses the same builder.
