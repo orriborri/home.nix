@@ -129,7 +129,10 @@ let
   pastaSlackApi = pkgs.writeShellApplication {
     name = "slack-api";
     runtimeInputs = [ pkgs.python3 ];
-    text = ''exec ${pkgs.python3}/bin/python3 ${./pasta-fetch-bin/slack-api} "$@"'';
+    text = ''
+      export SLACK_CLIENT_SECRET_FILE=/var/lib/pasta/secrets/slack-client-secret
+      exec ${pkgs.python3}/bin/python3 ${./pasta-fetch-bin/slack-api} "$@"
+    '';
   };
   pastaLinearApi = pkgs.writeShellApplication {
     name = "linear-api";

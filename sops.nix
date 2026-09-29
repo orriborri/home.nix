@@ -23,5 +23,26 @@
       # %r is replaced with $XDG_RUNTIME_DIR at runtime
       path = "%r/secrets/git-ssh-key";
     };
+
+    secrets.slack-client-secret = {
+      path = "%r/secrets/slack-client-secret";
+    };
+
+    secrets.slack-bot-token = {
+      path = "%r/secrets/slack-bot-token";
+    };
+
+    secrets.slack-app-token = {
+      path = "%r/secrets/slack-app-token";
+    };
+
+    templates."pasta-fetchers.env" = {
+      path = "%r/secrets/pasta-fetchers.env";
+      mode = "0400";
+      content = ''
+        SLACK_BOT_TOKEN=${config.sops.placeholder."slack-bot-token"}
+        SLACK_APP_TOKEN=${config.sops.placeholder."slack-app-token"}
+      '';
+    };
   };
 }

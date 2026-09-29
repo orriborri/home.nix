@@ -85,6 +85,8 @@
           };
           modules = [
             ./home.nix
+            ./nixos/pasta-skills.nix
+            ./codex-policy.nix
             {
               home.username = username;
               home.homeDirectory =
@@ -149,6 +151,8 @@
             ./kirocrew-service.nix
             ./kirocrew-agents-workstation.nix
             ./pasta-service.nix
+            sops-nix.homeManagerModules.sops
+            ./sops.nix
             {
               kirocrew.enable = true;
               kirocrew.role = "workstation";
@@ -174,6 +178,8 @@
             ./kirocrew-service.nix
             ./kirocrew-agents-workstation.nix
             ./pasta-service.nix
+            sops-nix.homeManagerModules.sops
+            ./sops.nix
             {
               kirocrew.enable = true;
               kirocrew.role = "workstation";

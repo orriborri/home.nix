@@ -16,13 +16,19 @@ import json, sys, os, time, urllib.request, urllib.parse, http.server, webbrowse
 
 TOKEN_FILE = os.path.expanduser("~/.config/slack-api/token.json")
 CLIENT_ID = "24625456983.11254265706929"
-CLIENT_SECRET = "7aad5b72cb4c3ae19b523322676078fa"
+CLIENT_SECRET_FILE = os.environ.get(
+    "SLACK_CLIENT_SECRET_FILE",
+    os.path.join(os.environ.get("XDG_RUNTIME_DIR", ""), "secrets", "slack-client-secret"),
+)
 SCOPES = "channels:history,groups:history,im:history,mpim:history,channels:read,groups:read,users:read,search:read,chat:write,im:read"
 REDIRECT_PORT = 19847
 REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
 
 
 def load_token():
+    bot_token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+    if bot_token:
+        return {"access_token": bot_token, "refresh_token": None}
     if not os.path.exists(TOKEN_FILE):
         return None
     with open(TOKEN_FILE) as f:
@@ -41,9 +47,18 @@ def refresh_token(token_data):
     refresh = token_data.get("refresh_token")
     if not refresh:
         return None
+    try:
+        with open(CLIENT_SECRET_FILE) as f:
+            client_secret = f.read().strip()
+    except OSError:
+        print(f"Slack OAuth client secret unavailable at {CLIENT_SECRET_FILE}", file=sys.stderr)
+        return None
+    if not client_secret:
+        print(f"Slack OAuth client secret is empty at {CLIENT_SECRET_FILE}", file=sys.stderr)
+        return None
     params = urllib.parse.urlencode({
         "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_secret": client_secret,
         "grant_type": "refresh_token",
         "refresh_token": refresh,
     }).encode()
@@ -76,6 +91,15 @@ def get_token():
 
 def do_auth():
     """Run OAuth flow with local redirect server."""
+    try:
+        with open(CLIENT_SECRET_FILE) as f:
+            client_secret = f.read().strip()
+    except OSError:
+        print(f"Slack OAuth client secret unavailable at {CLIENT_SECRET_FILE}", file=sys.stderr)
+        sys.exit(1)
+    if not client_secret:
+        print(f"Slack OAuth client secret is empty at {CLIENT_SECRET_FILE}", file=sys.stderr)
+        sys.exit(1)
     auth_url = (
         f"https://slack.com/oauth/v2/authorize?"
         f"client_id={CLIENT_ID}&user_scope={SCOPES}&redirect_uri={REDIRECT_URI}"
@@ -111,7 +135,7 @@ def do_auth():
     # Exchange code for token
     params = urllib.parse.urlencode({
         "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+        "client_secret": client_secret,
         "code": code,
         "redirect_uri": REDIRECT_URI,
     }).encode()

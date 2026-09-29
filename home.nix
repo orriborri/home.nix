@@ -9,7 +9,7 @@
 let
   # System detection — acceptable to use builtins.pathExists here because
   # standalone Home Manager always evaluates on the target host itself.
-  # For NixOS-composed modules (packages/kiro.nix, vault-sync.nix) use the
+  # For NixOS-composed modules (packages/kiro.nix) use the
   # explicit kirocrew.role option instead, since those may be evaluated on
   # a different machine during cross-deploy.
   isSilverblue = builtins.pathExists /run/ostree-booted;
@@ -199,6 +199,5 @@ in
     ./kirocrew-config.nix
     # Services
     ./gpg-agent.nix
-    ./vault-sync.nix
   ];
 }

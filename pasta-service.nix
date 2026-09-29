@@ -61,6 +61,9 @@ let
       exec ${lib.escapeShellArg pastaRoot}/target/release/pasta-backend
     '';
   };
+  vaultWrapper = pkgs.writeShellScriptBin "vault" ''
+    exec ${pkgs.python3}/bin/python3 ${lib.escapeShellArg pastaRoot}/llm-wiki/vault.py "$@"
+  '';
 in
 {
   config = lib.mkIf isPastaHost {
@@ -69,16 +72,26 @@ in
       protobuf
       pkg-config
       openssl
+    ] ++ [ vaultWrapper ];
+
+    # kb-cli builds to target/release/kb; expose it on interactive PATH too
+    # (the systemd service only sets PATH for pasta-backend's own exec).
+    home.sessionPath = [
+      "${pastaRoot}/target/release"
     ];
 
     systemd.user.services.pasta = {
       Unit = {
         Description = "Pasta daemon (Obsidian vault indexer)";
-        After = [ "network-online.target" ];
+        After = [ "network-online.target" "sops-nix.service" ];
+        Wants = [ "network-online.target" "sops-nix.service" ];
       };
       Service = {
         Type = "simple";
         ExecStart = "${pastaBuildAndRun}/bin/pasta-start";
+        # Keep the daemon startable when this host has no SOPS age key; the
+        # Slack helper then falls back to its existing token file.
+        EnvironmentFile = "-${config.sops.templates."pasta-fetchers.env".path}";
         # First build from source can take a while on Graviton.
         TimeoutStartSec = "30min";
         Restart = "on-failure";

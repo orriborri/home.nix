@@ -107,6 +107,15 @@
       key = "slack-token";
     };
 
+    # Slack OAuth app secret used only for auth and refresh-token flows.
+    secrets.pasta-slack-client-secret = {
+      owner = config.users.users.pasta.name;
+      inherit (config.users.users.pasta) group;
+      mode = "0400";
+      path = "/var/lib/pasta/secrets/slack-client-secret";
+      key = "slack-client-secret";
+    };
+
     # GitLab personal access token (`glpat-...`). Used both for `glab` auth
     # (MR fetch) and to clone the `[repos]` over HTTPS (git fetch), so the
     # pasta user needs no SSH key on the box.
