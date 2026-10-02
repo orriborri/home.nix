@@ -22,7 +22,7 @@
 #   - Linear    -> @linear (gateway-provided namespace, read-write). NOT
 #                  redefined here.
 #   - Slack     -> @slack MCP server (kirocrew-services.nix) reusing the shared
-#                  sops slack-token; read (search/history/users) + post
+#                  sops slack-bot-token; read (history/users) + post
 #                  (chat.postMessage). Slack is ALSO a gateway messaging channel
 #                  (config slack.tracking_channels / open_channels) that relays
 #                  messages to the session — the two are complementary.

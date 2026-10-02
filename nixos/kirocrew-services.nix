@@ -178,11 +178,7 @@ let
 
       # ── Slack + Linear credentials (mode 600, pasta-owned) ──────────────
       install -d -m 700 "$home/.config/slack-api" "$home/.config/linear-api"
-      slack_token="''${SLACK_BOT_TOKEN:-}"
-      if [ -z "$slack_token" ]; then
-        # Legacy user-token fallback for older deployments.
-        slack_token="$(cat "$secrets/slack-token")"
-      fi
+      slack_token="''${SLACK_BOT_TOKEN:?SLACK_BOT_TOKEN unset (pasta-fetchers.env missing?)}"
       linear_key="$(cat "$secrets/linear-api-key")"
       # Maintain the helper's token file for environments without SOPS env.
       # The helper prefers SLACK_BOT_TOKEN when the service provides it.
@@ -901,9 +897,9 @@ in
       # boots; the server just gets no creds and its tools error until set).
       EnvironmentFile = [
         "-/var/lib/kirocrew/secrets/cfm-tips-aws.env"
-        # Slack user token for the `slack` MCP server (mcp.json reads
+        # Slack bot token for the `slack` MCP server (mcp.json reads
         # ${env:SLACK_TOKEN}). Composed by the sops template in kirocrew-sops.nix
-        # from the SAME `slack-token` secret pasta uses. Non-fatal when absent.
+        # from the SAME `slack-bot-token` secret pasta uses. Non-fatal when absent.
         "-/var/lib/kirocrew/secrets/kirocrew-slack.env"
       ];
 

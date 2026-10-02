@@ -98,16 +98,6 @@
       key = "linear-api-key";
     };
 
-    # Legacy Slack user token (`xoxp-...`). Kept as a migration fallback for
-    # the pasta fetch helper and for Slack MCP search.messages.
-    secrets.pasta-slack-token = {
-      owner = config.users.users.pasta.name;
-      inherit (config.users.users.pasta) group;
-      mode = "0400";
-      path = "/var/lib/pasta/secrets/slack-token";
-      key = "slack-token";
-    };
-
     # Slack bot/app tokens used by the pasta fetcher process environment.
     secrets.pasta-slack-bot-token = {
       owner = config.users.users.pasta.name;
@@ -160,24 +150,25 @@
     };
 
     # ── Slack MCP server token (gateway) ────────────────────────────────────
-    # A SECOND decrypt target for the SAME sops `slack-token` (the pasta user
-    # gets its own copy above at /var/lib/pasta/secrets/slack-token). The
-    # gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
+    # A SECOND decrypt target for the SAME sops `slack-bot-token` (the pasta
+    # user gets its own copy above at /var/lib/pasta/secrets/slack-bot-token).
+    # The gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
     # so it needs its own kirocrew-owned copy of the identical secret. Consumed
     # by the Slack MCP server the gateway spawns (kirocrew-services.nix
     # mcp.json), composed into an EnvironmentFile by the template below so the
     # gateway process holds SLACK_TOKEN and KiroCrew resolves the
     # ${env:SLACK_TOKEN} ref in mcp.json at session runtime.
     #
-    # This is a Slack USER token (`xoxp-...`) with scopes proven by the pasta
-    # helper: channels/groups/im/mpim history + read, users:read, search:read,
-    # and chat:write (so the MCP can post as the user).
+    # This is the Slack BOT token (`xoxb-...`); the user token (`xoxp-...`)
+    # was retired. Bot tokens cannot call search.messages, so the MCP's
+    # slack_search_messages tool fails with not_allowed_token_type; history,
+    # users and chat.postMessage work within the bot's scopes.
     secrets.kirocrew-slack-token = {
       owner = config.users.users.kirocrew.name;
       inherit (config.users.users.kirocrew) group;
       mode = "0400";
       path = "/var/lib/kirocrew/secrets/slack-token";
-      key = "slack-token";
+      key = "slack-bot-token";
     };
   };
 
