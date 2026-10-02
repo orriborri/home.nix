@@ -1,4 +1,5 @@
 {
+  config,
   pkgs,
   lib,
   pkgs-stable ? pkgs,
@@ -94,7 +95,9 @@
 
   # Clone repos declared in config/repos.toml (idempotent -- skips existing)
   # Reads from the XDG path placed by kirocrew-config.nix.
-  # Respects KIROCREW_ROLE for per-host filtering and 'shallow' for clone depth.
+  # Filters by kirocrew.role ('targets' per repo) and honours 'shallow' for clone
+  # depth. The role is passed in explicitly: activation does not source
+  # hm-session-vars.sh, so KIROCREW_ROLE from sessionVariables is not set here.
   home.activation.cloneRepos = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         MANIFEST="$HOME/.config/kirocrew/repos.toml"
         # Fallback to old path during transition
@@ -102,7 +105,7 @@
           MANIFEST="$HOME/.config/home-manager/config/repos.toml"
         fi
         if [ -f "$MANIFEST" ]; then
-          ${pkgs.python3}/bin/python3 -c "
+          KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
     import tomllib, os, subprocess, sys
     with open(sys.argv[1], 'rb') as f:
         data = tomllib.load(f)
@@ -177,7 +180,7 @@
           MANIFEST="$HOME/.config/home-manager/config/repos.toml"
         fi
         if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
-          ${pkgs.python3}/bin/python3 -c "
+          KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
     import tomllib, os, subprocess, sys
     with open(sys.argv[1], 'rb') as f:
         repos = tomllib.load(f).get('repos', [])

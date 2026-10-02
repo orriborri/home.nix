@@ -46,7 +46,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Expose role as an environment variable so activation scripts can filter.
+    # Expose role to interactive shells. Activation scripts do not see session
+    # variables; development.nix passes config.kirocrew.role to them directly.
     home.sessionVariables.KIROCREW_ROLE = cfg.role;
 
     # Place the repo manifest at a well-known XDG path.
