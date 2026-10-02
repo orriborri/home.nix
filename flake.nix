@@ -85,7 +85,6 @@
           };
           modules = [
             ./home.nix
-            ./nixos/pasta-skills.nix
             ./codex-policy.nix
             {
               home.username = username;
