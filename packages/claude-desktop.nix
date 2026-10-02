@@ -1,7 +1,4 @@
 { pkgs, claude-desktop, ... }:
-let
-  system = pkgs.stdenv.hostPlatform.system;
-in
 {
   imports = [ claude-desktop.homeManagerModules.default ];
 
