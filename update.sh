@@ -3,6 +3,9 @@
 
 set -e
 
+# Run from the repo so flake.nix, `nix flake update` and `--flake .` agree.
+cd "$(dirname "$0")"
+
 # -u: update flake inputs + dnf upgrade
 # --update: only update flake inputs
 # --upgrade: only dnf upgrade
@@ -12,7 +15,7 @@ set -e
 # betas, weeks before the release.
 bump_stable_channel() {
     local flake current latest
-    flake="$(dirname "$0")/flake.nix"
+    flake=flake.nix
     current=$(grep -oP 'nixpkgs-stable\.url = "github:NixOS/nixpkgs/nixos-\K[0-9]+\.[0-9]+' "$flake") || {
         echo "  ⚠️  nixpkgs-stable not pinned to a nixos-YY.MM branch; skipping"
         return 0
@@ -46,7 +49,7 @@ fi
 FLATPAK=$(command -v flatpak 2>/dev/null)
 if [[ -n "$FLATPAK" ]]; then
     echo "📦 Syncing Flatpak packages..."
-    MANIFEST="$(dirname "$0")/flatpak-packages.txt"
+    MANIFEST=flatpak-packages.txt
     if [[ -f "$MANIFEST" ]]; then
         # Ensure flathub remote exists
         $FLATPAK remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
