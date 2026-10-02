@@ -13,6 +13,7 @@
 # The config defaults to ~/.config/aws-vpn-client/vpn.conf. The endpoint
 # hostname is read from the config's `remote` line; override with VPN_HOST.
 #
+# VPN_DNS_HOOK optionally names an OpenVPN up/down script (set by the prod wrapper).
 # Requires sudo for the second openvpn invocation (creates the tun device).
 
 set -euo pipefail
@@ -111,8 +112,13 @@ OPENVPN_AWS_BIN="$(command -v openvpn-aws)"
 AUTH_FILE="$WORKDIR/auth-user-pass.txt"
 printf "%s\n%s\n" "N/A" "CRV1::${VPN_SID}::$(cat "$SAML_RESPONSE_PATH")" > "$AUTH_FILE"
 chmod 600 "$AUTH_FILE"
+# Pass the store path as an argument: sudo does not preserve the wrapper environment.
+DNS_ARGS=()
+if [[ -n "${VPN_DNS_HOOK:-}" ]]; then
+  DNS_ARGS=(--up "$VPN_DNS_HOOK" --down "$VPN_DNS_HOOK" --up-restart --down-pre)
+fi
 sudo "$OPENVPN_AWS_BIN" --config "$OVPN_CONF" \
   --verb 3 --auth-nocache --inactive 3600 \
   --proto "$PROTO" --remote "$SRV" "$PORT" \
-  --script-security 2 \
+  --script-security 2 "${DNS_ARGS[@]}" \
   --auth-user-pass "$AUTH_FILE"

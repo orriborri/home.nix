@@ -82,6 +82,26 @@ let
     text = builtins.readFile ./aws-vpn-connect.sh;
   };
 
+  # OpenVPN supplies dev and script_type to hooks running as root.
+  prod-dns-hook = pkgs.writeShellApplication {
+    name = "aws-vpn-prod-dns";
+    runtimeInputs = [ pkgs.systemd ];
+    text = ''
+      VPN_DNS_INTERFACE="''${dev:?}"
+      case "''${script_type:?}" in
+        up)
+          trap 'resolvectl revert "$VPN_DNS_INTERFACE"' ERR
+          resolvectl dns "$VPN_DNS_INTERFACE" 172.30.0.2
+          resolvectl domain "$VPN_DNS_INTERFACE" '~opensearch.readpeak.net'
+          resolvectl default-route "$VPN_DNS_INTERFACE" no
+          ;;
+        down)
+          resolvectl revert "$VPN_DNS_INTERFACE"
+          ;;
+      esac
+    '';
+  };
+
   # Per-environment convenience wrappers. ReadPeak runs two separate Client VPN
   # endpoints (staging and prod, each its own SAML application), so each has its
   # own downloaded profile. These default to a fixed per-env path under
@@ -91,9 +111,13 @@ let
     pkgs.writeShellApplication {
       name = "aws-vpn-connect-${env}";
       runtimeInputs = [ aws-vpn-connect ];
-      text = ''
-        exec aws-vpn-connect "''${1:-$HOME/.config/aws-vpn-client/${env}.ovpn}"
-      '';
+      text =
+        lib.optionalString (env == "prod") ''
+          export VPN_DNS_HOOK=${prod-dns-hook}/bin/aws-vpn-prod-dns
+        ''
+        + ''
+          exec aws-vpn-connect "''${1:-$HOME/.config/aws-vpn-client/${env}.ovpn}"
+        '';
     };
 
   aws-vpn-connect-staging = mkEnvConnect "staging";
