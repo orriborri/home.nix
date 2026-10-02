@@ -246,6 +246,42 @@
       # Formatter for 'nix fmt'
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
+      # Pre-deploy gate: `nix flake check`, also run by .githooks/pre-push.
+      # x86_64-linux only, the one system with a local builder; the other
+      # systems' configurations are evaluated, not built, so they need none.
+      checks.x86_64-linux =
+        let
+          pkgs = nixpkgs.legacyPackages.x86_64-linux;
+          inherit (nixpkgs) lib;
+
+          # Force full evaluation of a configuration without building it:
+          # discarding the string context leaves no build dependency.
+          evalCheck =
+            name: drvPath: pkgs.writeText "eval-${name}" (builtins.unsafeDiscardStringContext drvPath);
+
+          # kirocrew-ec2 is aarch64 and nothing here can build for it, so
+          # re-target it to x86_64 only to build the sops-nix checked manifest,
+          # which fails when a secret names a key missing from secrets.yaml.
+          ec2OnX86 = self.nixosConfigurations.kirocrew-ec2.extendModules {
+            modules = [ { nixpkgs.hostPlatform = lib.mkForce "x86_64-linux"; } ];
+          };
+        in
+        lib.mapAttrs' (
+          name: hm: lib.nameValuePair "home-${name}" (evalCheck name hm.activationPackage.drvPath)
+        ) self.homeConfigurations
+        // lib.mapAttrs' (
+          name: os: lib.nameValuePair "nixos-${name}" (evalCheck name os.config.system.build.toplevel.drvPath)
+        ) self.nixosConfigurations
+        // {
+          kirocrew-ec2-sops = pkgs.writeText "kirocrew-ec2-sops" ec2OnX86.config.system.activationScripts.setupSecrets.text;
+
+          format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
+            cd ${self}
+            nixfmt --check $(find . -name '*.nix')
+            touch $out
+          '';
+        };
+
       # NixOS system configurations
       #   KiroCrew gateway VM: local QEMU now (`nixos-rebuild build-vm`), EC2 AMI later.
       #   Reuses this repo's ./home.nix with the same specialArgs as mkHome.
