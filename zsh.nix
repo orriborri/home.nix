@@ -181,15 +181,6 @@
     FZF_DEFAULT_OPTS = "--height 40% --layout=reverse --border --inline-info";
   };
 
-  # Plugins
-  plugins = [
-    {
-      name = "fast-syntax-highlighting";
-      src = "${pkgs.zsh-fast-syntax-highlighting}/share/zsh/site-functions";
-    }
-    {
-      name = "zsh-autosuggestions";
-      src = "${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions";
-    }
-  ];
+  # Plugins (zsh-autosuggestions comes from autosuggestion.enable above)
+  fastSyntaxHighlighting.enable = true;
 }
