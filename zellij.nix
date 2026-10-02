@@ -11,6 +11,12 @@
     auto_layout = true;
     viewport_serialization = false;
     session_serialization = false;
+
+    # Backspace can arrive as Ctrl-h (^H) in some terminals, which Zellij
+    # treats as Move mode. Unbind it in all modes so Backspace passes through.
+    keybinds = {
+      unbind = "Ctrl h";
+    };
     ui = {
       pane_frames = {
         hide_session_name = true;
