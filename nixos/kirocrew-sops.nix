@@ -31,12 +31,15 @@
 {
   # Remove the key from its old location in the agent-readable kirocrew home,
   # but only once the root-owned copy exists, so a box is never left keyless.
+  # Also remove the forge SSH key this module used to decrypt for kirocrew:
+  # sops-nix does not delete files for secrets that are no longer declared.
   system.activationScripts.removeLegacyAgeKey = {
     deps = [ "setupSecrets" ];
     text = ''
       if [ -s /var/lib/sops-nix/key.txt ]; then
         rm -f /var/lib/kirocrew/.config/sops/age/keys.txt
       fi
+      rm -f /var/lib/kirocrew/secrets/git-ssh-key
     '';
   };
 
@@ -47,15 +50,6 @@
     age.generateKey = false;
 
     defaultSopsFile = ../secrets/secrets.yaml;
-
-    # Git transport key: still used by other flows that clone as kirocrew over
-    # SSH. Retained; harmless if unused by the vault (which uses HTTPS below).
-    secrets.git-ssh-key = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/git-ssh-key";
-    };
 
     # GitLab deploy token for the vault repo (HTTPS auth). Username and token
     # are separate secrets; kirocrew-vault-git.nix feeds them to git via
