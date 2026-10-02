@@ -1,13 +1,15 @@
 {
-  "enabledMcpjsonServers": [
-    "metabase",
-    "pasta-kb",
-    "playwright-mcp",
-    "code-review-graph"
-  ],
   "permissions": {
     "allow": [
       "Bash(systemctl --user status pasta)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "metabase",
+    "pasta-kb",
+    "playwright-mcp",
+    "code-review-graph",
+    "kb-evidence",
+    "opensearch"
+  ]
 }
