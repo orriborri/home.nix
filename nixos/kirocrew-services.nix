@@ -204,8 +204,7 @@ let
       linear_key="$(cat "$secrets/linear-api-key")"
       # Maintain the helper's token file for environments without SOPS env.
       # The helper prefers SLACK_BOT_TOKEN when the service provides it.
-      jq -n --arg t "$slack_token" \
-        '{access_token:$t, refresh_token:null, token_type:"user"}' \
+      jq -n --arg t "$slack_token" '{access_token:$t}' \
         > "$home/.config/slack-api/token.json"
       jq -n --arg k "$linear_key" '{api_key:$k}' \
         > "$home/.config/linear-api/token.json"
