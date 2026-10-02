@@ -15,6 +15,7 @@ from pathlib import Path
 from .aws_resources import AwsResources
 from .token_probe import classify
 from .models import (
+    AGE_KEY_TARGETS,
     DEFAULT_AMI,
     DEFAULT_INSTANCE_TYPE,
     DEFAULT_REGION,
@@ -677,12 +678,17 @@ fi
 
     def _bootstrap_age_key(self, remote: RemoteHost) -> None:
         print("\n» Ensuring age decryption key is on the remote...")
-        present = remote.run(
-            "root",
-            "test -f /home/orre/.config/sops/age/keys.txt && echo yes || echo no",
-            capture=True,
-        ).stdout.strip()
-        if present == "yes":
+        missing = [
+            target
+            for target in AGE_KEY_TARGETS
+            if remote.run(
+                "root",
+                f"test -s {target[0]} && echo yes || echo no",
+                capture=True,
+            ).stdout.strip()
+            != "yes"
+        ]
+        if not missing:
             print("  ✓ Age key already present")
             return
         age_key = ""
@@ -700,15 +706,15 @@ fi
                 age_key = local.read_text()
         if not age_key:
             raise LauncherError("No age key available")
-        remote.run(
-            "root",
-            "set -e; install -d -m 700 -o orre -g users /home/orre/.config/sops/age; "
-            "cat > /home/orre/.config/sops/age/keys.txt; "
-            "chmod 600 /home/orre/.config/sops/age/keys.txt; "
-            "chown orre:users /home/orre/.config/sops/age/keys.txt",
-            input_text=age_key,
-        )
-        print("  ✓ Age key placed on remote")
+        for path, owner, group, mode in missing:
+            directory = path.rsplit("/", 1)[0]
+            remote.run(
+                "root",
+                f"set -e; install -d -m 700 -o {owner} -g {group} {directory}; "
+                f"install -m {mode} -o {owner} -g {group} /dev/stdin {path}",
+                input_text=age_key,
+            )
+            print(f"  ✓ Age key placed at {path}")
 
     def _rebuild_nixos(self, remote: RemoteHost) -> None:
         print("\n» Rebuilding NixOS config on the remote through SSM...")

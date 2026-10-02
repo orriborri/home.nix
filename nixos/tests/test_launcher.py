@@ -239,3 +239,62 @@ class ReconnectLoopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeKeyRemote:
+    """Answers `test -s` probes from a set of present paths; records writes."""
+
+    def __init__(self, present: set[str]) -> None:
+        self.present = present
+        self.writes: list[tuple[str, str]] = []
+
+    def run(self, user, command, capture=False, check=True, input_text=None):
+        if command.startswith("test -s "):
+            path = command.split()[2]
+            out = "yes" if path in self.present else "no"
+            return launcher_module.subprocess.CompletedProcess(command, 0, out + "\n", "")
+        self.writes.append((command, input_text))
+        return launcher_module.subprocess.CompletedProcess(command, 0, "", "")
+
+
+class AgeKeyBootstrapTests(unittest.TestCase):
+    def setUp(self):
+        self.launcher = object.__new__(Launcher)
+        import tempfile
+
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        key = self.tmp / ".config" / "sops" / "age" / "keys.txt"
+        key.parent.mkdir(parents=True)
+        key.write_text("AGE-SECRET-KEY-TEST\n")
+        self.enterContext(mock.patch.object(launcher_module.Path, "home", return_value=self.tmp))
+        self.enterContext(mock.patch.object(launcher_module.shutil, "which", return_value=None))
+
+    def test_both_present_writes_nothing(self):
+        remote = FakeKeyRemote({path for path, *_ in launcher_module.AGE_KEY_TARGETS})
+        self.launcher._bootstrap_age_key(remote)  # type: ignore[arg-type]
+        self.assertEqual(remote.writes, [])
+
+    def test_existing_box_gets_root_only_system_key(self):
+        # A box bootstrapped before the move has orre's copy only.
+        remote = FakeKeyRemote({"/home/orre/.config/sops/age/keys.txt"})
+        self.launcher._bootstrap_age_key(remote)  # type: ignore[arg-type]
+        self.assertEqual(len(remote.writes), 1)
+        command, key = remote.writes[0]
+        self.assertIn("install -d -m 700 -o root -g root /var/lib/sops-nix;", command)
+        self.assertIn("install -m 400 -o root -g root /dev/stdin /var/lib/sops-nix/key.txt", command)
+        self.assertEqual(key, "AGE-SECRET-KEY-TEST\n")
+
+    def test_fresh_box_gets_both_copies(self):
+        remote = FakeKeyRemote(set())
+        self.launcher._bootstrap_age_key(remote)  # type: ignore[arg-type]
+        targets = [command.rsplit(" ", 1)[1] for command, _ in remote.writes]
+        self.assertEqual(
+            targets,
+            ["/home/orre/.config/sops/age/keys.txt", "/var/lib/sops-nix/key.txt"],
+        )
+        self.assertIn("-o orre -g users", remote.writes[0][0])
+
+    def test_no_key_available_raises(self):
+        (self.tmp / ".config" / "sops" / "age" / "keys.txt").unlink()
+        with self.assertRaises(launcher_module.LauncherError):
+            self.launcher._bootstrap_age_key(FakeKeyRemote(set()))  # type: ignore[arg-type]

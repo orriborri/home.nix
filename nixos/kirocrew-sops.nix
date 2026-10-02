@@ -11,25 +11,37 @@
 # can own the vault git repository end-to-end (Model 2): clone/push over SSH
 # and unlock the git-crypt-encrypted contents.
 #
-# Design (kirocrew owns its own key):
-#   * Age private key lives in the kirocrew user's home at
-#     /var/lib/kirocrew/.config/sops/age/keys.txt. It is the SAME age key
-#     already tracked in .sops.yaml (1Password item "kirocrew-age"), so
-#     secrets/secrets.yaml does NOT need re-encryption — only the private key
-#     is bootstrapped into kirocrew's home instead of orre's.
-#   * Decrypted secrets are written to persistent paths inside the kirocrew
-#     home (under ReadWritePaths, not masked by ProtectHome).
+# Design:
+#   * Age private key lives at /var/lib/sops-nix/key.txt, root:root 0400.
+#     sops-install-secrets runs as root at activation, so no service user
+#     needs to read it. It must NOT live under a service user's home: the
+#     agents run as `kirocrew`, and a key they can read decrypts every secret
+#     on the box, including the ones owned by pasta and obsidian-web. It is
+#     the SAME age key already tracked in .sops.yaml (1Password item
+#     "kirocrew-age"), so secrets/secrets.yaml does NOT need re-encryption.
+#   * Decrypted secrets are written to persistent paths inside each owning
+#     user's home (under ReadWritePaths, not masked by ProtectHome).
 #
-# One-time bootstrap on the instance (also see nixos/kirocrew.md):
-#   install -d -m 700 -o kirocrew -g kirocrew /var/lib/kirocrew/.config/sops/age
+# Bootstrap: `launch-ec2` places the key before every rebuild
+# (launcher.py _bootstrap_age_key). By hand:
 #   op read "op://Readpeak/kirocrew-age/private key" \
-#     | install -m 600 -o kirocrew -g kirocrew /dev/stdin \
-#         /var/lib/kirocrew/.config/sops/age/keys.txt
+#     | install -D -m 400 -o root -g root /dev/stdin /var/lib/sops-nix/key.txt
 #
 # sops-install-secrets runs at activation; other services order After it.
 {
+  # Remove the key from its old location in the agent-readable kirocrew home,
+  # but only once the root-owned copy exists, so a box is never left keyless.
+  system.activationScripts.removeLegacyAgeKey = {
+    deps = [ "setupSecrets" ];
+    text = ''
+      if [ -s /var/lib/sops-nix/key.txt ]; then
+        rm -f /var/lib/kirocrew/.config/sops/age/keys.txt
+      fi
+    '';
+  };
+
   sops = {
-    age.keyFile = "/var/lib/kirocrew/.config/sops/age/keys.txt";
+    age.keyFile = "/var/lib/sops-nix/key.txt";
     # Do not require the key at build/eval time; only at activation. If absent,
     # activation logs an error but evaluation still succeeds.
     age.generateKey = false;

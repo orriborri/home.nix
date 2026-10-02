@@ -70,6 +70,13 @@ AUTH_SERVER_URLS = {
 # portal session is alive.
 LOCAL_1P_AGENT_SOCKET = "~/.1password/agent.sock"
 REMOTE_AGENT_SOCKET = "/run/kirocrew-agent/orre-1p.sock"
+# Where `start` places the sops age key, as (path, owner, group, mode): orre's
+# home-manager sops (sops.nix) and system sops-nix (kirocrew-sops.nix). The
+# system copy is root-only so processes running as kirocrew cannot read it.
+AGE_KEY_TARGETS = (
+    ("/home/orre/.config/sops/age/keys.txt", "orre", "users", "600"),
+    ("/var/lib/sops-nix/key.txt", "root", "root", "400"),
+)
 GITHUB_ED25519_KEY = (
     "github.com ssh-ed25519 "
     "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
