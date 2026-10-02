@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
     # Pinned rustc/cargo (1.91.1) for building pasta from source. nixos-24.11's
     # cargo (1.82) predates edition2024 (needed by datafusion et al.); current
     # nixos-unstable's rustc (1.98.1, built from a source tarball) mis-lowers

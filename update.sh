@@ -7,7 +7,33 @@ set -e
 # --update: only update flake inputs
 # --upgrade: only dnf upgrade
 # (kiro IDE + CLI now come from nixpkgs and update via `nix flake update`)
+# Point nixpkgs-stable at the newest released nixos-YY.MM branch. Branches
+# dated after the current month are skipped: they appear at branch-off, as
+# betas, weeks before the release.
+bump_stable_channel() {
+    local flake current latest
+    flake="$(dirname "$0")/flake.nix"
+    current=$(grep -oP 'nixpkgs-stable\.url = "github:NixOS/nixpkgs/nixos-\K[0-9]+\.[0-9]+' "$flake") || {
+        echo "  ⚠️  nixpkgs-stable not pinned to a nixos-YY.MM branch; skipping"
+        return 0
+    }
+    latest=$(git ls-remote --heads https://github.com/NixOS/nixpkgs 'refs/heads/nixos-[0-9]*' 2>/dev/null \
+        | grep -oP 'refs/heads/nixos-\K[0-9]+\.[0-9]+$' \
+        | awk -v now="$(date +%y%m)" '{ split($0, v, "."); if (v[1] * 100 + v[2] <= now) print }' \
+        | sort -V | tail -1) || true
+    if [[ -z "$latest" ]]; then
+        echo "  ⚠️  Could not list nixpkgs branches; keeping nixos-$current"
+    elif [[ "$latest" != "$current" ]]; then
+        echo "  nixpkgs-stable: nixos-$current → nixos-$latest"
+        sed -i "s|nixpkgs-stable\.url = \"github:NixOS/nixpkgs/nixos-$current\"|nixpkgs-stable.url = \"github:NixOS/nixpkgs/nixos-$latest\"|" "$flake"
+    else
+        echo "  nixpkgs-stable already tracks newest release (nixos-$current)"
+    fi
+}
+
 if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
+    echo "🔍 Checking nixpkgs-stable release branch..."
+    bump_stable_channel
     echo "🔄 Updating flake inputs..."
     nix flake update
 fi
