@@ -476,8 +476,8 @@ let
   # module into ${slackMcpDir} and builds a minimal venv whose ONLY non-stdlib
   # dependency is `mcp` (the server talks to the Slack Web API over stdlib
   # urllib). The gateway's mcp.json spawns it over stdio with the shared
-  # SLACK_TOKEN in its environment. Everything lives under ${kirocrewHome},
-  # already the gateway unit's ReadWritePath.
+  # SLACK_TOKEN in its environment (set by slackMcpLauncher). Everything lives
+  # under ${kirocrewHome}, already the gateway unit's ReadWritePath.
   #
   # python312 to match the cfm-tips server (nixpkgs default python3 is 3.14,
   # which the mcp wheels are not yet uniformly built against on aarch64); gcc +
@@ -540,6 +540,29 @@ let
     '';
   };
 
+  # Launchers for the MCP servers that need credentials. Each reads its secrets
+  # from the sops-provisioned files when the gateway spawns it, so the gateway
+  # process holds no secrets in its environment and the agent shells it spawns
+  # do not inherit them. A missing file is non-fatal: the server starts without
+  # credentials and its tools error until the secret is provisioned.
+  cfmTipsMcpLauncher = pkgs.writeShellScript "kirocrew-cfm-tips-mcp" ''
+    secrets=${kirocrewHome}/secrets
+    if [ -r "$secrets/cfm-tips-aws-access-key-id" ] && [ -r "$secrets/cfm-tips-aws-secret-access-key" ]; then
+      AWS_ACCESS_KEY_ID="$(< "$secrets/cfm-tips-aws-access-key-id")"
+      AWS_SECRET_ACCESS_KEY="$(< "$secrets/cfm-tips-aws-secret-access-key")"
+      export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    fi
+    exec ${cfmTipsServerBin} ${cfmTipsServerScript} "$@"
+  '';
+  slackMcpLauncher = pkgs.writeShellScript "kirocrew-slack-mcp" ''
+    token=${kirocrewHome}/secrets/slack-token
+    if [ -r "$token" ]; then
+      SLACK_TOKEN="$(< "$token")"
+      export SLACK_TOKEN
+    fi
+    exec ${slackMcpServerBin} ${slackMcpServerScript} "$@"
+  '';
+
   # MCP wiring for the gateway. Writes the gateway's mcp.json (which spawns the
   # kb-mcp stdio server built by the pasta-daemon) and the kirocrew user's
   # pasta config so kb-mcp resolves the SAME data_dir as the indexer. Runs as
@@ -569,12 +592,9 @@ let
       # Gateway MCP registry. kb-evidence spawns the locally-built kb-mcp stdio
       # server (linked into ${pastaHome}/bin by the pasta-daemon build step).
       # cfm-tips spawns the aws-samples cost-optimization server from the venv
-      # built by cfm-tips-source-build (an ExecStartPre above). Its AWS creds
-      # come from the gateway environment as ''${env:...} references, which
-      # KiroCrew resolves at session runtime (see kirocrew-services env +
-      # SOPS). They are written LITERALLY here — the \$ stops both Nix
-      # interpolation and this bash heredoc from expanding them, so the token
-      # reaches mcp.json intact for KiroCrew to resolve.
+      # built by cfm-tips-source-build (an ExecStartPre above). cfm-tips and
+      # slack start through launchers that load their credentials from the
+      # sops files (cfmTipsMcpLauncher, slackMcpLauncher above).
       cat > "$crewDir/mcp.json" <<EOF
       {
         "mcpServers": {
@@ -588,23 +608,20 @@ let
             "disabled": false
           },
           "cfm-tips": {
-            "command": "${cfmTipsServerBin}",
-            "args": ["${cfmTipsServerScript}"],
+            "command": "${cfmTipsMcpLauncher}",
+            "args": [],
             "env": {
               "HOME": "${kirocrewHome}",
               "AWS_REGION": "${cfmTipsAwsRegion}",
-              "AWS_DEFAULT_REGION": "${cfmTipsAwsRegion}",
-              "AWS_ACCESS_KEY_ID": "\''${env:CFM_TIPS_AWS_ACCESS_KEY_ID}",
-              "AWS_SECRET_ACCESS_KEY": "\''${env:CFM_TIPS_AWS_SECRET_ACCESS_KEY}"
+              "AWS_DEFAULT_REGION": "${cfmTipsAwsRegion}"
             },
             "disabled": false
           },
           "slack": {
-            "command": "${slackMcpServerBin}",
-            "args": ["${slackMcpServerScript}"],
+            "command": "${slackMcpLauncher}",
+            "args": [],
             "env": {
-              "HOME": "${kirocrewHome}",
-              "SLACK_TOKEN": "\''${env:SLACK_TOKEN}"
+              "HOME": "${kirocrewHome}"
             },
             "disabled": false
           }
@@ -910,17 +927,8 @@ in
       # Block IMDS access from agents.
       IPAddressDeny = [ "169.254.169.254/32" ];
 
-      # Read-only AWS creds for the cfm-tips MCP server, composed by the sops
-      # template (kirocrew-sops.nix) into KEY=value lines. The leading '-' makes
-      # it non-fatal when absent (a box without the CFM Tips secrets still
-      # boots; the server just gets no creds and its tools error until set).
-      EnvironmentFile = [
-        "-/var/lib/kirocrew/secrets/cfm-tips-aws.env"
-        # Slack bot token for the `slack` MCP server (mcp.json reads
-        # ${env:SLACK_TOKEN}). Composed by the sops template in kirocrew-sops.nix
-        # from the SAME `slack-bot-token` secret pasta uses. Non-fatal when absent.
-        "-/var/lib/kirocrew/secrets/kirocrew-slack.env"
-      ];
+      # No EnvironmentFile: MCP credentials are loaded by their launchers
+      # (cfmTipsMcpLauncher, slackMcpLauncher), not held by the gateway.
 
       Environment = [
         "KIROCREW_HOME=${kirocrewHome}/.kiro/crew"

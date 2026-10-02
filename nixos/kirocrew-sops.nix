@@ -31,15 +31,18 @@
 {
   # Remove the key from its old location in the agent-readable kirocrew home,
   # but only once the root-owned copy exists, so a box is never left keyless.
-  # Also remove the forge SSH key this module used to decrypt for kirocrew:
-  # sops-nix does not delete files for secrets that are no longer declared.
+  # Also remove files this module used to write for kirocrew that are no longer
+  # declared (sops-nix does not delete them): the forge SSH key and the two
+  # gateway EnvironmentFiles that held MCP credentials.
   system.activationScripts.removeLegacyAgeKey = {
     deps = [ "setupSecrets" ];
     text = ''
       if [ -s /var/lib/sops-nix/key.txt ]; then
         rm -f /var/lib/kirocrew/.config/sops/age/keys.txt
       fi
-      rm -f /var/lib/kirocrew/secrets/git-ssh-key
+      rm -f /var/lib/kirocrew/secrets/git-ssh-key \
+        /var/lib/kirocrew/secrets/cfm-tips-aws.env \
+        /var/lib/kirocrew/secrets/kirocrew-slack.env
     '';
   };
 
@@ -136,10 +139,9 @@
     # gateway spawns (kirocrew-services.nix mcp.json). These belong to a
     # DEDICATED IAM principal that carries ONLY the consolidated read-only cost
     # policy from the CFM Tips README — not the instance role, which the gateway
-    # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew and
-    # composed into an EnvironmentFile by the sops template below, so the
-    # gateway process holds CFM_TIPS_AWS_* and KiroCrew resolves the
-    # ${env:CFM_TIPS_AWS_*} refs in mcp.json at session runtime.
+    # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew; the
+    # server's launcher (kirocrew-services.nix cfmTipsMcpLauncher) reads them
+    # into AWS_* for the server process only.
     secrets.cfm-tips-aws-access-key-id = {
       owner = config.users.users.kirocrew.name;
       inherit (config.users.users.kirocrew) group;
@@ -160,10 +162,9 @@
     # user gets its own copy above at /var/lib/pasta/secrets/slack-bot-token).
     # The gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
     # so it needs its own kirocrew-owned copy of the identical secret. Consumed
-    # by the Slack MCP server the gateway spawns (kirocrew-services.nix
-    # mcp.json), composed into an EnvironmentFile by the template below so the
-    # gateway process holds SLACK_TOKEN and KiroCrew resolves the
-    # ${env:SLACK_TOKEN} ref in mcp.json at session runtime.
+    # by the Slack MCP server the gateway spawns: its launcher
+    # (kirocrew-services.nix slackMcpLauncher) reads this file into
+    # SLACK_TOKEN for the server process only.
     #
     # This is the Slack BOT token (`xoxb-...`); the user token (`xoxp-...`)
     # was retired. Bot tokens cannot call search.messages, so the MCP's
@@ -176,38 +177,6 @@
       path = "/var/lib/kirocrew/secrets/slack-token";
       key = "slack-bot-token";
     };
-  };
-
-  # Compose the two AWS secrets into a systemd EnvironmentFile (KEY=value
-  # lines). sops secrets are raw values, so they cannot be an EnvironmentFile
-  # directly; a template renders the KEY=value form with the secrets spliced in
-  # via config.sops.placeholder (substituted at activation, never in the Nix
-  # store). The gateway unit references this path as an EnvironmentFile.
-  sops.templates."cfm-tips-aws.env" = {
-    owner = config.users.users.kirocrew.name;
-    inherit (config.users.users.kirocrew) group;
-    mode = "0400";
-    path = "/var/lib/kirocrew/secrets/cfm-tips-aws.env";
-    content = ''
-      CFM_TIPS_AWS_ACCESS_KEY_ID=${config.sops.placeholder."cfm-tips-aws-access-key-id"}
-      CFM_TIPS_AWS_SECRET_ACCESS_KEY=${config.sops.placeholder."cfm-tips-aws-secret-access-key"}
-    '';
-  };
-
-  # Slack token as a systemd EnvironmentFile (KEY=value) for the gateway. Same
-  # rationale as cfm-tips: sops secrets are raw values, so a template renders
-  # the KEY=value line with the secret spliced in via config.sops.placeholder
-  # (substituted at activation, never written to the Nix store). The gateway
-  # unit references this path as an EnvironmentFile, and mcp.json's slack entry
-  # reads ${env:SLACK_TOKEN}.
-  sops.templates."kirocrew-slack.env" = {
-    owner = config.users.users.kirocrew.name;
-    inherit (config.users.users.kirocrew) group;
-    mode = "0400";
-    path = "/var/lib/kirocrew/secrets/kirocrew-slack.env";
-    content = ''
-      SLACK_TOKEN=${config.sops.placeholder."kirocrew-slack-token"}
-    '';
   };
 
   sops.templates."pasta-fetchers.env" = {
