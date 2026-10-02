@@ -38,7 +38,10 @@ let
   agentsDir = "${kirocrewHome}/.kiro/agents";
   crewHome = "${kirocrewHome}/.kiro/crew";
   kirocrewBin = "${kirocrewHome}/.kiro/crew-venv/bin/kirocrew";
-  kirocrewLibraryPath = lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+  kirocrewLibraryPath = lib.makeLibraryPath [
+    pkgs.stdenv.cc.cc.lib
+    pkgs.zlib
+  ];
 
   # Shared spec definitions (../kirocrew-agent-specs.nix is the single source of
   # truth for every crew's model, tools, allowedTools ceiling, and prompt). This

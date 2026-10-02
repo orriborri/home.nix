@@ -76,7 +76,10 @@ let
   agentsDir = "${kirocrewHome}/.kiro/agents";
   crewHome = "${kirocrewHome}/.kiro/crew";
   kirocrewBin = "${kirocrewHome}/.kiro/crew-venv/bin/kirocrew";
-  kirocrewLibraryPath = lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+  kirocrewLibraryPath = lib.makeLibraryPath [
+    pkgs.stdenv.cc.cc.lib
+    pkgs.zlib
+  ];
 
   # Shared spec definitions, wired to this host's gateway binary and crew home.
   agents =

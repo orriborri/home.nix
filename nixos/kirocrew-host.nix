@@ -15,13 +15,19 @@
 
   networking.hostName = "kirocrew";
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   # ── User ──────────────────────────────────────────────────────────────────
   users.mutableUsers = false;
   users.users.orre = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "docker" ];
+    extraGroups = [
+      "wheel"
+      "docker"
+    ];
     shell = pkgs.zsh;
     # LOCAL VM ONLY. Remove and use SSH keys before building the EC2 AMI.
     initialPassword = "kirocrew";
@@ -47,7 +53,10 @@
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;
-  environment.systemPackages = with pkgs; [ git curl ];
+  environment.systemPackages = with pkgs; [
+    git
+    curl
+  ];
 
   # ── Local QEMU VM profile (nixos-rebuild build-vm --flake .#kirocrew) ──────
   # Forwards host 127.0.0.1:2222 → guest:22. SSH in, then tunnel 5476 over it.

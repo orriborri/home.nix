@@ -68,11 +68,14 @@ in
 {
   config = lib.mkIf isPastaHost {
     # Build dependencies available system-wide for rebuilds.
-    home.packages = with pkgs; [
-      protobuf
-      pkg-config
-      openssl
-    ] ++ [ vaultWrapper ];
+    home.packages =
+      with pkgs;
+      [
+        protobuf
+        pkg-config
+        openssl
+      ]
+      ++ [ vaultWrapper ];
 
     # kb-cli builds to target/release/kb; expose it on interactive PATH too
     # (the systemd service only sets PATH for pasta-backend's own exec).
@@ -83,8 +86,14 @@ in
     systemd.user.services.pasta = {
       Unit = {
         Description = "Pasta daemon (Obsidian vault indexer)";
-        After = [ "network-online.target" "sops-nix.service" ];
-        Wants = [ "network-online.target" "sops-nix.service" ];
+        After = [
+          "network-online.target"
+          "sops-nix.service"
+        ];
+        Wants = [
+          "network-online.target"
+          "sops-nix.service"
+        ];
       };
       Service = {
         Type = "simple";

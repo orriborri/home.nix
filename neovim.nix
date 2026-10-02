@@ -72,12 +72,12 @@
       nil # Nix LSP
       pyright
       ruff
-      
+
       # Formatters
       prettier
       stylua
       nixpkgs-fmt
-      
+
       # Tools
       ripgrep
       fd
@@ -103,20 +103,20 @@
       vim.opt.signcolumn = "yes"
       vim.opt.updatetime = 50
       vim.opt.colorcolumn = "120"
-      
+
       vim.g.mapleader = " "
-      
+
       -- Colorscheme
       require("catppuccin").setup()
       vim.cmd.colorscheme "catppuccin"
-      
+
       -- LSP setup
       require("mason").setup()
       require("mason-lspconfig").setup({
         ensure_installed = { "ts_ls", "eslint", "lua_ls" },
         automatic_installation = false,
       })
-      
+
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
       vim.lsp.config("pyright", {
@@ -138,7 +138,7 @@
       vim.lsp.enable("nil_ls")
       vim.lsp.enable("ruff")
       vim.lsp.enable("pyright")
-      
+
       local map = vim.keymap.set
 
       -- LSP keybindings
@@ -153,11 +153,11 @@
       map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
       map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
       map("n", "<leader>cd", vim.diagnostic.open_float, { desc = "Line diagnostics" })
-      
+
       -- Completion setup
       local cmp = require("cmp")
       local luasnip = require("luasnip")
-      
+
       cmp.setup({
         snippet = {
           expand = function(args)
@@ -185,13 +185,13 @@
           { name = "path" },
         }),
       })
-      
+
       -- Treesitter
       require("nvim-treesitter").setup({
         highlight = { enable = true },
         indent = { enable = true },
       })
-      
+
       -- Telescope
       local builtin = require("telescope.builtin")
       local telescope = require("telescope")
@@ -222,11 +222,11 @@
         })
       end, { desc = "File browser" })
       map("n", "<leader>fh", builtin.help_tags, { desc = "Help tags" })
-      
+
       -- Nvim-tree
       require("nvim-tree").setup()
       map("n", "<leader>e", ":NvimTreeToggle<CR>", { desc = "Toggle file explorer" })
-      
+
       -- Gitsigns
       require("gitsigns").setup({
         on_attach = function(bufnr)
@@ -240,14 +240,14 @@
           map("n", "[h", gs.prev_hunk, opts("Previous hunk"))
         end,
       })
-      
+
       -- Lualine
       require("lualine").setup({
         options = {
           theme = "catppuccin",
         },
       })
-      
+
       -- Which-key
       require("which-key").setup()
       require("which-key").add({
@@ -261,7 +261,7 @@
         { "[", group = "prev" },
         { "]", group = "next" },
       })
-      
+
       -- Trouble
       require("trouble").setup()
       map("n", "<leader>xx", ":Trouble<CR>", { desc = "Toggle trouble" })

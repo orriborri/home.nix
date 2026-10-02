@@ -1,9 +1,14 @@
-{ pkgs, lib, config, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 
 {
   # Shell configuration
   enable = true;
-  
+
   # Use XDG config directory for zsh files (resolves deprecation warning)
   dotDir = "${config.xdg.configHome}/zsh";
 
@@ -11,7 +16,7 @@
   autosuggestion.enable = true;
   enableVteIntegration = true;
   completionInit = "autoload -U compinit && compinit -u";
-  
+
   # History configuration
   history = {
     size = 10000;
@@ -25,26 +30,26 @@
   shellAliases = {
     # Directory navigation
     da = "direnv allow";
-    
+
     # Git shortcuts
     g = "git";
     lgit = "lazygit";
-    
+
     # Editor shortcuts
     c = "code";
     k = "kiro-ide";
     v = "nvim";
-    
+
     # Network utilities
     ssh = "ssh";
     ssh-add = "ssh-add";
     scp = "scp";
     nm = "nm-tui";
-    
+
     # Application shortcuts
     zed = "DISPLAY=:0 zed";
     claude-cowork = "claude-desktop";
-    
+
     # Worktree navigation
     lw = "lazyworktree --output-selection /tmp/lwt_path </dev/tty >/dev/tty && cd \"$(cat /tmp/lwt_path)\"";
 
@@ -63,11 +68,11 @@
   # Shell initialization
   initContent = lib.mkOrder 1000 ''
     export ZSH_DISABLE_COMPFIX=true
-    
+
     # AWS CLI completion (after compinit)
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
-    
+
     # Zellij auto-start. Keep sessions separate by launcher and project.
     # Skip entirely on KiroCrew host (raw shell preferred there).
     if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" && "$HOST" != kirocrew* && -z "$KIROCREW_TERMINAL" ]]; then
@@ -92,29 +97,29 @@
 
     # Vi mode keybindings
     bindkey -M viins 'jj' vi-cmd-mode
-    
+
     # Bracketed paste (prevents keybindings triggering during paste)
     autoload -Uz bracketed-paste-magic
     zle -N bracketed-paste bracketed-paste-magic
-    
+
     # Better history search
     bindkey '^R' history-incremental-search-backward
     bindkey '^S' history-incremental-search-forward
-    
+
     # Directory navigation
     setopt AUTO_CD
     setopt AUTO_PUSHD
     setopt PUSHD_IGNORE_DUPS
-    
+
     # Multiline command support
     setopt INTERACTIVE_COMMENTS
     setopt PROMPT_SUBST
     export PS2="%F{yellow}∙%f "
-    
+
     # Completion improvements
     setopt COMPLETE_ALIASES
     setopt GLOB_COMPLETE
-    
+
     # History options
     setopt HIST_VERIFY
     setopt SHARE_HISTORY
@@ -173,10 +178,10 @@
 
     # NPM global packages
     NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
-    
+
     # Better less defaults
     LESS = "-R -S -M -I -x4";
-    
+
     # FZF configuration
     FZF_DEFAULT_OPTS = "--height 40% --layout=reverse --border --inline-info";
   };

@@ -42,7 +42,10 @@ let
   agentsDir = "${kirocrewHome}/.kiro/agents";
   crewHome = "${kirocrewHome}/.kiro/crew";
   kirocrewBin = "${kirocrewHome}/.kiro/crew-venv/bin/kirocrew";
-  kirocrewLibraryPath = lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib pkgs.zlib ];
+  kirocrewLibraryPath = lib.makeLibraryPath [
+    pkgs.stdenv.cc.cc.lib
+    pkgs.zlib
+  ];
 
   agentName = "assistant";
 
@@ -54,7 +57,6 @@ let
     (import ../kirocrew-agent-specs.nix { inherit lib; } {
       inherit kirocrewBin crewHome;
     }).assistant.${agentName};
-
 
   agentFile = pkgs.writeText "kirocrew-agent-${agentName}.json" (builtins.toJSON assistant);
 in

@@ -51,18 +51,16 @@ let
   ];
 
   installLines = lib.concatStringsSep "\n" (
-    map (
-      name: ''
-        # Replace the skill dir atomically-ish: stage from the store, then swap.
-        rm -rf "${skillsDir}/.${name}.incoming"
-        cp -r ${src}/${name} "${skillsDir}/.${name}.incoming"
-        rm -rf "${skillsDir}/${name}"
-        mv "${skillsDir}/.${name}.incoming" "${skillsDir}/${name}"
-        chown -R kirocrew:kirocrew "${skillsDir}/${name}"
-        find "${skillsDir}/${name}" -type d -exec chmod 0755 {} +
-        find "${skillsDir}/${name}" -type f -exec chmod 0644 {} +
-        echo "kirocrew-review-skills: installed ${name}"''
-    ) skills
+    map (name: ''
+      # Replace the skill dir atomically-ish: stage from the store, then swap.
+      rm -rf "${skillsDir}/.${name}.incoming"
+      cp -r ${src}/${name} "${skillsDir}/.${name}.incoming"
+      rm -rf "${skillsDir}/${name}"
+      mv "${skillsDir}/.${name}.incoming" "${skillsDir}/${name}"
+      chown -R kirocrew:kirocrew "${skillsDir}/${name}"
+      find "${skillsDir}/${name}" -type d -exec chmod 0755 {} +
+      find "${skillsDir}/${name}" -type f -exec chmod 0644 {} +
+      echo "kirocrew-review-skills: installed ${name}"'') skills
   );
 in
 {

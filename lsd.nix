@@ -2,7 +2,7 @@
 
 {
   enable = true;
-  
+
   # https://github.com/catppuccin/lsd/blob/main/themes/catppuccin-mocha/colors.yaml
   colors = {
     user = "#cba6f7";

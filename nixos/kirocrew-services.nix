@@ -136,14 +136,21 @@ let
   };
   pastaLinearApi = pkgs.writeShellApplication {
     name = "linear-api";
-    runtimeInputs = [ pkgs.bash pkgs.curl pkgs.python3 ];
+    runtimeInputs = [
+      pkgs.bash
+      pkgs.curl
+      pkgs.python3
+    ];
     text = ''exec ${pkgs.bash}/bin/bash ${./pasta-fetch-bin/linear-api} "$@"'';
   };
   # Directory placed on the fetch unit's PATH so pasta's binary auto-detection
   # (empty [binaries].slack_api/linear_api = "resolve from PATH") finds them.
   pastaFetchBin = pkgs.symlinkJoin {
     name = "pasta-fetch-bin";
-    paths = [ pastaSlackApi pastaLinearApi ];
+    paths = [
+      pastaSlackApi
+      pastaLinearApi
+    ];
   };
 
   # Secret-dependent setup for the external fetch, run as an ExecStartPre of the
@@ -154,7 +161,12 @@ let
   # Idempotent: safe to run on every timer firing.
   pastaFetchSetup = pkgs.writeShellApplication {
     name = "pasta-fetch-setup";
-    runtimeInputs = with pkgs; [ coreutils git glab jq ];
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+      glab
+      jq
+    ];
     text = ''
       set -euo pipefail
       secrets="${pastaHome}/secrets"
@@ -947,7 +959,10 @@ in
       "pasta-feeds-write-access.service"
       "sops-install-secrets.service"
     ];
-    wants = [ "network-online.target" "sops-install-secrets.service" ];
+    wants = [
+      "network-online.target"
+      "sops-install-secrets.service"
+    ];
     requires = [ "kirocrew-vault-clone.service" ];
     wantedBy = [ "multi-user.target" ];
 
