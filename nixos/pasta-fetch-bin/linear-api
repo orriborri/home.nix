@@ -3,15 +3,21 @@
 # Usage: linear-api '<graphql query>'
 # Example: linear-api '{ viewer { assignedIssues(filter: { state: { type: { in: ["started","unstarted"] } } }) { nodes { identifier title priority state { name } project { name } } } } }'
 
-TOKEN_FILE="$HOME/.config/linear-api/token.json"
-API_KEY=$(python3 -c "import json; print(json.load(open('$TOKEN_FILE'))['api_key'])")
+set -euo pipefail
 
-if [ -z "$1" ]; then
+TOKEN_FILE="$HOME/.config/linear-api/token.json"
+
+if [ -z "${1:-}" ]; then
   echo "Usage: linear-api '<graphql query>'" >&2
   exit 1
 fi
 
+API_KEY=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["api_key"])' "$TOKEN_FILE")
+BODY=$(python3 -c 'import json, sys; print(json.dumps({"query": sys.argv[1].strip()}))' "$1")
+
+# The key goes to curl as a header file on a pipe, not as an argument, so it
+# never shows up in the process list.
 curl -s -X POST https://api.linear.app/graphql \
-  -H "Authorization: $API_KEY" \
+  -H @<(printf 'Authorization: %s\n' "$API_KEY") \
   -H "Content-Type: application/json" \
-  -d "{\"query\": $(echo "$1" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")}"
+  -d "$BODY"
