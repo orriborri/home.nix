@@ -24,10 +24,6 @@
       path = "%r/secrets/git-ssh-key";
     };
 
-    secrets.slack-client-secret = {
-      path = "%r/secrets/slack-client-secret";
-    };
-
     secrets.slack-bot-token = {
       path = "%r/secrets/slack-bot-token";
     };

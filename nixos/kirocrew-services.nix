@@ -131,7 +131,6 @@ let
     name = "slack-api";
     runtimeInputs = [ pkgs.python3 ];
     text = ''
-      export SLACK_CLIENT_SECRET_FILE=/var/lib/pasta/secrets/slack-client-secret
       exec ${pkgs.python3}/bin/python3 ${./pasta-fetch-bin/slack-api} "$@"
     '';
   };
