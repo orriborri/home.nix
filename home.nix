@@ -7,13 +7,9 @@
 }:
 
 let
-  # System detection — acceptable to use builtins.pathExists here because
-  # standalone Home Manager always evaluates on the target host itself.
-  # For NixOS-composed modules (packages/kiro.nix) use the
-  # explicit kirocrew.role option instead, since those may be evaluated on
-  # a different machine during cross-deploy.
-  isSilverblue = builtins.pathExists /run/ostree-booted;
-  isNixOS = builtins.pathExists /etc/NIXOS;
+  # Platform detection only. Host facts like "is this NixOS" cannot be read
+  # from the filesystem: pure flake eval makes builtins.pathExists on host
+  # paths always false. Set those per profile in flake.nix instead.
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
 in
@@ -180,8 +176,9 @@ in
     };
   };
 
-  # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS
-  targets.genericLinux.enable = isLinux && !isNixOS;
+  # Enable generic Linux integration (XDG_DATA_DIRS, etc.) on non-NixOS.
+  # NixOS profiles override this to false (flake.nix kirocrewModules).
+  targets.genericLinux.enable = lib.mkDefault isLinux;
 
   # Flat modules imported directly (FruitieX-style layout).
   # Platform-/host-specific modules (kiro-ide, cosmic) are added per-profile

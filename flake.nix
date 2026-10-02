@@ -111,6 +111,8 @@
         ./pasta-service.nix
         sops-nix.homeManagerModules.sops
         ./sops.nix
+        # These outputs run home-manager under NixOS, not on a generic distro.
+        { targets.genericLinux.enable = false; }
       ];
 
       # Pinned KiroCrew release, shared by the workstation and headless outputs
