@@ -159,6 +159,16 @@ let
   # CLIs read, (2) logs glab in with the token for MR fetch, and (3) clones or
   # updates the git repos over HTTPS using the same token (no SSH key needed).
   # Idempotent: safe to run on every timer firing.
+  # GIT_ASKPASS helper for pasta's GitLab clones: git asks it for the username
+  # and password, so the token never appears in a URL, argv or .git/config.
+  pastaGitAskpass = pkgs.writeShellScript "pasta-git-askpass" ''
+    case "$1" in
+      *Username*) echo oauth2 ;;
+      *Password*) cat ${pastaHome}/secrets/gitlab-token ;;
+      *) exit 1 ;;
+    esac
+  '';
+
   pastaFetchSetup = pkgs.writeShellApplication {
     name = "pasta-fetch-setup";
     runtimeInputs = with pkgs; [
@@ -173,7 +183,7 @@ let
       home="${pastaHome}"
 
       # Ignore any user/system git url-rewrites (e.g. https->ssh insteadOf) and
-      # never prompt for credentials, so the tokenized HTTPS clones can't be
+      # never prompt for credentials, so the token-authenticated HTTPS clones can't be
       # redirected to an SSH transport needing a key. Mirrors pastaSourceBuild.
       export GIT_CONFIG_GLOBAL=/dev/null
       export GIT_CONFIG_NOSYSTEM=1
@@ -208,15 +218,15 @@ let
         echo "warn: glab auth login failed (MR fetch may be degraded)" >&2
 
       # ── git repos: clone/update over HTTPS with the token ───────────────
-      gl_token="$(cat "$secrets/gitlab-token")"
-      auth="https://oauth2:$gl_token@gitlab.com"
+      # The token reaches git through GIT_ASKPASS, never through the URL.
+      export GIT_ASKPASS=${pastaGitAskpass}
       install -d -m 755 "$home/repos"
       clone_or_pull() {
         # $1 = local dir name, $2 = repo path on gitlab.com
         # Clone with history depth so pasta's `git log --since` fetcher sees more
         # than the latest commit (a --depth 1 clone yields only HEAD, starving
         # the git source). 500 commits covers the fetch window cheaply.
-        local dir="$home/repos/$1" url="$auth/$2.git"
+        local dir="$home/repos/$1" url="https://gitlab.com/$2.git"
         if [ -d "$dir/.git" ]; then
           git -C "$dir" remote set-url origin "$url"
           git -C "$dir" fetch --depth 500 origin HEAD && \
@@ -225,8 +235,6 @@ let
         else
           git clone --depth 500 "$url" "$dir" || echo "warn: clone $1 failed" >&2
         fi
-        # Scrub the tokenized URL from git config so the secret isn't persisted.
-        git -C "$dir" remote set-url origin "https://gitlab.com/$2.git" 2>/dev/null || true
       }
       clone_or_pull wiki          "readpeak.wiki"
       clone_or_pull eks-workloads "readpeak/eks-workloads"
