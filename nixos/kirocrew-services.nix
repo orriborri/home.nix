@@ -885,21 +885,17 @@ in
       ProtectHome = "tmpfs";
       # '-': a box without the legacy tree must still start the gateway.
       BindReadOnlyPaths = [ "-/home/orre/.kiro" ];
-      # MountFlags=shared: PrivateTmp gives this unit a private mount namespace
-      # in which systemd leaves its mounts (and the ReadOnlyPaths submounts under
-      # ${vaultCheckout} — .git/.obsidian/.lancedb/.semantic_search) with SLAVE
-      # (master:) propagation. KiroCrew's strict sandbox builds each agent's
-      # "private memory view" with a NON-recursive bind mount of every view root
-      # (sandbox.py `_mount_or_die(_root, _lower, MS_BIND, "pinning private memory
-      # view source")`). The first view root is the vault, which carries those
-      # slave child mounts, and a non-recursive bind of a slave subtree that has
-      # child mounts returns EINVAL — so the agent dies at spawn with
+      # Mount propagation: MountFlags is left unset. KiroCrew's strict sandbox
+      # builds each agent's "private memory view" with a NON-recursive bind of
+      # every view root (sandbox.py `_mount_or_die(_root, _lower, MS_BIND,
+      # "pinning private memory view source")`); the first root is the vault,
+      # which carries the ReadOnlyPaths submounts. That bind once failed with
       # `AcpRuntimeDead: sandbox: BLOCKED -- pinning private memory view source
-      # failed: errno 22`. Forcing shared propagation matches the host namespace,
-      # where the same binds succeed, and keeps PrivateTmp/ProtectHome/
-      # ProtectSystem and every ReadOnlyPaths seal intact. The real isolation
-      # remains the agent's own user+mount-namespace + seccomp sandbox.
-      MountFlags = "shared";
+      # failed: errno 22`, and MountFlags=shared was added as the fix. It was
+      # not the fix: with namespacing options on, systemd applies slave and
+      # then shared propagation whether MountFlags is unset or "shared"
+      # (systemd.exec(5)), and both render an identical mount table. If the
+      # EINVAL returns, look elsewhere; do not set slave or private here.
       RestrictNamespaces = false; # KiroCrew strict sandbox needs namespaces
       MemoryDenyWriteExecute = false; # Node.js JIT needs W+X
 
