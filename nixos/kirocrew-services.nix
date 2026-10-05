@@ -883,7 +883,8 @@ in
       # at its original path through a read-only bind. ACLs from the prerequisite
       # service provide file-level read permission without granting writes.
       ProtectHome = "tmpfs";
-      BindReadOnlyPaths = [ "/home/orre/.kiro" ];
+      # '-': a box without the legacy tree must still start the gateway.
+      BindReadOnlyPaths = [ "-/home/orre/.kiro" ];
       # MountFlags=shared: PrivateTmp gives this unit a private mount namespace
       # in which systemd leaves its mounts (and the ReadOnlyPaths submounts under
       # ${vaultCheckout} — .git/.obsidian/.lancedb/.semantic_search) with SLAVE
