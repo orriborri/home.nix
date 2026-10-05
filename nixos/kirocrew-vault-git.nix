@@ -16,6 +16,7 @@
 # token is fed to git via GIT_ASKPASS at runtime so it never lands in
 # .git/config on disk. The git-crypt key (also a sops secret) unlocks content.
 let
+  hardening = import ./kirocrew-hardening.nix;
   vaultDir = "/var/lib/vault";
   keyDir = "/var/lib/kirocrew/secrets";
   tokenFile = "${keyDir}/vault-git-token";
@@ -159,7 +160,7 @@ in
     wants = [ "network-online.target" ];
     before = [ "kirocrew-gateway.service" ];
     wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       RemainAfterExit = true;
       User = "kirocrew";
@@ -170,10 +171,6 @@ in
         vaultDir
         "/var/lib/kirocrew"
       ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
     };
   };
 
@@ -181,7 +178,7 @@ in
     description = "Commit, reconcile, and push KiroCrew vault changes (retryable)";
     after = [ "kirocrew-vault-clone.service" ];
     requires = [ "kirocrew-vault-clone.service" ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "kirocrew";
       Group = "kirocrew";
@@ -191,10 +188,6 @@ in
         vaultDir
         "/var/lib/kirocrew"
       ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
     };
   };
 

@@ -7,6 +7,7 @@
 # NixOS module: protected repository mirrors, agent-owned working trees, and
 # automatic Code Review Graph maintenance.
 let
+  hardening = import ./kirocrew-hardening.nix;
   codeDir = "/var/lib/code";
   mirrorDir = "/var/lib/kirocrew-repo-mirrors";
   graphStateDir = "/var/lib/code-review-graph";
@@ -460,19 +461,14 @@ in
     wants = [ "network-online.target" ];
     onSuccess = [ "repo-sync.service" ];
     onFailure = [ "repo-sync.service" ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "orre";
       Group = "code-writers";
       UMask = "0027";
       ExecStart = "${repoFetch}/bin/kirocrew-repo-fetch";
       ReadWritePaths = [ mirrorDir ];
-      ProtectSystem = "strict";
       ProtectHome = "read-only";
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
       RestrictAddressFamilies = [
         "AF_UNIX"
         "AF_INET"
@@ -504,7 +500,7 @@ in
       "code-review-graph-sync.service"
       "kirocrew-skill-sync.service"
     ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "kirocrew";
       Group = "code-writers";
@@ -512,12 +508,6 @@ in
       ExecStart = "${repoCheckout}/bin/kirocrew-repo-checkout-sync";
       ReadOnlyPaths = [ mirrorDir ];
       ReadWritePaths = [ codeDir ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
       RestrictAddressFamilies = [ "AF_UNIX" ];
     };
   };
@@ -530,7 +520,7 @@ in
       "code-review-graph-sync.service"
       "code-review-graph-daemon.service"
     ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       RemainAfterExit = true;
       User = "kirocrew";
@@ -539,12 +529,6 @@ in
       ExecStart = "${crgInstall}/bin/kirocrew-code-review-graph-install";
       TimeoutStartSec = "10min";
       ReadWritePaths = [ "/var/lib/kirocrew" ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
     };
   };
 
@@ -555,7 +539,7 @@ in
       "code-review-graph-install.service"
     ];
     requires = [ "code-review-graph-install.service" ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "kirocrew";
       Group = "code-writers";
@@ -567,12 +551,6 @@ in
         graphStateDir
         "/var/lib/kirocrew/.code-review-graph"
       ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
     };
   };
 
@@ -585,7 +563,7 @@ in
     ];
     requires = [ "code-review-graph-install.service" ];
     wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "simple";
       User = "kirocrew";
       Group = "code-writers";
@@ -600,12 +578,6 @@ in
         graphStateDir
         "/var/lib/kirocrew/.code-review-graph"
       ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
     };
   };
 
@@ -615,7 +587,7 @@ in
     description = "Sync agent skills from managed checkouts into KiroCrew";
     after = [ "repo-sync.service" ];
     wantedBy = [ ]; # triggered by repo-sync success or failure
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "kirocrew";
       Group = "kirocrew";
@@ -638,12 +610,6 @@ in
       );
       ReadOnlyPaths = [ codeDir ];
       ReadWritePaths = [ "/var/lib/kirocrew" ];
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      NoNewPrivileges = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
     };
   };
 }
