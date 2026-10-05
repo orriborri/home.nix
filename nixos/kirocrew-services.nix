@@ -753,9 +753,9 @@ in
       "kirocrew-legacy-kiro-read-access.service"
       "kirocrew-mcp-config.service"
       "kirocrew-vault-clone.service"
-      # Ordering only (no requires): the cfm-tips EnvironmentFile is rendered by
-      # sops-install-secrets. Non-fatal — the '-' EnvironmentFile above and the
-      # server's own disabled-until-creds behaviour tolerate its absence.
+      # Ordering only (no requires): the MCP launchers read secret files that
+      # sops-install-secrets writes. Non-fatal: the launchers start their
+      # servers without credentials when the files are absent.
       "sops-install-secrets.service"
     ];
     wants = [ "network-online.target" ];
@@ -857,6 +857,15 @@ in
         # phone-home) is deliberately NOT set and remains off.
         "-${kirocrewSourceBin} config set --local telemetry.enabled true"
       ];
+
+      # Memory: the gateway has peaked above 13G under concurrent member load
+      # and crash-looped when the box ran out. Throttle and reclaim above 70%
+      # of RAM, hard-cap at 85% so the rest of the host survives, and let the
+      # OOM killer take a single agent process without stopping the gateway.
+      # Percentages, because the instance type has varied (16G and 30G).
+      MemoryHigh = "70%";
+      MemoryMax = "85%";
+      OOMPolicy = "continue";
 
       # ── systemd hardening ──────────────────────────────────────────────
       # NoNewPrivileges MUST stay off: KiroCrew's namespace sandbox runs the agent
