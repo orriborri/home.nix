@@ -30,15 +30,6 @@ in
   nixpkgs = {
     config = {
       allowUnfree = true;
-      allowUnfreePredicate =
-        pkg:
-        builtins.elem (lib.getName pkg) [
-          "obsidian"
-          "kiro"
-          "kiro-cli"
-          "kiro-cli-unwrapped"
-          "claude-code"
-        ];
       permittedInsecurePackages = [ ];
     };
     overlays = [
