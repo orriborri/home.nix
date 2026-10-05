@@ -112,12 +112,17 @@
       decorate = "short";
     };
 
+    # Push over SSH, fetch public repos over HTTPS. Only the private readpeak
+    # group is fetched over SSH too, since HTTPS would prompt for credentials.
     url = {
       "git@github.com:" = {
-        insteadOf = "https://github.com/";
+        pushInsteadOf = "https://github.com/";
       };
       "git@gitlab.com:" = {
-        insteadOf = "https://gitlab.com/";
+        pushInsteadOf = "https://gitlab.com/";
+      };
+      "git@gitlab.com:readpeak/" = {
+        insteadOf = "https://gitlab.com/readpeak/";
       };
     };
 
