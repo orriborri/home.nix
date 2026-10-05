@@ -15,13 +15,19 @@
 # Authentication is intentionally not provisioned by Nix. Complete `codex
 # login --device-auth` as the kirocrew user once, so the credential remains
 # outside the repository and the Nix store.
+let
+  hardening = import ./kirocrew-hardening.nix;
+in
 {
   systemd.services.kirocrew-codex-app-server = {
     description = "Codex app-server sidecar for KiroCrew";
     wantedBy = [ "multi-user.target" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    serviceConfig = {
+    # Same sandbox as the gateway: the shared hardening (IMDS deny included),
+    # the agent's work trees writable, and the MCP secrets hidden, since Codex
+    # uses none of them.
+    serviceConfig = hardening // {
       Type = "simple";
       User = "kirocrew";
       Group = "kirocrew";
@@ -30,9 +36,15 @@
       Restart = "on-failure";
       RestartSec = 5;
       ProtectHome = "tmpfs";
-      ReadWritePaths = [ "/var/lib/kirocrew/.codex" ];
-      PrivateTmp = true;
-      NoNewPrivileges = true;
+      # Codex sandboxes the commands it runs with bubblewrap, which needs user
+      # namespaces.
+      RestrictNamespaces = false;
+      ReadWritePaths = [
+        "/var/lib/kirocrew"
+        "-/var/lib/code"
+        "-/var/lib/vault"
+      ];
+      InaccessiblePaths = [ "-/var/lib/kirocrew/secrets" ];
       PrivateDevices = true;
       Environment = [
         "HOME=/var/lib/kirocrew"
