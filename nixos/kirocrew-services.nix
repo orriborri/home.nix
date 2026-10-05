@@ -870,6 +870,15 @@ in
       # isolation layer; this only removes the redundant systemd flag that blocks
       # it. RestrictNamespaces is already false for the same reason.
       NoNewPrivileges = false;
+      # With NoNewPrivileges off, take setuid escalation away directly: an
+      # empty bounding set means setuid and file-capability binaries gain
+      # nothing on execve, and /run/wrappers (sudo, su, newuidmap, ...) is
+      # hidden. The agent sandbox is unaffected: it writes its own uid map
+      # rather than calling newuidmap, and a new user namespace starts with a
+      # full bounding set (verified with the sandbox's unshare/bind/remount-ro
+      # sequence under these two settings).
+      CapabilityBoundingSet = "";
+      InaccessiblePaths = [ "-/run/wrappers" ];
       # Hide all operator homes, then selectively expose the legacy Kiro tree
       # at its original path through a read-only bind. ACLs from the prerequisite
       # service provide file-level read permission without granting writes.
