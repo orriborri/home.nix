@@ -911,7 +911,6 @@ in
         kirocrewHome
         codeCheckout
         vaultCheckout
-        "/tmp"
       ];
 
       # Keep git internals and index/state read-only to the agent even though
@@ -935,7 +934,9 @@ in
         "KIROCREW_HOME=${kirocrewHome}/.kiro/crew"
         "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
         "HOME=${kirocrewHome}"
-        "TMPDIR=/tmp/kirocrew"
+        # PrivateTmp gives the unit its own empty /tmp, so the host's
+        # /tmp/kirocrew is not visible here; use the private /tmp directly.
+        "TMPDIR=/tmp"
         "PATH=${kirocrewHome}/.npm-global/bin:${kirocrewHome}/bin:${kirocrewHome}/.local/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
         # Pin npm/npx entirely inside the kirocrew home. The agent runs MCP
@@ -1252,12 +1253,11 @@ in
     };
   };
 
-  # ── Ensure kirocrew tmp + socket-bridge directories ────────────────────────
+  # ── Ensure kirocrew socket-bridge directories ──────────────────────────────
   # /run/kirocrew-agent: where sshd binds the operator's forwarded socket
   #   (must be writable by orre so the -R forward can create the socket).
   # /run/kirocrew: where the relay exposes the socket to the gateway.
   systemd.tmpfiles.rules = [
-    "d /tmp/kirocrew 0700 kirocrew kirocrew -"
     "d /run/kirocrew-agent 0750 orre kirocrew -"
     "d /run/kirocrew 0750 kirocrew kirocrew -"
     # Pasta build/runtime dirs (pasta user owns its home tree). The build
