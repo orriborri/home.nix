@@ -12,6 +12,7 @@
 # pasta-service.nix) on headless/EC2 hosts. The Home Manager modules remain
 # active on workstation profiles where everything runs under the operator user.
 let
+  hardening = import ./kirocrew-hardening.nix;
   kirocrewHome = "/var/lib/kirocrew";
   pastaHome = "/var/lib/pasta";
 
@@ -765,7 +766,7 @@ in
     ];
     wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "simple";
       User = "kirocrew";
       Group = "kirocrew";
@@ -869,13 +870,11 @@ in
       # isolation layer; this only removes the redundant systemd flag that blocks
       # it. RestrictNamespaces is already false for the same reason.
       NoNewPrivileges = false;
-      ProtectSystem = "strict";
       # Hide all operator homes, then selectively expose the legacy Kiro tree
       # at its original path through a read-only bind. ACLs from the prerequisite
       # service provide file-level read permission without granting writes.
       ProtectHome = "tmpfs";
       BindReadOnlyPaths = [ "/home/orre/.kiro" ];
-      PrivateTmp = true;
       # MountFlags=shared: PrivateTmp gives this unit a private mount namespace
       # in which systemd leaves its mounts (and the ReadOnlyPaths submounts under
       # ${vaultCheckout} — .git/.obsidian/.lancedb/.semantic_search) with SLAVE
@@ -891,12 +890,7 @@ in
       # ProtectSystem and every ReadOnlyPaths seal intact. The real isolation
       # remains the agent's own user+mount-namespace + seccomp sandbox.
       MountFlags = "shared";
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
       RestrictNamespaces = false; # KiroCrew strict sandbox needs namespaces
-      LockPersonality = true;
       MemoryDenyWriteExecute = false; # Node.js JIT needs W+X
 
       # Repositories and the vault are both writable agent workspaces now. The
@@ -923,9 +917,6 @@ in
         # exposed read-only into the gateway's mount namespace.
         "-${pastaDataDir}"
       ];
-
-      # Block IMDS access from agents.
-      IPAddressDeny = [ "169.254.169.254/32" ];
 
       # No EnvironmentFile: MCP credentials are loaded by their launchers
       # (cfmTipsMcpLauncher, slackMcpLauncher), not held by the gateway.
@@ -981,7 +972,7 @@ in
     requires = [ "kirocrew-vault-clone.service" ];
     wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "simple";
       User = "pasta";
       Group = "pasta";
@@ -996,16 +987,6 @@ in
       WorkingDirectory = pastaHome;
 
       # ── systemd hardening ──────────────────────────────────────────────
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
-      RestrictNamespaces = true;
-      LockPersonality = true;
       MemoryDenyWriteExecute = false; # Pasta may use JIT for search
 
       # Pasta reads the vault, writes only its own index state — plus the
@@ -1024,9 +1005,6 @@ in
         pastaHome
         "-${vaultCheckout}/.feeds"
       ];
-
-      # Block IMDS.
-      IPAddressDeny = [ "169.254.169.254/32" ];
 
       Environment = [
         "HOME=${pastaHome}"
@@ -1081,7 +1059,7 @@ in
     # the pinned ${pastaHome}/.pasta/config.toml has been written before we run.
     requires = [ "kirocrew-vault-clone.service" ];
 
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "pasta";
       Group = "pasta";
@@ -1095,24 +1073,11 @@ in
       WorkingDirectory = pastaHome;
 
       # ── systemd hardening (mirrors pasta-daemon) ───────────────────────
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
-      RestrictNamespaces = true;
-      LockPersonality = true;
       MemoryDenyWriteExecute = false; # kb may use JIT for search/embedding
 
       # Reads the vault, writes only its own index state.
       ReadOnlyPaths = [ vaultCheckout ];
       ReadWritePaths = [ pastaHome ];
-
-      # Block IMDS.
-      IPAddressDeny = [ "169.254.169.254/32" ];
 
       Environment = [
         "HOME=${pastaHome}"
@@ -1164,7 +1129,7 @@ in
     # The kb binary + pinned config are produced by pasta-daemon's ExecStartPre.
     requires = [ "pasta-daemon.service" ];
 
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "oneshot";
       User = "pasta";
       Group = "pasta";
@@ -1178,16 +1143,6 @@ in
       WorkingDirectory = pastaHome;
 
       # ── systemd hardening (mirrors pasta-vault-index) ──────────────────
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      PrivateTmp = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
-      RestrictNamespaces = true;
-      LockPersonality = true;
       MemoryDenyWriteExecute = false;
 
       # Writes its own index state + repo clones + token files, all under
@@ -1195,7 +1150,6 @@ in
       ReadWritePaths = [ pastaHome ];
 
       # External fetch must reach the internet, but never IMDS.
-      IPAddressDeny = [ "169.254.169.254/32" ];
 
       Environment = [
         "HOME=${pastaHome}"

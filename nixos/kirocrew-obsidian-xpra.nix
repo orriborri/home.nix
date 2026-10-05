@@ -31,6 +31,7 @@
 #   ssh -L 14500:127.0.0.1:14500 <kirocrew-ssm-proxy>
 #   then open https://127.0.0.1:14500/ in a browser.
 let
+  hardening = import ./kirocrew-hardening.nix;
   vaultDir = "/var/lib/vault";
   stateDir = "/var/lib/obsidian-web";
   bindHost = "127.0.0.1";
@@ -305,7 +306,7 @@ in
     ];
     wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = {
+    serviceConfig = hardening // {
       Type = "simple";
       User = "obsidian-web";
       Group = "obsidian-web";
@@ -322,19 +323,10 @@ in
       TimeoutStopSec = 20;
 
       # ── systemd hardening (mirrors kirocrew-services.nix) ──────────────
-      NoNewPrivileges = true;
-      ProtectSystem = "strict";
       # Hide operator/other homes; the service keeps its own StateDirectory.
-      ProtectHome = true;
-      PrivateTmp = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
       # Xpra/Obsidian (Electron) need a user namespace for their own sandbox;
       # keep namespaces available but drop other privilege vectors.
       RestrictNamespaces = false;
-      LockPersonality = true;
       MemoryDenyWriteExecute = false; # Electron/Node JIT needs W+X
 
       # Writable: only note content and the service's private state. Git
@@ -350,7 +342,6 @@ in
       ];
 
       # No IMDS access from the display process.
-      IPAddressDeny = [ "169.254.169.254/32" ];
       # Loopback listener + local sockets only.
       RestrictAddressFamilies = [
         "AF_UNIX"
