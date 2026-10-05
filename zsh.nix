@@ -15,7 +15,7 @@
   # Shell options
   autosuggestion.enable = true;
   enableVteIntegration = true;
-  completionInit = "autoload -U compinit && compinit -u";
+  completionInit = "autoload -U compinit && compinit";
 
   # History configuration
   history = {
@@ -67,8 +67,6 @@
 
   # Shell initialization
   initContent = lib.mkOrder 1000 ''
-    export ZSH_DISABLE_COMPFIX=true
-
     # AWS CLI completion (after compinit)
     autoload -Uz bashcompinit && bashcompinit
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
