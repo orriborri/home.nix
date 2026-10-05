@@ -84,8 +84,10 @@
   '';
 
   # ── LD_LIBRARY_PATH for libstdc++ (system-wide shellInit) ──────────────────
+  # orre's ~/.local/bin is on orre's PATH via home.sessionPath (home.nix). It
+  # must not be added here: shellInit runs for every user, root included, and
+  # would put an orre-writable directory ahead of system binaries.
   environment.shellInit = ''
-    export PATH="/home/orre/.local/bin:$PATH"
     export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:''${LD_LIBRARY_PATH:-}"
   '';
 }
