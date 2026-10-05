@@ -82,9 +82,6 @@
 
     # Node.js configuration
     NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
-
-    # Python configuration
-    PYTHONPATH = "$HOME/.local/lib/python3.11/site-packages:$PYTHONPATH";
   };
 
   # Install Python tools via uv (isolated venvs, managed by Home Manager activation)
