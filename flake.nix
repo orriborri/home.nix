@@ -627,6 +627,32 @@
                 touch $out
               '';
 
+          # C17: unit PATHs follow home.username instead of hardcoding orre.
+          unit-path-follows-username =
+            let
+              other = self.homeConfigurations.orre.extendModules {
+                modules = [ { home.username = lib.mkForce "someone"; } ];
+              };
+              svc = other.config.systemd.user.services;
+              envText = lib.concatStringsSep "\n" (
+                svc.kirocrew.Service.Environment ++ svc.pasta.Service.Environment
+              );
+            in
+            pkgs.runCommand "check-unit-path-follows-username"
+              {
+                inherit envText;
+                passAsFile = [ "envText" ];
+              }
+              ''
+                if grep -n 'per-user/orre' "$envTextPath" >&2; then
+                  echo "a unit PATH hardcodes per-user/orre" >&2
+                  exit 1
+                fi
+                [ "$(grep -c 'per-user/someone/bin' "$envTextPath")" = 2 ] \
+                  || { echo "both units should use per-user/<home.username>/bin" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

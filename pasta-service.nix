@@ -111,7 +111,7 @@ in
         RestartSec = 10;
         WorkingDirectory = pastaRoot;
         Environment = [
-          "PATH=%h/.local/bin:/etc/profiles/per-user/orre/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+          "PATH=%h/.local/bin:/etc/profiles/per-user/${config.home.username}/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
           "PROTOC=${pkgs.protobuf}/bin/protoc"
           "PROTOC_INCLUDE=${pkgs.protobuf}/include"
           "OPENSSL_DIR=${pkgs.openssl.dev}"
