@@ -162,7 +162,7 @@ in
         "XDG_RUNTIME_DIR=%t"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus"
         "SSH_AUTH_SOCK=%h/.1password/agent.sock"
-        "PATH=%h/.local/bin:/etc/profiles/per-user/orre/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+        "PATH=%h/.local/bin:/etc/profiles/per-user/orre/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
         "KIROCREW_BIND=127.0.0.1"
       ];

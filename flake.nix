@@ -564,6 +564,26 @@
                 touch $out
               '';
 
+          # S15: the gateway can find the host's systemd-run, which it needs to
+          # enforce agent cgroup limits.
+          kirocrew-gateway-path-has-systemd-run =
+            let
+              env = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service.Environment;
+            in
+            pkgs.runCommand "check-kirocrew-gateway-path-has-systemd-run"
+              {
+                rendered = lib.concatStringsSep "\n" env;
+                passAsFile = [ "rendered" ];
+              }
+              ''
+                path=$(grep '^PATH=' "$renderedPath" | head -1)
+                case ":''${path#PATH=}:" in
+                  *:/usr/bin:*) ;;
+                  *) echo "gateway PATH lacks /usr/bin (systemd-run): $path" >&2; exit 1 ;;
+                esac
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
