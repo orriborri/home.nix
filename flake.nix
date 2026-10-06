@@ -346,6 +346,38 @@
               touch $out
             '';
 
+          # O6: when `git fetch` fails the timer run exits non-zero even though a
+          # release is installed, so a stuck tag discovery shows up as a failed
+          # unit instead of silently succeeding every day.
+          kirocrew-updater-fetch-failure =
+            let
+              updater = pkgs.callPackage ./kirocrew-source-build.nix { } { };
+            in
+            pkgs.runCommand "check-kirocrew-updater-fetch-failure"
+              {
+                nativeBuildInputs = [ pkgs.git ];
+              }
+              ''
+                export HOME=$TMPDIR/home
+                root=$HOME/.local/share/kirocrew-source
+                mkdir -p "$root/current/.venv/bin" "$HOME/.local/bin"
+                printf '#!/bin/sh\n' > "$root/current/.venv/bin/kirocrew"
+                chmod +x "$root/current/.venv/bin/kirocrew"
+                git init -q "$root/repository"
+                git -C "$root/repository" remote add origin "$TMPDIR/does-not-exist"
+                if ${updater}/bin/kirocrew-source-update --restart 2> "$TMPDIR/err"; then
+                  echo "timer run exited 0 although git fetch failed" >&2
+                  exit 1
+                fi
+                # ExecStartPre run (no argument): a transient fetch failure must
+                # not keep the gateway from starting.
+                ${updater}/bin/kirocrew-source-update 2> /dev/null \
+                  || { echo "start-time run failed on a fetch error with a release installed" >&2; exit 1; }
+                grep -q 'could not refresh KiroCrew tags' "$TMPDIR/err" \
+                  || { echo "no fetch-failure message; got:" >&2; cat "$TMPDIR/err" >&2; exit 1; }
+                touch $out
+              '';
+
           # S11: the OpenVPN AWS patch is vendored, not fetched from a moving
           # branch URL.
           aws-vpn-patch-vendored = pkgs.runCommand "check-aws-vpn-patch-vendored" { } ''

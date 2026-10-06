@@ -84,9 +84,15 @@ pkgs.writeShellApplication {
         https://github.com/kirodotdev/KiroCrew.git "$repository"
     fi
 
+    # A failed fetch with a release installed must not stop the gateway from
+    # starting (ExecStartPre runs this without arguments), but the timer run
+    # (`--restart`) fails loudly: exiting 0 there would hide a stuck tag
+    # discovery (for example an upstream tag that moved) behind a unit that looks
+    # healthy every day.
     if ! git -C "$repository" fetch --prune --tags origin; then
       if [ -x "$current/.venv/bin/kirocrew" ]; then
-        echo "warning: could not refresh KiroCrew tags; keeping the current release" >&2
+        echo "warning: could not refresh KiroCrew tags; the current release keeps running" >&2
+        [ "$restartMode" = "--restart" ] && exit 1
         exit 0
       fi
       echo "error: could not fetch KiroCrew and no installed source release exists" >&2
