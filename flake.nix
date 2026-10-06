@@ -811,6 +811,23 @@
                 touch $out
               '';
 
+          # T12: nothing reads KIROCREW_ROLE from the session environment; the
+          # activation scripts take config.kirocrew.role directly.
+          no-role-session-variable =
+            pkgs.runCommand "check-no-role-session-variable"
+              {
+                present = lib.boolToString (
+                  self.homeConfigurations.orre.config.home.sessionVariables ? KIROCREW_ROLE
+                );
+              }
+              ''
+                [ "$present" = false ] || {
+                  echo "home.sessionVariables.KIROCREW_ROLE still exists" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
