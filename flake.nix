@@ -331,6 +331,23 @@
                 touch $out
               '';
 
+          # S10: the pinned KiroCrew tag is also pinned to a commit, and the
+          # builder refuses a tag that no longer points at it.
+          kirocrew-source-pin =
+            let
+              updater = pkgs.callPackage ./kirocrew-source-build.nix { } {
+                pinnedSourceTag = import ./kirocrew-source-tag.nix;
+              };
+            in
+            pkgs.runCommand "check-kirocrew-source-pin" { } ''
+              script=${updater}/bin/kirocrew-source-update
+              grep -q 'c67c5060a82faf6e5e1bc06077122c473d4ca456' "$script" \
+                || { echo "updater does not embed the pinned commit" >&2; exit 1; }
+              grep -q 'does not match pinned commit' "$script" \
+                || { echo "updater does not verify the tag against the pinned commit" >&2; exit 1; }
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

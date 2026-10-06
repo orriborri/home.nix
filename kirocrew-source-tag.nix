@@ -13,9 +13,10 @@
 #   - nixos/kirocrew-services.nix → pinnedSourceTag for the headless system
 #                            service's ExecStartPre builder
 #
-# Must be an immutable tag that exists upstream (the builder fails fast if it
-# does not). Verify with:
-#   git ls-remote --tags https://github.com/kirodotdev/KiroCrew.git
+# Must be a tag that exists upstream (the builder fails fast if it does not).
+# Tags are mutable, so the commit it must resolve to is pinned in
+# ./kirocrew-source-revs.nix; bump both files together. Verify with:
+#   git ls-remote https://github.com/kirodotdev/KiroCrew.git 'refs/tags/<tag>^{}'
 #
 # Pinned to v0.7.2, the newest stable release (moved off the
 # v0.7.0-insider.6 pre-release, originally picked for the Claude Code and

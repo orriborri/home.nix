@@ -20,6 +20,7 @@
 #
 # Arguments:
 #   pinnedSourceTag : "" to follow the newest stable tag, or "vX.Y.Z" to pin.
+#                     A pinned tag must have its commit in kirocrew-source-revs.nix.
 #   restartUnit     : systemd unit to try-restart when `--restart` is passed
 #                     and a new release was built. Empty disables restart.
 #   restartScope    : "--user" for a user unit, "" (default) for system.
@@ -32,6 +33,13 @@
 
 let
   kirocrewTzdataVersion = "2026.3";
+  pinnedRevs = import ./kirocrew-source-revs.nix;
+  pinnedRev =
+    if pinnedSourceTag == "" then
+      ""
+    else
+      pinnedRevs.${pinnedSourceTag}
+        or (throw "kirocrew-source-revs.nix has no commit for pinned tag ${pinnedSourceTag}");
 in
 pkgs.writeShellApplication {
   name = "kirocrew-source-update";
@@ -53,6 +61,7 @@ pkgs.writeShellApplication {
     releases="$sourceRoot/releases"
     current="$sourceRoot/current"
     pinnedTag=${lib.escapeShellArg pinnedSourceTag}
+    pinnedRev=${lib.escapeShellArg pinnedRev}
     restartUnit=${lib.escapeShellArg restartUnit}
     restartScope=${lib.escapeShellArg restartScope}
     restartMode="''${1-}"
@@ -94,6 +103,11 @@ pkgs.writeShellApplication {
         echo "error: configured KiroCrew source tag $selectedTag does not exist" >&2
         exit 1
       fi
+      actualRev="$(git -C "$repository" rev-parse "refs/tags/$selectedTag^{commit}")"
+      if [ "$actualRev" != "$pinnedRev" ]; then
+        echo "error: KiroCrew tag $selectedTag is $actualRev, which does not match pinned commit $pinnedRev" >&2
+        exit 1
+      fi
       if [ -n "$latestStableTag" ] && [ "$latestStableTag" != "$selectedTag" ]; then
         echo "KiroCrew update available: $latestStableTag (pinned to $selectedTag)"
       fi
@@ -111,7 +125,7 @@ pkgs.writeShellApplication {
 
     release="$releases/$selectedTag"
     if [ ! -d "$release" ]; then
-      git -C "$repository" worktree add --detach "$release" "$selectedTag"
+      git -C "$repository" worktree add --detach "$release" "''${pinnedRev:-$selectedTag}"
     fi
 
     if [ ! -x "$release/.venv/bin/kirocrew" ]; then
