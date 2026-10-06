@@ -58,6 +58,8 @@ let
       inherit kirocrewBin crewHome;
     }).assistant.${agentName};
 
+  registerCrews = import ./kirocrew-register.nix { inherit pkgs; };
+
   agentFile = pkgs.writeText "kirocrew-agent-${agentName}.json" (builtins.toJSON assistant);
 in
 {
@@ -69,30 +71,17 @@ in
       install -m 0644 -o kirocrew -g kirocrew ${agentFile} "${agentsDir}/${agentName}.json"
 
       # ── Layer 2: register as a crew, idempotently ──────────────────────────
-      # Registration lives in the gateway's mutable config.json (not nix-managed).
-      # `agent create` errors if the crew exists, so skip when already present.
-      # Run the CLI as kirocrew from a readable CWD with HOME/KIROCREW_HOME set,
-      # else it dies probing /root/skills. Best-effort: never fail activation.
-      if [ -x "${kirocrewBin}" ]; then
-        kc() {
-          ${pkgs.sudo}/bin/sudo -u kirocrew -H env \
-            HOME="${kirocrewHome}" KIROCREW_HOME="${crewHome}" \
-            LD_LIBRARY_PATH="${kirocrewLibraryPath}" \
-            ${pkgs.bash}/bin/bash -c "cd ${kirocrewHome} && ${kirocrewBin} \"\$@\"" kc "$@"
-        }
-        existing="$(kc agent list 2>/dev/null | ${pkgs.gawk}/bin/awk 'NR>1 {print $1}' | ${pkgs.gnused}/bin/sed 's/[* ]*$//')" || existing=""
-        if printf '%s\n' "$existing" | ${pkgs.gnugrep}/bin/grep -qx "${agentName}"; then
-          echo "kirocrew-assistant: crew '${agentName}' already registered, skipping"
-        else
-          if kc agent create --name "${agentName}" --kiro-agent "${agentName}"; then
-            echo "kirocrew-assistant: registered crew '${agentName}'"
-          else
-            echo "kirocrew-assistant: WARNING failed to register crew '${agentName}'" >&2
-          fi
-        fi
-      else
-        echo "kirocrew-assistant: ${kirocrewBin} not built yet; wrote spec, skipped registration" >&2
-      fi
+      ${registerCrews {
+        label = "kirocrew-assistant";
+        names = agentName;
+        inherit
+          kirocrewHome
+          crewHome
+          kirocrewBin
+          kirocrewLibraryPath
+          ;
+        skippedNote = "wrote spec, skipped registration";
+      }}
     fi
   '';
 }

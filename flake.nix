@@ -782,13 +782,22 @@
             pkgs.runCommand "check-crew-registration-timeout"
               {
                 reviewAgents = scripts.kirocrew-review-agents.text;
-                passAsFile = [ "reviewAgents" ];
+                devCrew = scripts.kirocrew-dev-crew.text;
+                assistant = scripts.kirocrew-assistant.text;
+                passAsFile = [
+                  "reviewAgents"
+                  "devCrew"
+                  "assistant"
+                ];
               }
               ''
-                grep -q 'timeout 60' "$reviewAgentsPath" || {
-                  echo "kirocrew-review-agents does not bound the CLI with timeout 60" >&2
-                  exit 1
-                }
+                for f in reviewAgents devCrew assistant; do
+                  eval "p=\$${f}Path"
+                  grep -q 'timeout 60' "$p" || {
+                    echo "$f activation script does not bound the CLI with timeout 60" >&2
+                    exit 1
+                  }
+                done
                 touch $out
               '';
 

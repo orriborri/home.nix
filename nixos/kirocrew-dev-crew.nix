@@ -100,6 +100,8 @@ let
     ) agentFiles
   );
 
+  registerCrews = import ./kirocrew-register.nix { inherit pkgs; };
+
   agentNames = lib.concatStringsSep " " (lib.attrNames agents);
 in
 {
@@ -111,32 +113,17 @@ in
       ${installLines}
 
       # ── Layer 2: register each as a crew, idempotently ─────────────────────
-      # Registration lives in the gateway's mutable config.json (not nix-managed).
-      # `agent create` errors if the crew exists, so skip when already present.
-      # Run the CLI as kirocrew from a readable CWD with HOME/KIROCREW_HOME set,
-      # else it dies probing /root/skills. Best-effort: never fail activation.
-      if [ -x "${kirocrewBin}" ]; then
-        kc() {
-          ${pkgs.sudo}/bin/sudo -u kirocrew -H env \
-            HOME="${kirocrewHome}" KIROCREW_HOME="${crewHome}" \
-            LD_LIBRARY_PATH="${kirocrewLibraryPath}" \
-            ${pkgs.bash}/bin/bash -c "cd ${kirocrewHome} && ${kirocrewBin} \"\$@\"" kc "$@"
-        }
-        existing="$(kc agent list 2>/dev/null | ${pkgs.gawk}/bin/awk 'NR>1 {print $1}' | ${pkgs.gnused}/bin/sed 's/[* ]*$//')" || existing=""
-        for agent_name in ${agentNames}; do
-          if printf '%s\n' "$existing" | ${pkgs.gnugrep}/bin/grep -qx "$agent_name"; then
-            echo "kirocrew-dev-crew: crew '$agent_name' already registered, skipping"
-          else
-            if kc agent create --name "$agent_name" --kiro-agent "$agent_name"; then
-              echo "kirocrew-dev-crew: registered crew '$agent_name'"
-            else
-              echo "kirocrew-dev-crew: WARNING failed to register crew '$agent_name'" >&2
-            fi
-          fi
-        done
-      else
-        echo "kirocrew-dev-crew: ${kirocrewBin} not built yet; wrote specs, skipped registration" >&2
-      fi
+      ${registerCrews {
+        label = "kirocrew-dev-crew";
+        names = agentNames;
+        inherit
+          kirocrewHome
+          crewHome
+          kirocrewBin
+          kirocrewLibraryPath
+          ;
+        skippedNote = "wrote specs, skipped registration";
+      }}
     fi
   '';
 }
