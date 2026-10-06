@@ -769,6 +769,24 @@
                 touch $out
               '';
 
+          # S16: no SSH agent is forwarded to the agent host by default; use
+          # `ssh -A kirocrew` when needed.
+          ssh-no-agent-forwarding =
+            let
+              sshConfig =
+                pkgs.writeText "orre-ssh-config"
+                  self.homeConfigurations.orre.config.home.file.".ssh/config".text;
+            in
+            pkgs.runCommand "check-ssh-no-agent-forwarding" { } ''
+              if grep -n 'ForwardAgent' ${sshConfig} >&2; then
+                echo "ssh config forwards the agent by default" >&2
+                exit 1
+              fi
+              grep -q '^Host kirocrew$' ${sshConfig} \
+                || { echo "sanity: Host kirocrew block missing" >&2; exit 1; }
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

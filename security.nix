@@ -136,14 +136,15 @@ in
         IdentityFile = "~/.ssh/kirocrew.pem";
         IdentitiesOnly = "yes";
         StrictHostKeyChecking = "accept-new";
-        ForwardAgent = "yes";
         ProxyCommand = "sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p' --profile Sandbox --region eu-central-1\"";
       };
     }
     // lib.optionalAttrs isHeadless {
       # On NixOS (EC2) there are two credential paths for GitLab/GitHub:
-      #   1. Interactive (you, over SSM with ForwardAgent): the forwarded
+      #   1. Interactive (you, over SSM with `ssh -A kirocrew`): the forwarded
       #      1Password agent signs, gated by an approval prompt on your laptop.
+      #      Agent forwarding is NOT on by default: any process running as orre
+      #      or root on this box could ask the forwarded agent to sign.
       #   2. Non-interactive (the launcher cloning/pulling as orre at deploy):
       #      the sops-decrypted key at /run/user/<uid>/secrets/git-ssh-key.
       #
