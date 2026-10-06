@@ -28,8 +28,10 @@
 # sudo for the final openvpn invocation — that part is inherently a privileged
 # host action and cannot be owned by user-level Home Manager.
 #
-# To upgrade OpenVPN / the patch: bump the version + url + hash below and refresh
-# with `nix-prefetch-url <url>` then `nix hash to-sri --type sha256 <hash>`.
+# To upgrade OpenVPN / the patch: bump the version + src hash below and replace
+# ./openvpn-v2.5.1-aws.patch with the matching patch from
+# https://github.com/samm-git/aws-vpn-client (vendored, so a moved or deleted
+# upstream branch cannot break or change the build).
 
 let
   # Patched OpenVPN. The AWS patch targets 2.5.1, so pin the source there and
@@ -41,12 +43,7 @@ let
       url = "https://swupdate.openvpn.org/community/releases/openvpn-2.5.1.tar.gz";
       hash = "sha256-6VgrjpRXmUvY1QASvoLCOy9GXaUUYMmyNgqB2g9OBuY=";
     };
-    patches = (old.patches or [ ]) ++ [
-      (pkgs.fetchpatch {
-        url = "https://raw.githubusercontent.com/samm-git/aws-vpn-client/master/openvpn-v2.5.1-aws.patch";
-        hash = "sha256-9ijhANqqWXVPa00RBCRACtMIsjiBqYVa91V62L4mNas=";
-      })
-    ];
+    patches = (old.patches or [ ]) ++ [ ./openvpn-v2.5.1-aws.patch ];
   });
 
   # Wrap the patched binary so it is reachable as `openvpn-aws` on PATH without

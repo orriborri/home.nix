@@ -348,6 +348,19 @@
               touch $out
             '';
 
+          # S11: the OpenVPN AWS patch is vendored, not fetched from a moving
+          # branch URL.
+          aws-vpn-patch-vendored = pkgs.runCommand "check-aws-vpn-patch-vendored" { } ''
+            cd ${self}/packages/aws-vpn-client
+            [ -s openvpn-v2.5.1-aws.patch ] \
+              || { echo "openvpn-v2.5.1-aws.patch is not vendored" >&2; exit 1; }
+            if grep -n 'raw.githubusercontent.com\|fetchpatch' default.nix >&2; then
+              echo "default.nix still fetches the patch from a URL" >&2
+              exit 1
+            fi
+            touch $out
+          '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
