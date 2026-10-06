@@ -139,7 +139,6 @@
     # emulators spawn non-login shells, so profileExtra/.zprofile alone
     # would leave these unset)
     export PATH="$HOME/.npm-packages/bin:$HOME/.yarn/bin:$PATH"
-    export PATH="./node_modules/.bin:$PATH"
     export PATH="$HOME/.local/bin:$PATH"
     export PATH="$HOME/.cargo/bin:$PATH"
 

@@ -523,6 +523,30 @@
               touch $out
             '';
 
+          # S14: no generated zsh file puts a cwd-relative directory on PATH.
+          zsh-no-relative-path =
+            let
+              files = self.homeConfigurations.orre.config.home.file;
+              zshText = lib.concatMapStringsSep "\n" (n: files.${n}.text) [
+                ".zshenv"
+                ".config/zsh/.zshenv"
+                ".config/zsh/.zprofile"
+                ".config/zsh/.zshrc"
+              ];
+            in
+            pkgs.runCommand "check-zsh-no-relative-path"
+              {
+                inherit zshText;
+                passAsFile = [ "zshText" ];
+              }
+              ''
+                if grep -nE 'PATH="\./|PATH=\./|:\./[A-Za-z_]' "$zshTextPath" >&2; then
+                  echo "a zsh file puts a cwd-relative directory on PATH" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
