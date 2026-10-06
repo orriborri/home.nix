@@ -15,6 +15,7 @@
   # Shell options
   autosuggestion.enable = true;
   enableVteIntegration = true;
+  defaultKeymap = "viins";
   completionInit = "autoload -U compinit && compinit";
 
   # History configuration
@@ -154,9 +155,6 @@
 
     # Don't pipe AWS CLI output through a pager
     AWS_PAGER = "";
-
-    # Vi mode configuration
-    ZVM_VI_INSERT_ESCAPE_BINDKEY = "jj";
 
     # Better less defaults
     LESS = "-R -S -M -I -x4";

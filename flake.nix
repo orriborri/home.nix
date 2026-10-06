@@ -755,6 +755,23 @@
                 touch $out
               '';
 
+          # T15: zsh uses the vi insert keymap explicitly, and no variable
+          # configures the zsh-vi-mode plugin (not installed).
+          zsh-vi-keymap =
+            let
+              zsh = self.homeConfigurations.orre.config.programs.zsh;
+            in
+            pkgs.runCommand "check-zsh-vi-keymap"
+              {
+                keymap = if zsh.defaultKeymap == null then "unset" else zsh.defaultKeymap;
+                zvm = lib.boolToString (zsh.sessionVariables ? ZVM_VI_INSERT_ESCAPE_BINDKEY);
+              }
+              ''
+                [ "$keymap" = viins ] || { echo "programs.zsh.defaultKeymap is $keymap, want viins" >&2; exit 1; }
+                [ "$zvm" = false ] || { echo "ZVM_VI_INSERT_ESCAPE_BINDKEY is set but zsh-vi-mode is not installed" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
