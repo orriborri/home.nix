@@ -34,6 +34,7 @@
 let
   kirocrewTzdataVersion = "2026.3";
   pinnedRevs = import ./kirocrew-source-revs.nix;
+  prune = import ./kirocrew-prune-releases.nix { inherit pkgs; };
   pinnedRev =
     if pinnedSourceTag == "" then
       ""
@@ -151,6 +152,8 @@ pkgs.writeShellApplication {
       ln -sfnT "$release" "$sourceRoot/current.next"
       mv -Tf "$sourceRoot/current.next" "$current"
       updated=1
+      # Keep this release and the one it replaced (rollback); drop the rest.
+      ${prune}/bin/kirocrew-prune-releases "$releases" "$release" "$currentTarget" "$repository"
     fi
 
     cliLink="$HOME/.local/bin/kirocrew"

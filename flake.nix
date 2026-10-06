@@ -839,6 +839,38 @@
               touch $out
             '';
 
+          # O1: the source updater prunes old release worktrees, keeping the
+          # current and previous releases and recent `.stale-*` moves aside.
+          kirocrew-prune-releases =
+            let
+              prune = import ./kirocrew-prune-releases.nix { inherit pkgs; };
+            in
+            pkgs.runCommand "check-kirocrew-prune-releases"
+              {
+                nativeBuildInputs = [
+                  pkgs.git
+                  pkgs.coreutils
+                ];
+                inherit prune;
+              }
+              ''
+                export HOME=$TMPDIR GIT_CONFIG_GLOBAL=/dev/null
+                repo=$TMPDIR/repo
+                rel=$TMPDIR/releases
+                git init -q "$repo"
+                git -C "$repo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+                mkdir -p "$rel/v1" "$rel/v2" "$rel/v3" "$rel/v0.stale-new" "$rel/v0.stale-old"
+                touch -d '10 days ago' "$rel/v0.stale-old"
+                "$prune/bin/kirocrew-prune-releases" "$rel" "$rel/v3" "$rel/v2" "$repo"
+                got=$(ls "$rel" | tr '\n' ' ')
+                want="v0.stale-new v2 v3 "
+                [ "$got" = "$want" ] || { echo "kept: $got; want: $want" >&2; exit 1; }
+                # no previous release, empty current: must not delete everything
+                "$prune/bin/kirocrew-prune-releases" "$rel" "$rel/v3" "" "$repo"
+                [ -d "$rel/v3" ] || { echo "current release was pruned" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
