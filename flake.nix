@@ -89,6 +89,24 @@
           ++ extraModules;
         };
 
+      # Modules both workstation profiles (orre, orre@cosmic) load after their
+      # own leading extras. Order matters to module merging, so each profile
+      # keeps its prefix in front of this list.
+      workstationModules = [
+        ./kirocrew-service.nix
+        ./kirocrew-agents-workstation.nix
+        ./pasta-service.nix
+        sops-nix.homeManagerModules.sops
+        ./sops.nix
+        {
+          kirocrew.enable = true;
+          kirocrew.role = "workstation";
+          # Pin the daily source-update timer to the same release the
+          # headless hosts run (./kirocrew-source-tag.nix).
+          kirocrew.sourceTag = kirocrewSourceTag;
+        }
+      ];
+
       # Shared Home Manager module set for all KiroCrew NixOS outputs.
       # Imported by VM, EC2, and AMI — keeps them in sync so adding/removing
       # a KiroCrew module means editing one place.
@@ -133,19 +151,8 @@
             ./packages/kiro.nix
             ./packages/aws-vpn-client
             ./packages/claude-desktop.nix
-            ./kirocrew-service.nix
-            ./kirocrew-agents-workstation.nix
-            ./pasta-service.nix
-            sops-nix.homeManagerModules.sops
-            ./sops.nix
-            {
-              kirocrew.enable = true;
-              kirocrew.role = "workstation";
-              # Pin the daily source-update timer to the same release the
-              # headless hosts run (./kirocrew-source-tag.nix).
-              kirocrew.sourceTag = kirocrewSourceTag;
-            }
-          ];
+          ]
+          ++ workstationModules;
         };
 
         # ARM Linux (EC2 Graviton / ARM workstation)
@@ -160,19 +167,8 @@
           extraModules = [
             ./cosmic.nix
             ./packages/kiro.nix
-            ./kirocrew-service.nix
-            ./kirocrew-agents-workstation.nix
-            ./pasta-service.nix
-            sops-nix.homeManagerModules.sops
-            ./sops.nix
-            {
-              kirocrew.enable = true;
-              kirocrew.role = "workstation";
-              # Pin the daily source-update timer to the same release the
-              # headless hosts run (./kirocrew-source-tag.nix).
-              kirocrew.sourceTag = kirocrewSourceTag;
-            }
-          ];
+          ]
+          ++ workstationModules;
         };
 
         # Devcontainers (VS Code / Codespaces; user is "vscode")
