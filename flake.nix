@@ -748,6 +748,27 @@
                 touch $out
               '';
 
+          # C24: the workstation does not install an agent spec whose rulepack
+          # skill only the headless hosts ship.
+          workstation-agents-no-design-sage =
+            let
+              script = self.homeConfigurations.orre.config.home.activation.kirocrewAgents.data;
+            in
+            pkgs.runCommand "check-workstation-agents-no-design-sage"
+              {
+                inherit script;
+                passAsFile = [ "script" ];
+              }
+              ''
+                if grep -n 'review-design-sage' "$scriptPath" >&2; then
+                  echo "workstation still installs review-design-sage" >&2
+                  exit 1
+                fi
+                grep -q 'architect' "$scriptPath" \
+                  || { echo "sanity: other agents missing from the script" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

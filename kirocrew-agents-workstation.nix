@@ -56,7 +56,10 @@ let
     inherit kirocrewBin crewHome;
   };
 
-  agents = specs.all;
+  # review-design-sage's prompt needs the readpeak-mr-review-panel rulepack
+  # skill, which only the headless hosts install (nixos/kirocrew-review-skills.nix
+  # writes it under /var/lib/kirocrew); on the workstation it would run without it.
+  agents = removeAttrs specs.all [ "review-design-sage" ];
 
   # Render each spec to a Nix store JSON file. builtins.toJSON validates the
   # structure at build time, so a malformed spec fails the build rather than
