@@ -54,7 +54,7 @@
     lw = "lazyworktree --output-selection /tmp/lwt_path </dev/tty >/dev/tty && cd \"$(cat /tmp/lwt_path)\"";
 
     # TMC CLI
-    tmc = "/home/orre/Courses/Security/SecuringSoftware/tmc-cli-rust-x86_64-unknown-linux-gnu-v1.1.2";
+    tmc = "${config.home.homeDirectory}/Courses/Security/SecuringSoftware/tmc-cli-rust-x86_64-unknown-linux-gnu-v1.1.2";
 
     # Nix utilities
     hm = "home-manager";
@@ -159,7 +159,7 @@
   # Session variables
   sessionVariables = {
     # TMC configuration
-    TMC_LANGS_CONFIG_DIR = "/home/orre/tmc-config";
+    TMC_LANGS_CONFIG_DIR = "${config.home.homeDirectory}/tmc-config";
 
     # Suppress direnv logs
     DIRENV_LOG_FORMAT = "";

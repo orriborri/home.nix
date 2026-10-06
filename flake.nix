@@ -653,6 +653,34 @@
                 touch $out
               '';
 
+          # C17: generated zsh files follow home.homeDirectory instead of
+          # hardcoding /home/orre.
+          zsh-follows-home-directory =
+            let
+              other = self.homeConfigurations.orre.extendModules {
+                modules = [ { home.homeDirectory = lib.mkForce "/home/someone"; } ];
+              };
+              files = other.config.home.file;
+              zshText = lib.concatMapStringsSep "\n" (n: files.${n}.text) [
+                ".zshenv"
+                ".config/zsh/.zshenv"
+                ".config/zsh/.zprofile"
+                ".config/zsh/.zshrc"
+              ];
+            in
+            pkgs.runCommand "check-zsh-follows-home-directory"
+              {
+                inherit zshText;
+                passAsFile = [ "zshText" ];
+              }
+              ''
+                if grep -n '/home/orre' "$zshTextPath" >&2; then
+                  echo "a zsh file hardcodes /home/orre" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
