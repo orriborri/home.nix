@@ -427,6 +427,22 @@
             touch $out
           '';
 
+          # C11/S4: code-review-graph's version lives in one file, and the EC2
+          # install also freezes its dependencies to a cutoff date.
+          crg-pinned = pkgs.runCommand "check-crg-pinned" { } ''
+            cd ${self}
+            [ -s crg-version.nix ] || { echo "crg-version.nix is missing" >&2; exit 1; }
+            grep -q 'crg-version.nix' nixos/kirocrew-code.nix \
+              || { echo "kirocrew-code.nix does not import crg-version.nix" >&2; exit 1; }
+            if grep -n 'crgVersion = "' nixos/kirocrew-code.nix >&2; then
+              echo "kirocrew-code.nix still hardcodes the version" >&2
+              exit 1
+            fi
+            grep -q 'uv tool install --force --exclude-newer' nixos/kirocrew-code.nix \
+              || { echo "uv tool install has no --exclude-newer" >&2; exit 1; }
+            touch $out
+          '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

@@ -11,9 +11,12 @@ let
   codeDir = "/var/lib/code";
   mirrorDir = "/var/lib/kirocrew-repo-mirrors";
   graphStateDir = "/var/lib/code-review-graph";
-  # Pinned CRG version, installed as a uv tool under the kirocrew user by
-  # code-review-graph-install.service.
-  crgVersion = "2.3.8";
+  # Pinned CRG version (../crg-version.nix), installed as a uv tool under the
+  # kirocrew user by code-review-graph-install.service. Its dependencies are
+  # frozen to what existed on crgExcludeNewer, so a rebuild cannot pull newer
+  # releases of them; bump the date together with the version.
+  crgVersion = import ../crg-version.nix;
+  crgExcludeNewer = "2026-10-06";
   crgBin = "/var/lib/kirocrew/.local/bin/code-review-graph";
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
   skillsTools = import ./kirocrew-skills-package.nix { inherit pkgs; };
@@ -420,7 +423,7 @@ let
 
       if [[ "$installed" != ${lib.escapeShellArg crgVersion} ]]; then
         echo "Installing code-review-graph==${crgVersion} (was: ''${installed:-none})"
-        uv tool install --force "code-review-graph==${crgVersion}"
+        uv tool install --force --exclude-newer ${crgExcludeNewer} "code-review-graph==${crgVersion}"
       else
         echo "code-review-graph==${crgVersion} already installed"
       fi
