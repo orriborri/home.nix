@@ -696,6 +696,24 @@
               touch $out
             '';
 
+          # S17: the workstation gateway has the same memory caps as the EC2 unit.
+          kirocrew-gateway-memory-caps =
+            let
+              service = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service;
+            in
+            pkgs.runCommand "check-kirocrew-gateway-memory-caps"
+              {
+                high = service.MemoryHigh or "unset";
+                max = service.MemoryMax or "unset";
+              }
+              ''
+                [ "$high" = 70% ] && [ "$max" = 85% ] || {
+                  echo "kirocrew.service MemoryHigh=$high MemoryMax=$max, want 70% and 85%" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

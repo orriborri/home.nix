@@ -153,6 +153,12 @@ in
         "${kirocrewExecutable} config set --local agent.sandbox off"
       ];
       ExecStart = "${kirocrewExecutable} gateway";
+      # Same caps as the EC2 gateway (nixos/kirocrew-services.nix): the gateway
+      # has peaked at ~13.5G under concurrent member load, and an uncapped one
+      # can take the whole desktop down. Percentages of physical RAM, since the
+      # machines differ. The user manager delegates the memory controller here.
+      MemoryHigh = "70%";
+      MemoryMax = "85%";
       Restart = "always";
       RestartSec = 5;
       Environment = [
