@@ -341,6 +341,8 @@
                 || { echo "updater does not embed the pinned commit" >&2; exit 1; }
               grep -q 'does not match pinned commit' "$script" \
                 || { echo "updater does not verify the tag against the pinned commit" >&2; exit 1; }
+              grep -q 'is at .*not pinned commit' "$script" \
+                || { echo "updater does not verify an existing release dir against the pinned commit" >&2; exit 1; }
               touch $out
             '';
 

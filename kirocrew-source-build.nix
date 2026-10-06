@@ -124,6 +124,15 @@ pkgs.writeShellApplication {
     fi
 
     release="$releases/$selectedTag"
+    # A release built while the tag pointed elsewhere must not be reused. It may
+    # be the live gateway's worktree, so fail loudly instead of moving it.
+    if [ -d "$release" ] && [ -n "$pinnedRev" ]; then
+      releaseRev="$(git -C "$release" rev-parse HEAD)"
+      if [ "$releaseRev" != "$pinnedRev" ]; then
+        echo "error: existing release $release is at $releaseRev, not pinned commit $pinnedRev; move it aside and rerun" >&2
+        exit 1
+      fi
+    fi
     if [ ! -d "$release" ]; then
       git -C "$repository" worktree add --detach "$release" "''${pinnedRev:-$selectedTag}"
     fi
