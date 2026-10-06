@@ -108,72 +108,69 @@ in
   # Filters by kirocrew.role ('targets' per repo) and honours 'shallow' for clone
   # depth. The role is passed in explicitly: activation does not source
   # hm-session-vars.sh, so KIROCREW_ROLE from sessionVariables is not set here.
-  home.activation.cloneRepos = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        MANIFEST="$HOME/.config/kirocrew/repos.toml"
-        # Fallback to old path during transition
-        if [ ! -f "$MANIFEST" ]; then
-          MANIFEST="$HOME/.config/home-manager/config/repos.toml"
-        fi
-        if [ -f "$MANIFEST" ]; then
-          KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
-    import tomllib, os, subprocess, sys
-    with open(sys.argv[1], 'rb') as f:
-        data = tomllib.load(f)
-    home = os.path.expanduser('~')
-    role = os.environ.get('KIROCREW_ROLE', 'workstation')
-    git = sys.argv[2]
-    for repo in data.get('repos', []):
-        targets = repo.get('targets', ['workstation', 'headless'])
-        if role not in targets:
-            continue
-        # The pinned skills checkout is installed by its supervised service.
-        if repo.get('revision') and repo['path'] == 'code/mattpocock-skills':
-            continue
-        target = os.path.join(home, repo['path'])
-        if not os.path.isdir(target):
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shallow = repo.get('shallow', True)
-            cmd = [git, 'clone']
-            if shallow:
-                cmd += ['--depth=1']
-            cmd += [repo['remote'], target]
-            print(f'Cloning {repo[\"remote\"]} -> {target}')
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                lines = result.stderr.strip().splitlines()
-                print(f'warning: clone of {repo[\"remote\"]} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
-    " "$MANIFEST" "${pkgs.git}/bin/git"
-        fi
-  '';
+  home.activation.cloneRepos = lib.mkIf config.kirocrew.enable (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          MANIFEST="$HOME/.config/kirocrew/repos.toml"
+          if [ -f "$MANIFEST" ]; then
+            KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
+      import tomllib, os, subprocess, sys
+      with open(sys.argv[1], 'rb') as f:
+          data = tomllib.load(f)
+      home = os.path.expanduser('~')
+      role = os.environ.get('KIROCREW_ROLE', 'workstation')
+      git = sys.argv[2]
+      for repo in data.get('repos', []):
+          targets = repo.get('targets', ['workstation', 'headless'])
+          if role not in targets:
+              continue
+          # The pinned skills checkout is installed by its supervised service.
+          if repo.get('revision') and repo['path'] == 'code/mattpocock-skills':
+              continue
+          target = os.path.join(home, repo['path'])
+          if not os.path.isdir(target):
+              os.makedirs(os.path.dirname(target), exist_ok=True)
+              shallow = repo.get('shallow', True)
+              cmd = [git, 'clone']
+              if shallow:
+                  cmd += ['--depth=1']
+              cmd += [repo['remote'], target]
+              print(f'Cloning {repo[\"remote\"]} -> {target}')
+              result = subprocess.run(cmd, capture_output=True, text=True)
+              if result.returncode != 0:
+                  lines = result.stderr.strip().splitlines()
+                  print(f'warning: clone of {repo[\"remote\"]} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
+      " "$MANIFEST" "${pkgs.git}/bin/git"
+          fi
+    ''
+  );
 
   # Auto-register git repos from the manifest with code-review-graph
-  home.activation.crgRegisterRepos = lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
-        CRG="$HOME/.local/bin/code-review-graph"
-        MANIFEST="$HOME/.config/kirocrew/repos.toml"
-        if [ ! -f "$MANIFEST" ]; then
-          MANIFEST="$HOME/.config/home-manager/config/repos.toml"
-        fi
-        if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
-          KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
-    import tomllib, os, subprocess, sys
-    with open(sys.argv[1], 'rb') as f:
-        repos = tomllib.load(f).get('repos', [])
-    home = os.path.expanduser('~')
-    crg = sys.argv[2]
-    role = os.environ.get('KIROCREW_ROLE', 'workstation')
-    for repo in repos:
-        targets = repo.get('targets', ['workstation', 'headless'])
-        if role not in targets:
-            continue
-        target = os.path.join(home, repo['path'])
-        if os.path.isdir(os.path.join(target, '.git')):
-            result = subprocess.run([crg, 'register', target], capture_output=True, text=True)
-            if result.returncode != 0:
-                lines = result.stderr.strip().splitlines()
-                print(f'warning: code-review-graph register {target} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
-    " "$MANIFEST" "$CRG"
-        fi
-  '';
+  home.activation.crgRegisterRepos = lib.mkIf config.kirocrew.enable (
+    lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
+          CRG="$HOME/.local/bin/code-review-graph"
+          MANIFEST="$HOME/.config/kirocrew/repos.toml"
+          if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
+            KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
+      import tomllib, os, subprocess, sys
+      with open(sys.argv[1], 'rb') as f:
+          repos = tomllib.load(f).get('repos', [])
+      home = os.path.expanduser('~')
+      crg = sys.argv[2]
+      role = os.environ.get('KIROCREW_ROLE', 'workstation')
+      for repo in repos:
+          targets = repo.get('targets', ['workstation', 'headless'])
+          if role not in targets:
+              continue
+          target = os.path.join(home, repo['path'])
+          if os.path.isdir(os.path.join(target, '.git')):
+              result = subprocess.run([crg, 'register', target], capture_output=True, text=True)
+              if result.returncode != 0:
+                  lines = result.stderr.strip().splitlines()
+                  print(f'warning: code-review-graph register {target} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
+      " "$MANIFEST" "$CRG"
+          fi
+    ''
+  );
 
   # code-review-graph daemon: auto-updates graphs for all registered repos
   systemd.user.services.crg-daemon = {

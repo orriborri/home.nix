@@ -787,6 +787,30 @@
               touch $out
             '';
 
+          # C20: repo cloning and crg registration only run where kirocrew is
+          # enabled (not on the devcontainer or darwin profiles).
+          clone-activation-gated =
+            let
+              has =
+                name: profile:
+                lib.boolToString (self.homeConfigurations.${profile}.config.home.activation ? ${name});
+            in
+            pkgs.runCommand "check-clone-activation-gated"
+              {
+                devClone = has "cloneRepos" "devcontainer";
+                devRegister = has "crgRegisterRepos" "devcontainer";
+                darwinClone = has "cloneRepos" "orre@darwin";
+                orreClone = has "cloneRepos" "orre";
+                orreRegister = has "crgRegisterRepos" "orre";
+              }
+              ''
+                [ "$devClone$devRegister$darwinClone" = falsefalsefalse ] \
+                  || { echo "clones still run where kirocrew is disabled: devcontainer clone=$devClone register=$devRegister, darwin clone=$darwinClone" >&2; exit 1; }
+                [ "$orreClone$orreRegister" = truetrue ] \
+                  || { echo "orre lost its clone or register step: clone=$orreClone register=$orreRegister" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
