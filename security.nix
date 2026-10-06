@@ -152,13 +152,13 @@ in
       # agent, locking out the forwarded 1Password path. Without it, SSH offers
       # the forwarded agent first (when present) and falls back to the file,
       # so both the interactive-approve flow and the unattended launcher work.
-      # (uid hardcoded to 1001 = orre on the EC2 box.)
+      # (%i is ssh's token for the local uid, so the path follows orre's uid.)
       "gitlab.com" = {
-        IdentityFile = "/run/user/1001/secrets/git-ssh-key";
+        IdentityFile = "/run/user/%i/secrets/git-ssh-key";
         StrictHostKeyChecking = "accept-new";
       };
       "github.com" = {
-        IdentityFile = "/run/user/1001/secrets/git-ssh-key";
+        IdentityFile = "/run/user/%i/secrets/git-ssh-key";
         StrictHostKeyChecking = "accept-new";
       };
     };

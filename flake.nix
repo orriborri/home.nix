@@ -490,6 +490,25 @@
               touch $out
             '';
 
+          # C8: the git SSH identity path on the headless hosts uses ssh's %i
+          # (local uid) token, not the EC2 uid. Evaluates the aarch64 config's
+          # rendered text only; nothing is built for aarch64.
+          ssh-identity-uid-agnostic =
+            let
+              sshConfig =
+                pkgs.writeText "ec2-ssh-config"
+                  self.nixosConfigurations.kirocrew-ec2.config.home-manager.users.orre.home.file.".ssh/config".text;
+            in
+            pkgs.runCommand "check-ssh-identity-uid-agnostic" { } ''
+              if grep -n '/run/user/[0-9]' ${sshConfig} >&2; then
+                echo "ssh config hardcodes a uid in /run/user" >&2
+                exit 1
+              fi
+              grep -q 'IdentityFile /run/user/%i/secrets/git-ssh-key' ${sshConfig} \
+                || { echo "git identity does not use /run/user/%i" >&2; exit 1; }
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
