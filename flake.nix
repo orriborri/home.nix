@@ -821,8 +821,8 @@
                 passAsFile = [ "text" ];
               }
               ''
-                grep -qF "$ssh" "$textPath" \
-                  || { echo "cloneRepos does not put $ssh on PATH; git clone over ssh fails" >&2; exit 1; }
+                grep -qF "PATH=/usr/bin:$ssh:" "$textPath" \
+                  || { echo "cloneRepos must put system ssh (/usr/bin) before $ssh on PATH: nix openssh rejects Fedora's crypto-policies config" >&2; exit 1; }
                 touch $out
               '';
 
