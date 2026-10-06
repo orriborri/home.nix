@@ -1,10 +1,4 @@
-{ pkgs, claude-desktop, ... }:
+{ pkgs, llm-agents, ... }:
 {
-  imports = [ claude-desktop.homeManagerModules.default ];
-
-  programs.claude-desktop = {
-    enable = true;
-    fhs = true;
-    createDesktopEntry = true;
-  };
+  home.packages = [ llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-desktop ];
 }

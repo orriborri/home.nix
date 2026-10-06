@@ -19,10 +19,9 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    claude-desktop = {
-      url = "github:Reginleif88/claude-cowork-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Official Claude Desktop Linux .deb, repackaged daily. No nixpkgs follows:
+    # upstream only tests its own pin.
+    llm-agents.url = "github:numtide/llm-agents.nix";
     # Image builders (EC2 AMI etc.) for the KiroCrew NixOS system.
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
@@ -46,7 +45,7 @@
       home-manager,
       flake-utils,
       nixgl,
-      claude-desktop,
+      llm-agents,
       nixos-generators,
       sops-nix,
       ...
@@ -78,7 +77,7 @@
           extraSpecialArgs = {
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
             pkgs-rust = nixpkgs-rust.legacyPackages.${system};
-            inherit claude-desktop;
+            inherit llm-agents;
           }
           // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             nixgl = nixgl.packages.${system};
@@ -149,6 +148,7 @@
           extraModules = [
             ./packages/kiro.nix
             ./packages/aws-vpn-client
+            ./packages/claude-desktop.nix
             ./kirocrew-service.nix
             ./kirocrew-agents-workstation.nix
             ./pasta-service.nix
@@ -295,7 +295,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit claude-desktop;
+              inherit llm-agents;
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
@@ -328,7 +328,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
-              inherit claude-desktop;
+              inherit llm-agents;
             };
             home-manager.users.orre = { ... }: {
               imports = kirocrewModules;
@@ -360,7 +360,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit claude-desktop;
+              inherit llm-agents;
               nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
@@ -391,7 +391,7 @@
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
-              inherit claude-desktop;
+              inherit llm-agents;
             };
             home-manager.users.orre = { ... }: {
               imports = kirocrewModules;

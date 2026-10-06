@@ -57,6 +57,13 @@ in
     "$HOME/.local/bin"
   ];
 
+  # GUI apps launched by GNOME get PATH from the systemd user environment,
+  # not the shell, so desktop entries with a bare Exec (claude-desktop) need
+  # the Nix profile there.
+  systemd.user.sessionVariables = lib.optionalAttrs isLinux {
+    PATH = "${config.home.profileDirectory}/bin:$HOME/.local/bin:$PATH";
+  };
+
   # System packages
   home.packages =
     with pkgs;
@@ -163,6 +170,8 @@ in
         "text/html" = "firefox.desktop";
         "x-scheme-handler/http" = "firefox.desktop";
         "x-scheme-handler/https" = "firefox.desktop";
+        # Claude Desktop can't register itself: mimeapps.list is read-only.
+        "x-scheme-handler/claude" = "com.anthropic.Claude.desktop";
       };
     };
   };

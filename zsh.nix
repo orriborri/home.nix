@@ -72,8 +72,9 @@
     complete -C '${pkgs.awscli2}/bin/aws_completer' aws
 
     # Zellij auto-start. Keep sessions separate by launcher and project.
-    # Skip entirely on KiroCrew host (raw shell preferred there).
-    if [[ -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" && "$HOST" != kirocrew* && -z "$KIROCREW_TERMINAL" ]]; then
+    # Skip entirely on KiroCrew host (raw shell preferred there), and without
+    # a terminal: GUI apps (Claude Desktop) run `zsh -il` to read the env.
+    if [[ -t 0 && -t 1 && -z "$ZELLIJ" && -z "$ZELLIJ_STARTING" && "$HOST" != kirocrew* && -z "$KIROCREW_TERMINAL" ]]; then
       export ZELLIJ_STARTING=1
 
       zellij_project_root="$(git rev-parse --show-toplevel 2>/dev/null || print -r -- "$PWD")"
