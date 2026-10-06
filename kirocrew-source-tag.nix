@@ -20,8 +20,9 @@
 #
 # Pinned to v0.7.2, the newest stable release (moved off the
 # v0.7.0-insider.6 pre-release, originally picked for the Claude Code and
-# Codex harness selector). insider.6 had a higher memory footprint; on this host
-# (15G, no swap) it peaked ~13.5G and exited 1 under concurrent member
-# load. Addressed by adding swap and capping concurrent agent instances — see
-# kirocrew-services.nix and the gateway's instances.warm_set_cap.
+# Codex harness selector). insider.6 had a higher memory footprint; on the
+# earlier 15G host (no swap) it peaked ~13.5G and exited 1 under concurrent
+# member load. Addressed by resizing the EC2 host to 30G with zram swap
+# (nixos/kirocrew-ec2.nix) and capping the gateway's memory with
+# MemoryHigh/MemoryMax (nixos/kirocrew-services.nix).
 "v0.7.2"
