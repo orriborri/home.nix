@@ -68,6 +68,8 @@ let
     ) agentFiles
   );
 
+  registerCrews = import ./kirocrew-register.nix { inherit pkgs; };
+
   # Space-separated list of agent names for the registration loop.
   agentNames = lib.concatStringsSep " " (lib.attrNames agents);
 in
@@ -83,37 +85,17 @@ in
       ${installLines}
 
       # ── Layer 2: register each as a crew, idempotently ─────────────────────
-      # Crew registration lives in the gateway's mutable config.json, which is
-      # not nix-managed — so we assert it here. `agent create` errors if the
-      # crew already exists, so skip any name `agent list` already reports.
-      #
-      # The CLI autodetects a project dir from CWD and reads $HOME; run it as
-      # kirocrew from a readable dir with HOME/KIROCREW_HOME set, or it dies on
-      # /root/skills. Best-effort: a registration hiccup must not fail the whole
-      # system activation, so we guard the binary's presence and don't `set -e`
-      # out of activation on a single failure.
-      if [ -x "${kirocrewBin}" ]; then
-        kc() {
-          ${pkgs.sudo}/bin/sudo -u kirocrew -H env \
-            HOME="${kirocrewHome}" KIROCREW_HOME="${crewHome}" \
-            LD_LIBRARY_PATH="${kirocrewLibraryPath}" \
-            ${pkgs.bash}/bin/bash -c "cd ${kirocrewHome} && ${kirocrewBin} \"\$@\"" kc "$@"
-        }
-        existing="$(kc agent list 2>/dev/null | ${pkgs.gawk}/bin/awk 'NR>1 {print $1}' | ${pkgs.gnused}/bin/sed 's/[* ]*$//')" || existing=""
-        for agent_name in ${agentNames}; do
-          if printf '%s\n' "$existing" | ${pkgs.gnugrep}/bin/grep -qx "$agent_name"; then
-            echo "kirocrew-review-agents: crew '$agent_name' already registered, skipping"
-          else
-            if kc agent create --name "$agent_name" --kiro-agent "$agent_name"; then
-              echo "kirocrew-review-agents: registered crew '$agent_name'"
-            else
-              echo "kirocrew-review-agents: WARNING failed to register crew '$agent_name'" >&2
-            fi
-          fi
-        done
-      else
-        echo "kirocrew-review-agents: ${kirocrewBin} not built yet; wrote specs, skipped registration" >&2
-      fi
+      ${registerCrews {
+        label = "kirocrew-review-agents";
+        names = agentNames;
+        inherit
+          kirocrewHome
+          crewHome
+          kirocrewBin
+          kirocrewLibraryPath
+          ;
+        skippedNote = "wrote specs, skipped registration";
+      }}
     fi
   '';
 }

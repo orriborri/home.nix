@@ -772,6 +772,26 @@
                 touch $out
               '';
 
+          # C6: crew registration at activation runs the agent CLI through a
+          # shared helper that bounds it with `timeout 60`, so a hung CLI cannot
+          # wedge `nixos-rebuild switch`. Builds on the EC2 config retargeted to x86.
+          crew-registration-timeout =
+            let
+              scripts = ec2OnX86.config.system.activationScripts;
+            in
+            pkgs.runCommand "check-crew-registration-timeout"
+              {
+                reviewAgents = scripts.kirocrew-review-agents.text;
+                passAsFile = [ "reviewAgents" ];
+              }
+              ''
+                grep -q 'timeout 60' "$reviewAgentsPath" || {
+                  echo "kirocrew-review-agents does not bound the CLI with timeout 60" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
