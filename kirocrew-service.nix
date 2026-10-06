@@ -88,7 +88,6 @@ let
   hasSops = (config.sops.secrets or { }) ? "git-ssh-key";
   useSourceInstall = cfg.enable && cfg.role == "headless";
   pinnedSourceTag = if cfg.sourceTag == null then "" else cfg.sourceTag;
-  kirocrewSourceRoot = "${config.home.homeDirectory}/.local/share/kirocrew-source";
   kirocrewTzdataVersion = "2026.3";
   kirocrewLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
@@ -102,11 +101,9 @@ let
     restartUnit = "kirocrew.service";
     restartScope = "--user";
   };
-  kirocrewExecutable =
-    if useSourceInstall then
-      "${kirocrewSourceRoot}/current/.venv/bin/kirocrew"
-    else
-      "%h/.local/bin/kirocrew";
+  # The gateway unit only exists for the workstation role, where the source
+  # updater timer maintains this symlink.
+  kirocrewExecutable = "%h/.local/bin/kirocrew";
 in
 {
   # KiroCrew uses an isolated Python launched with -E, so PYTHONTZPATH is
@@ -134,7 +131,7 @@ in
   # On headless hosts, the KiroCrew gateway runs as a system service under
   # the dedicated kirocrew user (nixos/kirocrew-services.nix). The user-level
   # service is only used on workstation profiles.
-  systemd.user.services.kirocrew = lib.mkIf (cfg.role == "workstation") {
+  systemd.user.services.kirocrew = lib.mkIf (cfg.enable && cfg.role == "workstation") {
     Unit = {
       Description = "KiroCrew Gateway";
       After = [
@@ -148,17 +145,13 @@ in
     };
     Service = {
       Type = "simple";
-      ExecStartPre =
-        lib.optionals useSourceInstall [
-          "${kirocrewSourceUpdate}/bin/kirocrew-source-update"
-        ]
-        ++ [
-          "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
-          # Sandbox posture is asserted on every start so it survives upgrades
-          # and manual drift. MUST be 'off' on the workstation -- see the
-          # double-sandbox note in the header comment.
-          "${kirocrewExecutable} config set --local agent.sandbox off"
-        ];
+      ExecStartPre = [
+        "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
+        # Sandbox posture is asserted on every start so it survives upgrades
+        # and manual drift. MUST be 'off' on the workstation -- see the
+        # double-sandbox note in the header comment.
+        "${kirocrewExecutable} config set --local agent.sandbox off"
+      ];
       ExecStart = "${kirocrewExecutable} gateway";
       # A first source install builds the TypeScript dashboard and Python venv.
       TimeoutStartSec = "20min";

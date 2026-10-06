@@ -361,6 +361,26 @@
             touch $out
           '';
 
+          # C7: with kirocrew.enable = false no gateway unit is installed, even
+          # on the workstation role.
+          kirocrew-gateway-gated =
+            let
+              disabled = self.homeConfigurations.orre.extendModules {
+                modules = [ { kirocrew.enable = lib.mkForce false; } ];
+              };
+            in
+            pkgs.runCommand "check-kirocrew-gateway-gated"
+              {
+                installed = lib.boolToString (disabled.config.systemd.user.services ? kirocrew);
+              }
+              ''
+                [ "$installed" = false ] || {
+                  echo "kirocrew.service is installed although kirocrew.enable = false" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
