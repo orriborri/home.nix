@@ -37,14 +37,7 @@
 
     # Editor shortcuts
     c = "code";
-    k = "kiro-ide";
     v = "nvim";
-
-    # Network utilities
-    ssh = "ssh";
-    ssh-add = "ssh-add";
-    scp = "scp";
-    nm = "nm-tui";
 
     # Application shortcuts
     zed = "DISPLAY=:0 zed";

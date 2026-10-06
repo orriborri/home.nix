@@ -729,6 +729,37 @@
                 touch $out
               '';
 
+          # T13: no zsh alias points at a binary that is not installed or at
+          # itself, and git's `visual` alias does not need gitk.
+          no-dead-aliases =
+            let
+              cfg = self.homeConfigurations.orre.config;
+              aliases = cfg.programs.zsh.shellAliases;
+              dead = lib.filter (n: aliases ? ${n}) [
+                "k"
+                "ssh"
+                "ssh-add"
+                "scp"
+                "nm"
+              ];
+            in
+            pkgs.runCommand "check-no-dead-aliases"
+              {
+                dead = lib.concatStringsSep " " dead;
+                gitVisual = cfg.programs.git.settings.alias.visual or "unset";
+              }
+              ''
+                [ -z "$dead" ] || {
+                  echo "zsh aliases to missing or identical commands: $dead" >&2
+                  exit 1
+                }
+                [ "$gitVisual" = unset ] || {
+                  echo "git alias visual still set to $gitVisual (gitk is not installed)" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           # O9: the pinned skills sync runs at login and on switch (the pin is part
           # of the unit), not every 15 minutes.
           skill-sync-no-timer =

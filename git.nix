@@ -208,7 +208,6 @@
       aliases = "config --get-regexp alias";
       unstage = "reset HEAD --";
       last = "log -1 HEAD";
-      visual = "!gitk";
 
       cleanup = "!git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d";
       prune-all = "!git remote | xargs -n 1 git remote prune";
