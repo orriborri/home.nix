@@ -13,6 +13,7 @@
   imports = [
     "${modulesPath}/virtualisation/amazon-image.nix"
     ./kirocrew-security.nix
+    ./kirocrew-disk-check.nix
     ./kirocrew-services.nix
     ./kirocrew-review-agents.nix
     ./kirocrew-review-skills.nix

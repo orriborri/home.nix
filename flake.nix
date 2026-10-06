@@ -871,6 +871,32 @@
                 touch $out
               '';
 
+          # O1: a daily timer fails when the EC2 root is more than 85% full, so
+          # a filling disk shows up in `systemctl list-units --failed`.
+          ec2-disk-check =
+            let
+              cfg = ec2OnX86.config;
+              timer = cfg.systemd.timers.kirocrew-disk-check.timerConfig or null;
+              exec = cfg.systemd.services.kirocrew-disk-check.serviceConfig.ExecStart or "";
+            in
+            pkgs.runCommand "check-ec2-disk-check"
+              {
+                calendar = if timer == null then "missing" else timer.OnCalendar or "unset";
+                inherit exec;
+              }
+              ''
+                [ "$calendar" = daily ] || { echo "kirocrew-disk-check timer OnCalendar is $calendar, want daily" >&2; exit 1; }
+                set -- $exec
+                bin=$1
+                [ -x "$bin" ] || { echo "no disk-check executable in ExecStart: $exec" >&2; exit 1; }
+                "$bin" "$TMPDIR" 100 || { echo "disk check failed below the threshold" >&2; exit 1; }
+                if "$bin" "$TMPDIR" -1; then
+                  echo "disk check passed although usage exceeds the threshold" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
