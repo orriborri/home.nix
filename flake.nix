@@ -927,6 +927,18 @@
                 touch $out
               '';
 
+          # S12: the EC2 firewall opens no inbound TCP port. SSM's
+          # AWS-StartSSHSession connects to sshd over loopback, which the NixOS
+          # firewall always accepts, so port 22 need not be open.
+          ec2-firewall-no-inbound-tcp =
+            let
+              ports = self.nixosConfigurations.kirocrew-ec2.config.networking.firewall.allowedTCPPorts;
+            in
+            pkgs.runCommand "check-ec2-firewall-no-inbound-tcp" { ports = toString ports; } ''
+              [ -z "$ports" ] || { echo "EC2 firewall allows TCP ports: $ports" >&2; exit 1; }
+              touch $out
+            '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

@@ -61,6 +61,8 @@
   # launch key amazon-init injects.
   services.openssh = {
     enable = true;
+    # SSM reaches sshd over loopback, which the firewall always accepts.
+    openFirewall = false;
     settings = {
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;

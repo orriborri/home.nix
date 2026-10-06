@@ -79,11 +79,12 @@
 
   # ── Firewall: SSM-only, no broad trusted interfaces ────────────────────────
   # SSM uses outbound HTTPS (443) only — no inbound ports required.
-  # SSH (22) allowed for bootstrap and SSM SSH tunneling.
+  # SSM-only: sshd is reached through AWS-StartSSHSession, which connects over
+  # loopback; the NixOS firewall always accepts loopback, so no port is opened.
   # Tailscale removed from initial config; add back when explicitly needed.
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 22 ];
+    allowedTCPPorts = [ ];
     allowedUDPPorts = [ ];
     # Explicitly clear any broad trusted interfaces.
     trustedInterfaces = [ ];
