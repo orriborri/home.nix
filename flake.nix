@@ -443,6 +443,18 @@
             touch $out
           '';
 
+          # S4: the MCP server venvs resolve dependencies as of a fixed date.
+          mcp-venv-deps-frozen = pkgs.runCommand "check-mcp-venv-deps-frozen" { } ''
+            f=${self}/nixos/kirocrew-services.nix
+            n=$(grep -c 'pip" install .*mcp<2' "$f" || true)
+            [ "$n" = 2 ] || { echo "expected 2 dependency installs, found $n" >&2; exit 1; }
+            if grep -n 'pip" install .*mcp<2' "$f" | grep -v 'uploaded-prior-to' >&2; then
+              echo "dependency install without --uploaded-prior-to" >&2
+              exit 1
+            fi
+            touch $out
+          '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

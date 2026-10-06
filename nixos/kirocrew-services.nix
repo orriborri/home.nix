@@ -414,6 +414,10 @@ let
   # headers are on PATH so a dep with no aarch64 wheel (this is a Graviton
   # t4g box) falls back to a source build instead of failing the unit.
   cfmTipsPython = pkgs.python312;
+  # Both MCP venvs resolve their dependencies as of this date, so a rebuild
+  # cannot pull releases published later. Bump it deliberately, together with
+  # the recipe numbers below.
+  mcpVenvUploadedPriorTo = "2026-10-06";
   cfmTipsRev = "dcf19f1ed6905bc0c9f556ac28a1d33dd7128a67";
   cfmTipsDir = "${kirocrewHome}/cfm-tips";
   cfmTipsServerBin = "${cfmTipsDir}/.venv/bin/python";
@@ -458,7 +462,7 @@ let
       # RECIPE is appended so a change to the build recipe (e.g. the mcp pin
       # below) forces a rebuild even when the source revision is unchanged.
       stamp="$venv/.cfm-tips-rev"
-      cfmRecipe=2  # 2: pin mcp<2 (server uses the v1 low-level Server API)
+      cfmRecipe=3  # 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2 (v1 low-level Server API)
       want="$cfmRecipe:${cfmTipsRev}"
       if [ ! -x "${cfmTipsServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
         echo "Building CFM Tips venv ($want)..."
@@ -471,7 +475,7 @@ let
         # decorators, so an unpinned install pulls 2.x and the module fails to
         # import at spawn (AttributeError: 'Server' object has no attribute
         # 'list_tools') — verified broken on the box before this pin.
-        "$venv/bin/pip" install -r "$srcRoot/requirements.txt" "mcp<2"
+        "$venv/bin/pip" install --uploaded-prior-to ${mcpVenvUploadedPriorTo} -r "$srcRoot/requirements.txt" "mcp<2"
         echo "$want" > "$stamp"
       fi
 
@@ -527,7 +531,7 @@ let
       # recipe changed. The stamp records "<recipe-version>:<source store path>";
       # bump RECIPE whenever the pip pin or build steps change so an existing
       # venv is rebuilt rather than silently kept.
-      RECIPE=2  # 2: pin mcp<2 (v1 low-level Server API)
+      RECIPE=3  # 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2 (v1 Server API)
       stamp="$venv/.slack-mcp-src"
       want="$RECIPE:${slackMcpSrc}"
       if [ ! -x "${slackMcpServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
@@ -542,7 +546,7 @@ let
         # Verified on the box: mcp 1.30.0 loads the decorators and auth.test
         # succeeds. (The isolated venv means this pin doesn't affect any other
         # server.)
-        "$venv/bin/pip" install "mcp<2"
+        "$venv/bin/pip" install --uploaded-prior-to ${mcpVenvUploadedPriorTo} "mcp<2"
         echo "$want" > "$stamp"
       fi
 
