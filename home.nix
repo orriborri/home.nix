@@ -110,7 +110,6 @@ in
     gitui = (import ./gitui.nix { inherit pkgs; });
     lazygit = (import ./lazygit.nix { inherit pkgs; });
     lsd = (import ./lsd.nix { inherit pkgs; });
-    htop = (import ./htop.nix { inherit pkgs; });
     zellij = (import ./zellij.nix { inherit pkgs; });
 
     # Better git diff viewer

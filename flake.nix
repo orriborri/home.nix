@@ -828,6 +828,23 @@
                 touch $out
               '';
 
+          # T17: `htop` is an alias for btm, so the real htop is not installed or
+          # configured on top of it.
+          htop-is-btm =
+            let
+              cfg = self.homeConfigurations.orre.config;
+            in
+            pkgs.runCommand "check-htop-is-btm"
+              {
+                htopEnabled = lib.boolToString cfg.programs.htop.enable;
+                alias = cfg.programs.zsh.shellAliases.htop or "unset";
+              }
+              ''
+                [ "$htopEnabled" = false ] || { echo "programs.htop is still enabled" >&2; exit 1; }
+                [ "$alias" = btm ] || { echo "htop alias is '$alias', want btm" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
