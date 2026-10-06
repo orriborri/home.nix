@@ -283,6 +283,7 @@ let
     name = "pasta-source-build";
     runtimeInputs = with pkgs; [
       coreutils
+      util-linux # flock
       git
       cargo
       rustc
@@ -314,6 +315,13 @@ let
       export GIT_TERMINAL_PROMPT=0
 
       mkdir -p "$srcRoot" "$binDir" "$CARGO_HOME" "$CARGO_TARGET_DIR"
+
+      # One build at a time: the daemon's pre-start, the timer units and manual
+      # runs all call this, and concurrent git reset / cargo build in the same
+      # checkout race. The lock lives beside src (a file inside it would break
+      # the first clone) and is held until this script exits.
+      exec 9>"${pastaHome}/.build.lock"
+      flock 9
 
       # Pin the kb data dir so the indexer (this daemon, HOME=${pastaHome}) and
       # the kb-mcp server (spawned by the gateway as the kirocrew user with a

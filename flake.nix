@@ -681,6 +681,21 @@
                 touch $out
               '';
 
+          # C1: pasta-source-build takes a lock, so the daemon's pre-start and the
+          # timer units (and manual runs) cannot build in the same checkout at
+          # once. Builds the real script from the EC2 config retargeted to x86.
+          pasta-build-locked =
+            let
+              pre = ec2OnX86.config.systemd.services.pasta-daemon.serviceConfig.ExecStartPre;
+              script = if builtins.isList pre then builtins.head pre else pre;
+            in
+            pkgs.runCommand "check-pasta-build-locked" { inherit script; } ''
+              f=$script
+              grep -q 'flock 9' "$f" || { echo "pasta-source-build does not take a lock" >&2; exit 1; }
+              grep -q '\.build\.lock' "$f" || { echo "no .build.lock file used" >&2; exit 1; }
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
