@@ -547,6 +547,23 @@
                 touch $out
               '';
 
+          # C22: the one-off ~/ReadPeak migration (which could rmtree a real
+          # directory on every switch) is gone.
+          no-readpeak-migration =
+            pkgs.runCommand "check-no-readpeak-migration"
+              {
+                present = lib.boolToString (
+                  self.homeConfigurations.orre.config.home.activation ? migrateReadPeakPaths
+                );
+              }
+              ''
+                [ "$present" = false ] || {
+                  echo "home.activation.migrateReadPeakPaths still exists" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
