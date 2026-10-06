@@ -811,6 +811,21 @@
                 touch $out
               '';
 
+          # C31: activation has no ssh on PATH, so `git clone git@...` died with
+          # "cannot run ssh". The clone step must put openssh on the child's PATH.
+          clone-activation-has-ssh =
+            pkgs.runCommand "check-clone-activation-has-ssh"
+              {
+                text = self.homeConfigurations.orre.config.home.activation.cloneRepos.data;
+                ssh = "${pkgs.openssh}/bin";
+                passAsFile = [ "text" ];
+              }
+              ''
+                grep -qF "$ssh" "$textPath" \
+                  || { echo "cloneRepos does not put $ssh on PATH; git clone over ssh fails" >&2; exit 1; }
+                touch $out
+              '';
+
           # T12: nothing reads KIROCREW_ROLE from the session environment; the
           # activation scripts take config.kirocrew.role directly.
           no-role-session-variable =

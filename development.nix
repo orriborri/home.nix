@@ -112,7 +112,7 @@ in
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           MANIFEST="$HOME/.config/kirocrew/repos.toml"
           if [ -f "$MANIFEST" ]; then
-            KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
+            PATH=${pkgs.openssh}/bin:$PATH KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
       import tomllib, os, subprocess, sys
       with open(sys.argv[1], 'rb') as f:
           data = tomllib.load(f)
