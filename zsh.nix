@@ -62,7 +62,7 @@
     hmb = "home-manager build";
 
     # Help
-    help = "echo '── Zsh Vi Mode ──\njj    → normal mode\ni     → insert mode\nv     → visual mode\n/     → search\nCtrl-R → history search\nCtrl-S → forward search\n── Navigation ──\n0/\\$   → line start/end\nw/b   → word forward/back\nf<c>  → jump to char\n── Editing ──\ndd    → delete line\ncc    → change line\nyy    → yank line\np     → paste\nu     → undo\n'";
+    help = "echo '── Zsh Vi Mode ──\njj    → normal mode\ni     → insert mode\nv     → visual mode\n/     → search\nCtrl-R → history search (atuin)\n── Navigation ──\n0/\\$   → line start/end\nw/b   → word forward/back\nf<c>  → jump to char\n── Editing ──\ndd    → delete line\ncc    → change line\nyy    → yank line\np     → paste\nu     → undo\n'";
   };
 
   # Shell initialization
@@ -101,10 +101,6 @@
     autoload -Uz bracketed-paste-magic
     zle -N bracketed-paste bracketed-paste-magic
 
-    # Better history search
-    bindkey '^R' history-incremental-search-backward
-    bindkey '^S' history-incremental-search-forward
-
     # Directory navigation
     setopt AUTO_CD
     setopt AUTO_PUSHD
@@ -113,7 +109,6 @@
     # Multiline command support
     setopt INTERACTIVE_COMMENTS
     setopt PROMPT_SUBST
-    export PS2="%F{yellow}∙%f "
 
     # Completion improvements
     setopt COMPLETE_ALIASES

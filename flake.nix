@@ -845,6 +845,34 @@
                 touch $out
               '';
 
+          # C28: no zsh setting that a later part of .zshrc overrides (atuin owns
+          # Ctrl-R, the tty eats Ctrl-S, starship sets the continuation prompt).
+          zsh-no-dead-settings =
+            let
+              files = self.homeConfigurations.orre.config.home.file;
+              zshText = lib.concatMapStringsSep "\n" (n: files.${n}.text) [
+                ".zshenv"
+                ".config/zsh/.zshenv"
+                ".config/zsh/.zprofile"
+                ".config/zsh/.zshrc"
+              ];
+            in
+            pkgs.runCommand "check-zsh-no-dead-settings"
+              {
+                inherit zshText;
+                passAsFile = [ "zshText" ];
+              }
+              ''
+                fail=0
+                grep -n "bindkey '^[RS]'" "$zshTextPath" >&2 && fail=1
+                grep -n 'export PS2=' "$zshTextPath" >&2 && fail=1
+                grep -n 'Ctrl-S' "$zshTextPath" >&2 && fail=1
+                grep -q 'atuin init zsh' "$zshTextPath" \
+                  || { echo "sanity: atuin init missing, Ctrl-R would be unbound" >&2; fail=1; }
+                [ "$fail" = 0 ] || { echo "dead zsh settings present" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
