@@ -263,6 +263,10 @@ let
   # NOTE: uses the public HTTPS remote — the pasta user has no forge
   # credentials. If orriborri/pasta becomes private, switch this to a
   # deploy-token/SSH flow like kirocrew-vault-git.nix.
+  # Commit of orriborri/pasta this host builds and runs under the token-holding
+  # uid. Bump deliberately: git ls-remote https://github.com/orriborri/pasta.git HEAD
+  pastaRev = "bcc6d5bddef1683004e717820d1e38d629abdbf9";
+
   pastaSourceBuild = pkgs.writeShellApplication {
     name = "pasta-source-build";
     runtimeInputs = with pkgs; [
@@ -341,11 +345,10 @@ let
       EOF
 
       if [ ! -d "$srcRoot/.git" ]; then
-        git clone --depth 1 https://github.com/orriborri/pasta.git "$srcRoot"
-      else
-        git -C "$srcRoot" fetch --depth 1 origin HEAD
-        git -C "$srcRoot" reset --hard FETCH_HEAD
+        git clone --no-checkout --depth 1 https://github.com/orriborri/pasta.git "$srcRoot"
       fi
+      git -C "$srcRoot" fetch --depth 1 origin ${pastaRev}
+      git -C "$srcRoot" reset --hard ${pastaRev}
 
       cd "$srcRoot"
       # Build the whole workspace so both pasta-backend and kb are produced.
