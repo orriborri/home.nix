@@ -51,6 +51,9 @@
   };
   nix.settings.auto-optimise-store = true;
 
+  # Journald would otherwise grow to 10% of the 79G root (default SystemMaxUse).
+  services.journald.settings.Journal.SystemMaxUse = "1G";
+
   # ── SSH: key-only, reachable over SSM (no public port) ─────────────────────
   # sshd still runs, but you reach it THROUGH the SSM tunnel (AWS-StartSSHSession),
   # so the security group needs no inbound rule. root stays key-only via the

@@ -829,6 +829,16 @@
                 touch $out
               '';
 
+          # O1: the EC2 journal is capped so logs cannot fill the fixed 79G root.
+          ec2-journald-cap =
+            let
+              cap = ec2OnX86.config.services.journald.settings.Journal.SystemMaxUse or "unset";
+            in
+            pkgs.runCommand "check-ec2-journald-cap" { inherit cap; } ''
+              [ "$cap" = 1G ] || { echo "journald SystemMaxUse is $cap, want 1G" >&2; exit 1; }
+              touch $out
+            '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
