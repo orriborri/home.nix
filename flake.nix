@@ -110,12 +110,6 @@
       kirocrewSourceTag = import ./kirocrew-source-tag.nix;
     in
     {
-      # Export overlays for reuse in other flakes
-      overlays = {
-        default = import ./overlays/nodejs.nix;
-        nodejs = import ./overlays/nodejs.nix;
-      };
-
       # Export custom libraries
       lib = { };
 
@@ -299,6 +293,21 @@
               echo "dead flake inputs: $dead" >&2
               exit 1
             fi
+            touch $out
+          '';
+
+          # T7: the nodejs overlay had no consumer; keep it and its docs gone.
+          no-unused-overlay = pkgs.runCommand "check-no-unused-overlay" { } ''
+            cd ${self}
+            fail=0
+            if [ -e overlays/nodejs.nix ]; then
+              echo "overlays/nodejs.nix still exists" >&2
+              fail=1
+            fi
+            if grep -n 'home-nix\.overlays\|overlays/nodejs' README.md FLAKES.md AGENTS.md >&2; then
+              fail=1
+            fi
+            [ "$fail" = 0 ]
             touch $out
           '';
 

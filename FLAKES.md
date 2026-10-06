@@ -73,20 +73,6 @@ Available modules:
 - `security` - GPG, SSH hardening
 - `kiro` - Kiro IDE
 
-### Overlays
-
-Use the Node.js overlay in your own flake:
-
-```nix
-{
-  inputs.home-nix.url = "github:orriborri/home.nix";
-  
-  outputs = { nixpkgs, home-nix, ... }: {
-    nixpkgs.overlays = [ home-nix.overlays.nodejs ];
-  };
-}
-```
-
 ### Libraries
 
 Access custom libraries:
@@ -209,16 +195,6 @@ Add to your `flake.nix`:
 }
 ```
 
-### Using Overlays
-
-```nix
-{
-  nixpkgs.overlays = [
-    home-nix.overlays.nodejs
-  ];
-}
-```
-
 ### Using Packages
 
 ```nix
@@ -246,7 +222,6 @@ flake.nix
 ├── inputs          # Dependencies (nixpkgs, home-manager, etc.)
 └── outputs
     ├── packages    # Standalone packages (kiro-ide)
-    ├── overlays    # Package modifications (nodejs)
     ├── homeManagerModules  # Reusable modules
     ├── nixosModules        # NixOS modules
     ├── homeConfigurations  # Pre-built configs

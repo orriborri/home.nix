@@ -1,12 +1,12 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`flake.nix` exposes every output, while `home.nix` stitches together the default configuration by importing the per-tool `.nix` files that live flat at the repo root (FruitieX-style — no `modules/` tree, no `default.nix` aggregators). Reusable packages live in `packages/`, overlays in `overlays/`, and host-specific glue in `nixos/`. Reach for `templates/minimal` when seeding a new profile.
+`flake.nix` exposes every output, while `home.nix` stitches together the default configuration by importing the per-tool `.nix` files that live flat at the repo root (FruitieX-style — no `modules/` tree, no `default.nix` aggregators). Reusable packages live in `packages/` and host-specific glue in `nixos/`. Reach for `templates/minimal` when seeding a new profile.
 
 ## Build, Test, & Development Commands
 - `nix develop` — launch the repo’s toolchain (formatter, hm, git helpers).
 - `nix flake show` — list module, package, and template outputs.
-- `nix flake check` — evaluate modules, overlays, and packages in CI-equivalent mode.
+- `nix flake check` — evaluate modules and packages in CI-equivalent mode.
 - `home-manager build --flake .` — dry-run profile activation without touching `$HOME`.
 - `home-manager switch --flake .#orre` (or `.#orre-minimal`) — apply a specific configuration.
 - `nix run .#update` (or `./update.sh`) — bump inputs and rebuild using the scripted order.
@@ -21,4 +21,4 @@ Treat `nix flake check` as the minimum bar for every change. Follow it with `hom
 History favors Conventional Commits (`feat:`, `fix:`, `chore:`, etc.), so write imperative messages that cover one logical change and cite issues in the footer when needed. Pull requests should include a short motivation, screenshots for UI-facing desktop edits, the exact commands you ran (see Testing), and the target platform (`x86_64-linux`, `aarch64-darwin`, etc.).
 
 ## Security & Configuration Tips
-Security knobs belong in `modules/security.nix`; reference GPG key IDs or `pass` stores rather than committing secrets. Keep overlays tight (e.g., `overlays/nodejs.nix`) and bump versions via `nix flake update` followed by `nix run .#update` to avoid drift between lockfiles and scripts. New templates or scripts must default to safe flags and explicitly call the intended flake output (`.#orre`, `.#orre@darwin`).
+Security knobs belong in `modules/security.nix`; reference GPG key IDs or `pass` stores rather than committing secrets. Bump versions via `nix flake update` followed by `nix run .#update` to avoid drift between lockfiles and scripts. New templates or scripts must default to safe flags and explicitly call the intended flake output (`.#orre`, `.#orre@darwin`).

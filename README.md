@@ -9,7 +9,7 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 - **Modular architecture**: Clean separation of concerns with organized modules
 - **Security-focused**: GPG, SSH hardening, and secure defaults
 - **Development-ready**: Comprehensive tooling for modern development workflows
-- **Reusable**: Export modules, overlays, and packages for use in other flakes
+- **Reusable**: Export modules and packages for use in other flakes
 - **Cross-platform compatibility**: Adapts to different operating systems automatically
 
 ## Quick Start
@@ -65,8 +65,6 @@ home-manager switch --flake .
 ├── gpg-agent.nix             # GPG agent service
 ├── cosmic.nix                # COSMIC desktop integration
 │
-├── overlays/                # Nixpkgs overlays
-│   └── nodejs.nix           # Node.js version override
 ├── packages/                # Custom package definitions
 │   ├── kiro.nix             # Kiro IDE Home Manager module
 │   └── kiro-package.nix     # Kiro IDE standalone package
@@ -95,10 +93,6 @@ This repository exports multiple outputs for reuse:
 - `utilities` - system utilities
 - `kiro` - Kiro IDE
 
-### Overlays
-- `nodejs` - Latest Node.js version
-- `default` - All overlays combined
-
 ### Templates
 - `minimal` - Bootstrap a new Home Manager config
 
@@ -106,7 +100,7 @@ See [FLAKES.md](./FLAKES.md) for detailed usage.
 
 ## Using This Configuration in Your Own Flake
 
-Import modules, overlays, or packages:
+Import modules or packages:
 
 ```nix
 {
@@ -130,9 +124,6 @@ Import modules, overlays, or packages:
         # Your config
         ./home.nix
       ];
-      
-      # Use overlays
-      nixpkgs.overlays = [ home-nix.overlays.nodejs ];
     };
   };
 }
