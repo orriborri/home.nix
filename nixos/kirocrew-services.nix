@@ -49,6 +49,11 @@ let
   # KiroCrew's Claude/Codex harnesses are ACP npm adapters, separate from the
   # claude-code and codex CLI packages. Install them in the dedicated user's
   # private npm prefix so the Developer -> Agent Backend probes can find them.
+  # Agent backends installed globally for the kirocrew user. Exact versions;
+  # find newer ones with `npm view <package> version`.
+  claudeAcpVersion = "0.86.0";
+  codexAcpVersion = "2.1.1";
+
   kirocrewAgentBackends = pkgs.writeShellScript "kirocrew-agent-backends" ''
     set -eu
     export HOME=${kirocrewHome}
@@ -57,10 +62,17 @@ let
     export NPM_CONFIG_CACHE=${kirocrewHome}/.npm
     export NPM_CONFIG_USERCONFIG=${kirocrewHome}/.npmrc
     install -d -m 0750 ${kirocrewHome}/.npm-global ${kirocrewHome}/.npm
-    command -v claude-agent-acp >/dev/null 2>&1 || \
-      ${pkgs.nodejs_22}/bin/npm install --global @agentclientprotocol/claude-agent-acp
-    command -v codex-acp >/dev/null 2>&1 || \
-      ${pkgs.nodejs_22}/bin/npm install --global @agentclientprotocol/codex-acp
+    # Install exact versions, and reinstall when the installed one differs, so
+    # bumping a version below takes effect and nothing floats to "latest".
+    install_acp() {
+      pkg=$1
+      want=$2
+      have=$(${pkgs.nodejs_22}/bin/node -p \
+        "try{require('${kirocrewHome}/.npm-global/lib/node_modules/$pkg/package.json').version}catch(e){'''}")
+      [ "$have" = "$want" ] || ${pkgs.nodejs_22}/bin/npm install --global "$pkg@$want"
+    }
+    install_acp @agentclientprotocol/claude-agent-acp ${claudeAcpVersion}
+    install_acp @agentclientprotocol/codex-acp ${codexAcpVersion}
   '';
 
   # Operator-facing `kirocrew` command.
