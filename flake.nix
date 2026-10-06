@@ -381,6 +381,28 @@
                 touch $out
               '';
 
+          # D12: the gateway unit builds nothing, so it keeps systemd's default
+          # start timeout (the 20 min override belongs to the source updater).
+          kirocrew-gateway-default-timeout =
+            let
+              service = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service;
+            in
+            pkgs.runCommand "check-kirocrew-gateway-default-timeout"
+              {
+                hasTimeout = lib.boolToString (service ? TimeoutStartSec);
+              }
+              ''
+                [ "$hasTimeout" = false ] || {
+                  echo "kirocrew.service overrides TimeoutStartSec; only the source updater builds" >&2
+                  exit 1
+                }
+                if grep -n 'first source install' ${self}/kirocrew-service.nix >&2; then
+                  echo "stale source-install comment in kirocrew-service.nix" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

@@ -153,8 +153,6 @@ in
         "${kirocrewExecutable} config set --local agent.sandbox off"
       ];
       ExecStart = "${kirocrewExecutable} gateway";
-      # A first source install builds the TypeScript dashboard and Python venv.
-      TimeoutStartSec = "20min";
       Restart = "always";
       RestartSec = 5;
       Environment = [
