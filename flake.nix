@@ -311,6 +311,26 @@
             touch $out
           '';
 
+          # S7: the workstation gateway runs with agent.sandbox off, so its
+          # dashboard must only listen on loopback.
+          kirocrew-gateway-loopback =
+            let
+              env = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service.Environment;
+            in
+            pkgs.runCommand "check-kirocrew-gateway-loopback"
+              {
+                rendered = lib.concatStringsSep "\n" env;
+                passAsFile = [ "rendered" ];
+              }
+              ''
+                grep -qx 'KIROCREW_BIND=127.0.0.1' "$renderedPath" || {
+                  echo "kirocrew.service must set KIROCREW_BIND=127.0.0.1; got:" >&2
+                  grep KIROCREW_BIND "$renderedPath" >&2 || echo "(unset)" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

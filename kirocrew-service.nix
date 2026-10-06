@@ -173,7 +173,7 @@ in
         "SSH_AUTH_SOCK=%h/.1password/agent.sock"
         "PATH=%h/.local/bin:/etc/profiles/per-user/orre/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
         "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
-        "KIROCREW_BIND=0.0.0.0"
+        "KIROCREW_BIND=127.0.0.1"
       ];
     };
     Install = {
