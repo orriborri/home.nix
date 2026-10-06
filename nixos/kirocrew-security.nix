@@ -65,9 +65,6 @@
       "code-writers"
     ];
     shell = pkgs.zsh;
-    openssh.authorizedKeys.keys = [
-      # Add your SSH public key here before deploying
-    ];
   };
 
   # Passwordless sudo for wheel users. The instance is SSM-only with key-based

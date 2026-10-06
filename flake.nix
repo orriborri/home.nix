@@ -910,6 +910,23 @@
               touch $out
             '';
 
+          # S12: the EC2 module does not carry an empty authorizedKeys stub
+          # (access is SSM-only; keys would be added deliberately, not by a
+          # placeholder comment).
+          ec2-no-empty-authorized-keys =
+            let
+              text = builtins.readFile ./nixos/kirocrew-security.nix;
+            in
+            pkgs.runCommand "check-ec2-no-empty-authorized-keys"
+              { present = lib.boolToString (lib.hasInfix "authorizedKeys" text); }
+              ''
+                [ "$present" = false ] || {
+                  echo "nixos/kirocrew-security.nix still has an authorizedKeys stub" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
