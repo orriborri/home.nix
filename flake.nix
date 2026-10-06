@@ -455,6 +455,27 @@
             touch $out
           '';
 
+          # C11: the workstation installs the same pinned code-review-graph, only
+          # when the installed version differs, and does not hide failures.
+          crg-activation-pinned =
+            let
+              script = self.homeConfigurations.orre.config.home.activation.uvTools.data;
+            in
+            pkgs.runCommand "check-crg-activation-pinned"
+              {
+                inherit script;
+                passAsFile = [ "script" ];
+              }
+              ''
+                grep -q 'code-review-graph==2.3.8' "$scriptPath" \
+                  || { echo "uvTools does not install code-review-graph==2.3.8" >&2; exit 1; }
+                if grep -n '2>/dev/null || true' "$scriptPath" >&2; then
+                  echo "uvTools still hides install failures" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

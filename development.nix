@@ -6,6 +6,9 @@
   ...
 }:
 
+let
+  crgVersion = import ./crg-version.nix;
+in
 {
   # Development packages organized by category
   home.packages = with pkgs; [
@@ -87,7 +90,15 @@
   # Install Python tools via uv (isolated venvs, managed by Home Manager activation)
   home.activation.uvTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     export PATH="${pkgs.uv}/bin:${pkgs.python3}/bin:$PATH"
-    ${pkgs.uv}/bin/uv tool install --force code-review-graph 2>/dev/null || true
+    crg="$HOME/.local/bin/code-review-graph"
+    installed=""
+    if [ -x "$crg" ]; then
+      installed="$("$crg" --version 2>/dev/null | tr -dc '0-9.' || true)"
+    fi
+    if [ "$installed" != ${lib.escapeShellArg crgVersion} ]; then
+      ${pkgs.uv}/bin/uv tool install --force "code-review-graph==${crgVersion}" \
+        || echo "warning: could not install code-review-graph==${crgVersion}" >&2
+    fi
   '';
 
   # Clone repos declared in config/repos.toml (idempotent -- skips existing)
