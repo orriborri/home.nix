@@ -773,6 +773,22 @@ in
   };
 
   # ── KiroCrew gateway ───────────────────────────────────────────────────────
+  # Registers the agent crews (specs are installed by the kirocrew-review-agents,
+  # -dev-crew and -assistant activation scripts, each of which adds its own
+  # ExecStart here). Ordered after the gateway because its ExecStartPre creates
+  # the crew-venv symlink the CLI is run through. Restarted on `switch` whenever
+  # a script changes; registration is idempotent.
+  systemd.services.kirocrew-register-agents = {
+    description = "Register KiroCrew agent crews";
+    after = [ "kirocrew-gateway.service" ];
+    wants = [ "kirocrew-gateway.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+  };
+
   systemd.services.kirocrew-gateway = {
     description = "KiroCrew Gateway";
     after = [

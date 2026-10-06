@@ -69,19 +69,23 @@ in
 
       # ── Layer 1: write the agent spec (declarative source of truth) ────────
       install -m 0644 -o kirocrew -g kirocrew ${agentFile} "${agentsDir}/${agentName}.json"
-
-      # ── Layer 2: register as a crew, idempotently ──────────────────────────
-      ${registerCrews {
-        label = "kirocrew-assistant";
-        names = agentName;
-        inherit
-          kirocrewHome
-          crewHome
-          kirocrewBin
-          kirocrewLibraryPath
-          ;
-        skippedNote = "wrote spec, skipped registration";
-      }}
     fi
   '';
+
+  # Registration needs the crew-venv symlink the gateway's ExecStartPre creates,
+  # so it runs from kirocrew-register-agents (ordered after the gateway), not at
+  # activation, which only writes the specs.
+  systemd.services.kirocrew-register-agents.serviceConfig.ExecStart = [
+    (pkgs.writeShellScript "kirocrew-register-assistant" (registerCrews {
+      label = "kirocrew-assistant";
+      names = agentName;
+      inherit
+        kirocrewHome
+        crewHome
+        kirocrewBin
+        kirocrewLibraryPath
+        ;
+      skippedNote = "skipped registration";
+    }))
+  ];
 }

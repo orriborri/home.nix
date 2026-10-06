@@ -772,32 +772,60 @@
                 touch $out
               '';
 
-          # C6: crew registration at activation runs the agent CLI through a
-          # shared helper that bounds it with `timeout 60`, so a hung CLI cannot
-          # wedge `nixos-rebuild switch`. Builds on the EC2 config retargeted to x86.
+          # C6: crew registration runs the agent CLI through a shared helper that
+          # bounds it with `timeout 60`, so a hung CLI cannot wedge the unit.
+          # Builds on the EC2 config retargeted to x86.
           crew-registration-timeout =
             let
-              scripts = ec2OnX86.config.system.activationScripts;
+              unit = ec2OnX86.config.systemd.services.kirocrew-register-agents;
+              execs = map toString (lib.toList unit.serviceConfig.ExecStart);
             in
             pkgs.runCommand "check-crew-registration-timeout"
               {
-                reviewAgents = scripts.kirocrew-review-agents.text;
-                devCrew = scripts.kirocrew-dev-crew.text;
-                assistant = scripts.kirocrew-assistant.text;
-                passAsFile = [
-                  "reviewAgents"
-                  "devCrew"
-                  "assistant"
-                ];
+                execs = lib.concatStringsSep " " execs;
               }
               ''
-                for f in reviewAgents devCrew assistant; do
-                  eval "p=\$${f}Path"
-                  grep -q 'timeout 60' "$p" || {
-                    echo "$f activation script does not bound the CLI with timeout 60" >&2
+                n=0
+                for f in $execs; do
+                  n=$((n + 1))
+                  grep -q 'timeout 60' "$f" || {
+                    echo "$f does not bound the CLI with timeout 60" >&2
                     exit 1
                   }
                 done
+                [ "$n" = 3 ] || { echo "expected 3 registration scripts, got $n" >&2; exit 1; }
+                touch $out
+              '';
+
+          # C6: crews register once the gateway is up (the crew-venv symlink only
+          # exists after its ExecStartPre), from one oneshot unit that runs the
+          # three registration scripts; activation only writes the specs.
+          crew-registration-service =
+            let
+              cfg = ec2OnX86.config;
+              unit = cfg.systemd.services.kirocrew-register-agents or null;
+              scripts = cfg.system.activationScripts;
+            in
+            pkgs.runCommand "check-crew-registration-service"
+              {
+                present = lib.boolToString (unit != null);
+                after = lib.concatStringsSep " " (unit.after or [ ]);
+                execs = toString (builtins.length (lib.toList (unit.serviceConfig.ExecStart or [ ])));
+                activation = lib.concatStringsSep "\n" [
+                  scripts.kirocrew-review-agents.text
+                  scripts.kirocrew-dev-crew.text
+                  scripts.kirocrew-assistant.text
+                ];
+                passAsFile = [ "activation" ];
+              }
+              ''
+                [ "$present" = true ] || { echo "systemd.services.kirocrew-register-agents is missing" >&2; exit 1; }
+                case " $after " in *" kirocrew-gateway.service "*) ;; *) echo "kirocrew-register-agents is not ordered after kirocrew-gateway.service ($after)" >&2; exit 1;; esac
+                [ "$execs" = 3 ] || { echo "kirocrew-register-agents has $execs ExecStart entries, want 3" >&2; exit 1; }
+                if grep -q 'agent create' "$activationPath"; then
+                  echo "an activation script still registers crews" >&2
+                  exit 1
+                fi
                 touch $out
               '';
 
