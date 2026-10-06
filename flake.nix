@@ -971,6 +971,24 @@
               touch $out
             '';
 
+          # O8: the headless EC2 home has no gpg-agent with a GUI pinentry; the
+          # workstation keeps it.
+          gpg-agent-headless =
+            let
+              ec2 = ec2OnX86.config.home-manager.users.orre.services.gpg-agent.enable;
+              ws = self.homeConfigurations.orre.config.services.gpg-agent.enable;
+            in
+            pkgs.runCommand "check-gpg-agent-headless"
+              {
+                ec2 = lib.boolToString ec2;
+                ws = lib.boolToString ws;
+              }
+              ''
+                [ "$ec2" = false ] || { echo "gpg-agent is enabled on the headless EC2 home" >&2; exit 1; }
+                [ "$ws" = true ] || { echo "gpg-agent is disabled on the workstation" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
