@@ -75,8 +75,10 @@ in
   };
 
   # Point Docker-compatible tooling (compose plugin, testcontainers, etc.) at
-  # the rootless podman socket. %t expands to $XDG_RUNTIME_DIR (/run/user/UID).
-  home.sessionVariables.DOCKER_HOST = "unix:///run/user/1000/podman/podman.sock";
+  # the rootless podman socket. Session variables are plain shell exports, so
+  # %t does not expand here; $XDG_RUNTIME_DIR is expanded when the shell sources
+  # them (the systemd unit above does use %t).
+  home.sessionVariables.DOCKER_HOST = "unix://$XDG_RUNTIME_DIR/podman/podman.sock";
 
   # Development environment variables
   home.sessionVariables = {

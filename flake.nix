@@ -476,6 +476,20 @@
                 touch $out
               '';
 
+          # C8: DOCKER_HOST follows the user's runtime dir instead of uid 1000.
+          docker-host-uid-agnostic =
+            let
+              inherit (self.homeConfigurations.orre.config.home.sessionVariables) DOCKER_HOST;
+            in
+            pkgs.runCommand "check-docker-host-uid-agnostic" { inherit DOCKER_HOST; } ''
+              case "$DOCKER_HOST" in
+                *'/run/user/'[0-9]*) echo "DOCKER_HOST hardcodes a uid: $DOCKER_HOST" >&2; exit 1 ;;
+                *'$XDG_RUNTIME_DIR/podman/podman.sock') ;;
+                *) echo "unexpected DOCKER_HOST: $DOCKER_HOST" >&2; exit 1 ;;
+              esac
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
