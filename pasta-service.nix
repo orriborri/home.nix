@@ -100,7 +100,11 @@ in
         ExecStart = "${pastaBuildAndRun}/bin/pasta-start";
         # Keep the daemon startable when this host has no SOPS age key; the
         # Slack helper then falls back to its existing token file.
-        EnvironmentFile = "-${config.sops.templates."pasta-fetchers.env".path}";
+        # sops-nix expands %r itself, systemd does not (it warns and reads
+        # nothing); %t is the runtime dir sops-nix writes to.
+        EnvironmentFile = "-${
+          lib.replaceStrings [ "%r" ] [ "%t" ] config.sops.templates."pasta-fetchers.env".path
+        }";
         # First build from source can take a while on Graviton.
         TimeoutStartSec = "30min";
         Restart = "on-failure";

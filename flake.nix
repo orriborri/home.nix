@@ -509,6 +509,20 @@
               touch $out
             '';
 
+          # C19: systemd does not expand %r, so pasta.service must read its
+          # secrets from the %t (runtime dir) path sops-nix writes to.
+          pasta-env-file-specifier =
+            let
+              envFile = self.homeConfigurations.orre.config.systemd.user.services.pasta.Service.EnvironmentFile;
+            in
+            pkgs.runCommand "check-pasta-env-file-specifier" { inherit envFile; } ''
+              [ "$envFile" = "-%t/secrets/pasta-fetchers.env" ] || {
+                echo "pasta.service EnvironmentFile is '$envFile', want -%t/secrets/pasta-fetchers.env" >&2
+                exit 1
+              }
+              touch $out
+            '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
