@@ -729,6 +729,25 @@
                 touch $out
               '';
 
+          # O9: the pinned skills sync runs at login and on switch (the pin is part
+          # of the unit), not every 15 minutes.
+          skill-sync-no-timer =
+            let
+              hm = self.homeConfigurations.orre.config.systemd.user;
+            in
+            pkgs.runCommand "check-skill-sync-no-timer"
+              {
+                timer = lib.boolToString (hm.timers ? kirocrew-skill-sync);
+                service = lib.boolToString (hm.services ? kirocrew-skill-sync);
+                wantedBy = lib.concatStringsSep "," hm.services.kirocrew-skill-sync.Install.WantedBy;
+              }
+              ''
+                [ "$timer" = false ] || { echo "kirocrew-skill-sync.timer still exists" >&2; exit 1; }
+                [ "$service" = true ] || { echo "kirocrew-skill-sync.service is gone" >&2; exit 1; }
+                [ "$wantedBy" = default.target ] || { echo "service WantedBy is '$wantedBy'" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')

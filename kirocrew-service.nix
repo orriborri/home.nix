@@ -170,16 +170,9 @@ in
     };
     Install.WantedBy = [ "default.target" ];
   };
-  systemd.user.timers.kirocrew-skill-sync = lib.mkIf syncWorkstationSkills {
-    Unit.Description = "Refresh pinned KiroCrew skills every 15 minutes";
-    Timer = {
-      OnBootSec = "2m";
-      OnUnitActiveSec = "15m";
-      RandomizedDelaySec = "30s";
-      Unit = "kirocrew-skill-sync.service";
-    };
-    Install.WantedBy = [ "timers.target" ];
-  };
+  # No timer: the revision is pinned and is part of the script above, so a pin
+  # bump changes this unit and `home-manager switch` restarts it; the service
+  # also runs at login (WantedBy) and before the gateway (Wants).
 
   # Refresh stable tags daily. New releases are built and validated alongside
   # the active one; the gateway restarts only after the atomic symlink switch.
