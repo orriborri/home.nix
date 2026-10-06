@@ -14,11 +14,6 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    flake-utils.url = "github:numtide/flake-utils";
-    nixgl = {
-      url = "github:nix-community/nixGL";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     # Official Claude Desktop Linux .deb, repackaged daily. No nixpkgs follows:
     # upstream only tests its own pin.
     llm-agents.url = "github:numtide/llm-agents.nix";
@@ -43,8 +38,6 @@
       nixpkgs-stable,
       nixpkgs-rust,
       home-manager,
-      flake-utils,
-      nixgl,
       llm-agents,
       nixos-generators,
       sops-nix,
@@ -78,9 +71,6 @@
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
             pkgs-rust = nixpkgs-rust.legacyPackages.${system};
             inherit llm-agents;
-          }
-          // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-            nixgl = nixgl.packages.${system};
           };
           modules = [
             ./home.nix
@@ -302,6 +292,16 @@
             touch $out
           '';
 
+          # T3: every root input is used by something in this flake.
+          no-dead-inputs = pkgs.runCommand "check-no-dead-inputs" { nativeBuildInputs = [ pkgs.jq ]; } ''
+            dead=$(jq -r '.nodes.root.inputs | keys[] | select(. == "nixgl" or . == "flake-utils")' ${self}/flake.lock)
+            if [ -n "$dead" ]; then
+              echo "dead flake inputs: $dead" >&2
+              exit 1
+            fi
+            touch $out
+          '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
@@ -323,7 +323,6 @@
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
               inherit llm-agents;
-              nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
               imports = kirocrewModules;
@@ -388,7 +387,6 @@
             home-manager.extraSpecialArgs = {
               pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
               inherit llm-agents;
-              nixgl = nixgl.packages."x86_64-linux";
             };
             home-manager.users.orre = { ... }: {
               imports = kirocrewModules;
