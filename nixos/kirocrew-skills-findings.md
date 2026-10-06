@@ -47,7 +47,8 @@ no differing legacy files were removed. Prior managed versions retain
 `metadata.json` with their relative name and previous fingerprint for rollback.
 Archives are retained for manual review, not automatically pruned.
 
-See `todo.md` for completion status and validation commands. The historical
+Completion status and validation commands were in `nixos/todo.md`
+(removed 2026-10-06; see git history). The historical
 findings and initial proposal follow.
 
 Investigation into how this repo loads agent skills and agents into the KiroCrew

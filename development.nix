@@ -80,6 +80,11 @@ in
   # them (the systemd unit above does use %t).
   home.sessionVariables.DOCKER_HOST = "unix://$XDG_RUNTIME_DIR/podman/podman.sock";
 
+  # Testcontainers' Ryuk reaper bind-mounts the socket into a container_t
+  # container; SELinux (enforcing) denies the write, so Ryuk exits and startup
+  # fails. Disabling it is the documented setup for rootless podman.
+  home.sessionVariables.TESTCONTAINERS_RYUK_DISABLED = "true";
+
   # Development environment variables
   home.sessionVariables = {
     # Development paths
