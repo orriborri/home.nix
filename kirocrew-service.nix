@@ -86,9 +86,7 @@ let
   # Detect whether sops-nix has the git-ssh-key secret declared.
   # The module is imported on all outputs but only activates where a key exists.
   hasSops = (config.sops.secrets or { }) ? "git-ssh-key";
-  useSourceInstall = cfg.enable && cfg.role == "headless";
   pinnedSourceTag = if cfg.sourceTag == null then "" else cfg.sourceTag;
-  kirocrewTzdataVersion = "2026.3";
   kirocrewLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -106,25 +104,6 @@ let
   kirocrewExecutable = "%h/.local/bin/kirocrew";
 in
 {
-  # KiroCrew uses an isolated Python launched with -E, so PYTHONTZPATH is
-  # ignored. Keep tzdata pinned inside the pipx environment across reinstalls.
-  # NOTE: The kirocrew venv was installed with backend=uv (baked into pipx
-  # metadata), so we use uv directly to inject packages. pipx inject refuses to
-  # override the recorded backend even with PIPX_DEFAULT_BACKEND=pip.
-  # UV_NO_CONFIG prevents uv from traversing parent dirs for config files
-  # (hits permission errors when activation runs as root).
-  home.activation.kirocrewTzdata = lib.mkIf (!useSourceInstall) (
-    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      kirocrewPython="$HOME/.local/share/pipx/venvs/kirocrew/bin/python"
-      if [ -x "$kirocrewPython" ]; then
-        installedVersion="$("$kirocrewPython" -c 'from importlib.metadata import version; print(version("tzdata"))' 2>/dev/null || true)"
-        if [ "$installedVersion" != "${kirocrewTzdataVersion}" ]; then
-          $DRY_RUN_CMD env UV_NO_CONFIG=1 ${pkgs.uv}/bin/uv pip install --python "$kirocrewPython" "tzdata==${kirocrewTzdataVersion}"
-        fi
-      fi
-    ''
-  );
-
   # glab is installed system-wide by nixos/kirocrew.nix (root-owned symlink
   # at /usr/local/libexec/kirocrew/glab). No sudo needed here.
 

@@ -714,6 +714,21 @@
                 touch $out
               '';
 
+          # T11: nothing patches the orphaned pipx kirocrew venv; the source
+          # updater (kirocrew-source-build.nix) owns the tzdata pin.
+          no-pipx-tzdata-activation =
+            pkgs.runCommand "check-no-pipx-tzdata-activation"
+              {
+                present = lib.boolToString (self.homeConfigurations.orre.config.home.activation ? kirocrewTzdata);
+              }
+              ''
+                [ "$present" = false ] || {
+                  echo "home.activation.kirocrewTzdata still exists" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
