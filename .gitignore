@@ -6,4 +6,19 @@ __pycache__/
 silverblue.raw
 .nanocoder/
 nixos/.kirocrew-ec2.json
+.pytest_cache/
+.ruff_cache/
+*.log
+logs/
+.code-review-graph/
+nixos/~/
+# Untracked in T9, kept on disk.
+nixos/users_approved.tsv
+nixos/old-*-redshift.json
+nixos/global-bundle.pem
+activate-window-by-title@lucaswerkmeister.de
+.claude/settings.local.json
 .worktrees/
+# Private planning notes: findings include open security issues; repo is public.
+BACKLOG.md
+/todo.md

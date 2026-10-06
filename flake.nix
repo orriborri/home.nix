@@ -275,6 +275,33 @@
         // {
           kirocrew-ec2-sops = pkgs.writeText "kirocrew-ec2-sops" ec2OnX86.config.system.activationScripts.setupSecrets.text;
 
+          # T9: tracked junk stays out of the repo, and caches and logs stay
+          # ignored in every clone, not only where a global ignore covers them.
+          repo-hygiene = pkgs.runCommand "check-repo-hygiene" { } ''
+            cd ${self}
+            fail=0
+            for p in \
+              nixos/users_approved.tsv \
+              nixos/old-field-map-redshift.json \
+              nixos/old-table-map-redshift.json \
+              nixos/global-bundle.pem \
+              'activate-window-by-title@lucaswerkmeister.de' \
+              .claude/settings.local.json; do
+              if [ -e "$p" ] || [ -L "$p" ]; then
+                echo "tracked junk: $p" >&2
+                fail=1
+              fi
+            done
+            for pat in .pytest_cache/ .ruff_cache/ '*.log' logs/ .code-review-graph/ 'nixos/~/'; do
+              if ! grep -qxF "$pat" .gitignore; then
+                echo ".gitignore lacks: $pat" >&2
+                fail=1
+              fi
+            done
+            [ "$fail" = 0 ]
+            touch $out
+          '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
