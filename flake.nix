@@ -729,6 +729,32 @@
                 touch $out
               '';
 
+          # T14: variables already in home.sessionVariables are not repeated in
+          # programs.zsh.sessionVariables (the zsh copy lands in .zshenv and would
+          # silently win), and the effective values stay set.
+          no-duplicate-session-vars =
+            let
+              cfg = self.homeConfigurations.orre.config;
+              names = [
+                "EDITOR"
+                "VISUAL"
+                "NPM_CONFIG_PREFIX"
+                "FZF_DEFAULT_OPTS"
+              ];
+              dup = lib.filter (n: cfg.programs.zsh.sessionVariables ? ${n}) names;
+              unset = lib.filter (n: !(cfg.home.sessionVariables ? ${n})) names;
+            in
+            pkgs.runCommand "check-no-duplicate-session-vars"
+              {
+                dup = lib.concatStringsSep " " dup;
+                unset = lib.concatStringsSep " " unset;
+              }
+              ''
+                [ -z "$dup" ] || { echo "repeated in programs.zsh.sessionVariables: $dup" >&2; exit 1; }
+                [ -z "$unset" ] || { echo "missing from home.sessionVariables: $unset" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

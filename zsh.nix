@@ -152,24 +152,14 @@
     # Suppress direnv logs
     DIRENV_LOG_FORMAT = "";
 
-    # Editor preference
-    EDITOR = "nvim";
-    VISUAL = "nvim";
-
     # Don't pipe AWS CLI output through a pager
     AWS_PAGER = "";
 
     # Vi mode configuration
     ZVM_VI_INSERT_ESCAPE_BINDKEY = "jj";
 
-    # NPM global packages
-    NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
-
     # Better less defaults
     LESS = "-R -S -M -I -x4";
-
-    # FZF configuration
-    FZF_DEFAULT_OPTS = "--height 40% --layout=reverse --border --inline-info";
   };
 
   # Plugins (zsh-autosuggestions comes from autosuggestion.enable above)
