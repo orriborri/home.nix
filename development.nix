@@ -138,7 +138,10 @@ in
                 cmd += ['--depth=1']
             cmd += [repo['remote'], target]
             print(f'Cloning {repo[\"remote\"]} -> {target}')
-            subprocess.run(cmd, capture_output=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                lines = result.stderr.strip().splitlines()
+                print(f'warning: clone of {repo[\"remote\"]} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
     " "$MANIFEST" "${pkgs.git}/bin/git"
         fi
   '';
@@ -164,7 +167,10 @@ in
             continue
         target = os.path.join(home, repo['path'])
         if os.path.isdir(os.path.join(target, '.git')):
-            subprocess.run([crg, 'register', target], capture_output=True)
+            result = subprocess.run([crg, 'register', target], capture_output=True, text=True)
+            if result.returncode != 0:
+                lines = result.stderr.strip().splitlines()
+                print(f'warning: code-review-graph register {target} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
     " "$MANIFEST" "$CRG"
         fi
   '';

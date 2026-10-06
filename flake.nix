@@ -584,6 +584,49 @@
                 touch $out
               '';
 
+          # C21: a failing clone or `crg register` during activation is reported,
+          # not swallowed. Runs the real rendered scripts against a scratch HOME
+          # with a broken remote and a failing code-review-graph.
+          activation-reports-failures =
+            let
+              act = self.homeConfigurations.orre.config.home.activation;
+            in
+            pkgs.runCommand "check-activation-reports-failures"
+              {
+                clone = act.cloneRepos.data;
+                register = act.crgRegisterRepos.data;
+                passAsFile = [
+                  "clone"
+                  "register"
+                ];
+                nativeBuildInputs = [ pkgs.git ];
+              }
+              ''
+                export HOME=$TMPDIR/home
+                mkdir -p $HOME/.config/kirocrew $HOME/.local/bin $HOME/code/ok/.git
+                cat > $HOME/.config/kirocrew/repos.toml <<'EOF'
+                [[repos]]
+                remote = "file:///nonexistent/broken.git"
+                path = "code/broken/repo"
+
+                [[repos]]
+                remote = "file:///nonexistent/ok.git"
+                path = "code/ok"
+                EOF
+                printf '#!/bin/sh\necho "crg exploded" >&2\nexit 3\n' > $HOME/.local/bin/code-review-graph
+                chmod +x $HOME/.local/bin/code-review-graph
+
+                bash "$clonePath" > clone.out 2> clone.err || true
+                bash "$registerPath" > reg.out 2> reg.err || true
+                cat clone.out clone.err reg.out reg.err
+
+                grep -qi 'warning.*broken' clone.out clone.err \
+                  || { echo "failed clone was not reported" >&2; exit 1; }
+                grep -qi 'warning.*register\|crg exploded' reg.out reg.err \
+                  || { echo "failed crg register was not reported" >&2; exit 1; }
+                touch $out
+              '';
+
           format = pkgs.runCommand "check-format" { nativeBuildInputs = [ self.formatter.x86_64-linux ]; } ''
             cd ${self}
             nixfmt --check $(find . -name '*.nix')
