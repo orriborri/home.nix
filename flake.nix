@@ -897,6 +897,19 @@
                 touch $out
               '';
 
+          # O4: the EC2 config does not re-declare /tmp; NixOS stage 2 already
+          # runs `install -m 01777 -d /tmp` (stage-2-init.sh), so the rule is a
+          # no-op.
+          ec2-no-tmp-tmpfiles-rule =
+            let
+              rules = ec2OnX86.config.systemd.tmpfiles.rules;
+              tmp = lib.filter (r: builtins.match "d /tmp .*" r != null) rules;
+            in
+            pkgs.runCommand "check-ec2-no-tmp-tmpfiles-rule" { tmp = lib.concatStringsSep "; " tmp; } ''
+              [ -z "$tmp" ] || { echo "redundant /tmp tmpfiles rule: $tmp" >&2; exit 1; }
+              touch $out
+            '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
