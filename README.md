@@ -14,13 +14,7 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 
 ## Quick Start
 
-### One-Line Installation
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/orriborri/home.nix/main/setup.sh | bash
-```
-
-### Using Flakes (Recommended)
+### Using Flakes
 
 1. **Install Nix with flakes enabled**:
    ```bash

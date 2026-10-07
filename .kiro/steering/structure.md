@@ -8,7 +8,6 @@
 ├── flake.lock             # Lockfile for reproducible builds
 ├── home.nix               # Main entry point: imports all tool files + program config
 ├── home-cosmic.nix        # COSMIC profile = home.nix + cosmic.nix
-├── setup.sh               # One-line installation script
 ├── update.sh              # Update script
 ├── .editorconfig          # Editor configuration for consistent formatting
 │
