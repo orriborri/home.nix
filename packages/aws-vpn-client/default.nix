@@ -32,6 +32,20 @@
 # ./openvpn-v2.5.1-aws.patch with the matching patch from
 # https://github.com/samm-git/aws-vpn-client (vendored, so a moved or deleted
 # upstream branch cannot break or change the build).
+#
+# Upstream was archived on 2026-02-05 at commit
+# 41610c3c5a3e10fe5a76bdd21d5b6779b789f812 and migrated to
+# github.com/aws-vpn-client/aws-vpn-client (same files). Besides the 2.5.1
+# patch it ships one for the 2.6 series, added 2025-05-01 in d61ec72 (#28)
+# (S11.2, checked 2026-10-07):
+#   https://github.com/samm-git/aws-vpn-client/blob/41610c3c5a3e10fe5a76bdd21d5b6779b789f812/openvpn-v2.6.12-aws.patch
+#   sha256-Vh8Ih6cENFLP9V8xQFOfGMemPpFDQwR8mPgqEh81ZFc=
+# It touches buffer.h, common.h, error.h, manage.c, manage.h, misc.h,
+# options.h and ssl.c, and `patch -p1 --dry-run` applies it to nixpkgs'
+# openvpn 2.6.23 with offsets only. Upstream also carries
+# openssl-v3.0.14-aws-000-revert-self-signed-cert-logic.patch; this package
+# builds against nixpkgs' unpatched openssl and does not apply it; PR #28
+# notes it "doesn't seem to be necessary for the vpn to work".
 
 let
   # Patched OpenVPN. The AWS patch targets 2.5.1, so pin the source there and
