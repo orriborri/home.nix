@@ -390,6 +390,22 @@
                 touch $out
               '';
 
+          # C29: python buffers get no 2-space setlocal or retab-on-save; conform's
+          # ruff_format owns python indentation and the two fought on every save.
+          nvim-no-python-retab =
+            pkgs.runCommand "check-nvim-no-python-retab"
+              {
+                cfg = self.homeConfigurations.orre.config.programs.neovim.extraConfig;
+                passAsFile = [ "cfg" ];
+              }
+              ''
+                if grep -n 'retab\|FileType python setlocal' "$cfgPath" >&2; then
+                  echo "python retab autocmd still in the rendered neovim config" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           # S11: the OpenVPN AWS patch is vendored, not fetched from a moving
           # branch URL, and tracks the 2.6 series nixpkgs ships.
           aws-vpn-patch-vendored = pkgs.runCommand "check-aws-vpn-patch-vendored" { } ''

@@ -77,10 +77,6 @@
     " Auto-save when leaving insert mode or losing focus
     autocmd InsertLeave,FocusLost * silent! wall
 
-    " Python: 2-space indentation + retab on save
-    autocmd FileType python setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
-    autocmd BufWritePre *.py retab
-
     " Git grep as default search
     set grepprg=git\ grep\ -n
     nnoremap <leader>gg :grep<Space>
