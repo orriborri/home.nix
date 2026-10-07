@@ -21,6 +21,7 @@
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixlib.follows = "nixpkgs";
     };
 
     # Secrets management (age-encrypted, decrypted at activation)
