@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   # COSMIC desktop integration for Cosmic Atomic (ostree-based)
