@@ -1,5 +1,10 @@
 # KiroCrew NixOS Development Workspace Plan
 
+> **Status (2026-10-07): superseded.** The S3-mount and Tailscale design below
+> was replaced by the git-crypt vault and SSM-only access; see
+> `repair-plan.md` for the repairs and `BACKLOG.md` (gitignored, root of the
+> repo) for what landed and what is still open. Kept as a historical record.
+
 ## Status
 
 Accepted on 2026-09-02 as the target architecture. This approval authorizes Phase 0 reconciliation only. Every approval gate in this plan remains in force; security, IAM, network, infrastructure, vault-storage, credential, and destructive migration changes still require separate human approval.

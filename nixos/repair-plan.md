@@ -2,9 +2,12 @@
 
 Date: 2026-09-10
 
-Status: proposed implementation plan following the configuration review. The
-user has selected removal of Tailscale. This document plans the remaining
-repairs; it does not record implementation or deployment as complete.
+Status (2026-10-07): historical. The plan below was implemented through the
+work packages tracked in `BACKLOG.md` (gitignored, repo root): WP1 unbreak,
+WP2 pre-deploy gate, WP3 secrets hygiene and WP9 shell/dev env landed;
+Tailscale is gone (`tests/test_launcher.py` TailscaleRemovalTests). The
+remaining packages (sandbox hardening, pinning, split of services.nix, docs)
+are tracked there, not here. The text is unchanged from the 2026-09-10 plan.
 
 ## Scope and baseline
 
