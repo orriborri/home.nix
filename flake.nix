@@ -1059,6 +1059,32 @@
                 touch $out
               '';
 
+          # C26: update.sh reaches `home-manager switch` on a host without flatpak
+          # (a failing `command -v` inside an assignment is fatal under set -e).
+          # Runs the script against stub commands in a scratch dir.
+          update-sh-no-flatpak =
+            pkgs.runCommand "check-update-sh-no-flatpak"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
+                cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                for c in home-manager nix-collect-garbage nix; do
+                  printf '#!/bin/sh\necho "stub %s $*"\n' "$c" > "$TMPDIR/bin/$c"
+                  chmod +x "$TMPDIR/bin/$c"
+                done
+                result=$(PATH="$TMPDIR/bin:${pkgs.coreutils}/bin:${pkgs.gnugrep}/bin:${pkgs.bash}/bin" \
+                  bash "$TMPDIR/repo/update.sh" 2>&1) || { echo "update.sh failed without flatpak:" >&2; echo "$result" >&2; exit 1; }
+                echo "$result" | grep -q 'stub home-manager switch' \
+                  || { echo "update.sh did not reach home-manager switch:" >&2; echo "$result" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

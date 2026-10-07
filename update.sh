@@ -46,7 +46,7 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--upgrade" ]]; then
     sudo dnf upgrade --allowerasing -y
 fi
 
-FLATPAK=$(command -v flatpak 2>/dev/null)
+FLATPAK=$(command -v flatpak 2>/dev/null) || true
 if [[ -n "$FLATPAK" ]]; then
     echo "📦 Syncing Flatpak packages..."
     MANIFEST=flatpak-packages.txt
