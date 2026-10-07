@@ -415,6 +415,29 @@
                 touch $out
               '';
 
+          # C10: g:clipboard is forced to wl-copy only under Wayland; darwin, X11
+          # and ssh sessions keep neovim's own provider detection.
+          nvim-clipboard-wayland-only =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-clipboard-wayland-only" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              probe() {
+                ${nvim}/bin/nvim --headless \
+                  +'lua io.stdout:write(vim.g.clipboard and "set" or "unset", "\n")' +q 2> /dev/null
+              }
+              unset WAYLAND_DISPLAY
+              [ "$(probe)" = unset ] \
+                || { echo "g:clipboard is forced without WAYLAND_DISPLAY" >&2; exit 1; }
+              [ "$(WAYLAND_DISPLAY=wayland-0 probe)" = set ] \
+                || { echo "g:clipboard is not set under WAYLAND_DISPLAY" >&2; exit 1; }
+              touch $out
+            '';
+
           # C29: python buffers get no 2-space setlocal or retab-on-save; conform's
           # ruff_format owns python indentation and the two fought on every save.
           nvim-no-python-retab =

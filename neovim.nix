@@ -105,6 +105,21 @@
 
       vim.g.mapleader = " "
 
+      -- Wayland only: elsewhere (darwin, X11, ssh) let neovim detect a provider.
+      if vim.env.WAYLAND_DISPLAY then
+        vim.g.clipboard = {
+          name = "wl-clipboard",
+          copy = {
+            ["+"] = "wl-copy",
+            ["*"] = "wl-copy --primary",
+          },
+          paste = {
+            ["+"] = "wl-paste --no-newline",
+            ["*"] = "wl-paste --no-newline --primary",
+          },
+        }
+      end
+
       -- Colorscheme
       require("catppuccin").setup()
       vim.cmd.colorscheme "catppuccin"
@@ -295,20 +310,8 @@
 
     # Vimscript carried over from the former neovim-config.nix.
     extraConfig = ''
-      " Sync clipboard with Wayland
+      " Use the system clipboard for every yank and put
       set clipboard=unnamedplus
-
-      let g:clipboard = {
-          \   'name': 'wl-clipboard',
-          \   'copy': {
-          \      '+': 'wl-copy',
-          \      '*': 'wl-copy --primary',
-          \    },
-          \   'paste': {
-          \      '+': 'wl-paste --no-newline',
-          \      '*': 'wl-paste --no-newline --primary',
-          \   },
-          \ }
 
       " Restore cursor position
       function! ResCur()
