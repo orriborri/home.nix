@@ -492,6 +492,26 @@
               touch $out
             '';
 
+          # O12: the Nix-provided language servers must win over copies in user
+          # bin dirs (~/.npm-packages/bin), so the wrapper prefixes PATH.
+          nvim-servers-win-on-path =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-servers-win-on-path" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              mkdir -p $TMPDIR/shadow
+              printf '#!/bin/sh\nexit 1\n' > $TMPDIR/shadow/typescript-language-server
+              chmod +x $TMPDIR/shadow/typescript-language-server
+              PATH=$TMPDIR/shadow:$PATH ${nvim}/bin/nvim --headless \
+                +'lua local p = vim.fn.exepath("typescript-language-server") if not p:match("^/nix/store") then io.stderr:write("language server shadowed: ", p, "\n") vim.cmd("cquit 1") end' \
+                +q
+              touch $out
+            '';
+
           # T16: every formatter in extraPackages is wired into conform; the repo
           # formats nix with nixfmt, not nixpkgs-fmt.
           nvim-no-unwired-formatters =

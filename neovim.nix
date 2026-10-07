@@ -1,5 +1,17 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
+let
+  # Language servers. Also prefixed onto the wrapper's PATH so these win over
+  # copies in user bin dirs such as ~/.npm-packages/bin.
+  servers = with pkgs; [
+    typescript-language-server
+    vscode-langservers-extracted # HTML, CSS, JSON, ESLint
+    lua-language-server
+    nil # Nix LSP
+    pyright
+    ruff
+  ];
+in
 {
   programs.neovim = {
     enable = true;
@@ -61,19 +73,20 @@
       catppuccin-nvim
     ];
 
-    extraPackages = with pkgs; [
-      # Language servers
-      typescript-language-server
-      vscode-langservers-extracted # HTML, CSS, JSON, ESLint
-      lua-language-server
-      nil # Nix LSP
-      pyright
-      ruff
+    extraPackages =
+      servers
+      ++ (with pkgs; [
+        # Tools
+        ripgrep
+        fd
+        tree-sitter
+      ]);
 
-      # Tools
-      ripgrep
-      fd
-      tree-sitter
+    extraWrapperArgs = [
+      "--prefix"
+      "PATH"
+      ":"
+      (lib.makeBinPath servers)
     ];
 
     initLua = ''
