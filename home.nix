@@ -98,17 +98,17 @@ in
     home-manager.enable = true;
 
     # CLI tools (per-tool config in ./<tool>.nix)
-    zsh = (import ./zsh.nix { inherit pkgs lib config; });
-    starship = (import ./starship.nix { inherit pkgs; });
-    direnv = (import ./direnv.nix { inherit pkgs; });
-    zoxide = (import ./zoxide.nix { inherit pkgs; });
-    carapace = (import ./carapace.nix { inherit pkgs; });
-    atuin = (import ./atuin.nix { inherit pkgs; });
-    git = (import ./git.nix { inherit pkgs lib; });
-    gitui = (import ./gitui.nix { inherit pkgs; });
-    lazygit = (import ./lazygit.nix { inherit pkgs; });
-    lsd = (import ./lsd.nix { inherit pkgs; });
-    zellij = (import ./zellij.nix { inherit pkgs; });
+    zsh = import ./zsh.nix { inherit pkgs lib config; };
+    starship = import ./starship.nix { inherit pkgs; };
+    direnv = import ./direnv.nix { inherit pkgs; };
+    zoxide = import ./zoxide.nix { inherit pkgs; };
+    carapace = import ./carapace.nix { inherit pkgs; };
+    atuin = import ./atuin.nix { inherit pkgs; };
+    git = import ./git.nix { inherit pkgs lib; };
+    gitui = import ./gitui.nix { inherit pkgs; };
+    lazygit = import ./lazygit.nix { inherit pkgs; };
+    lsd = import ./lsd.nix { inherit pkgs; };
+    zellij = import ./zellij.nix { inherit pkgs; };
 
     # Better git diff viewer
     delta = {

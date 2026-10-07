@@ -95,7 +95,7 @@ let
   # (nixos/kirocrew-services.nix) so both profiles build from source
   # identically. On the workstation, `--restart` bounces the user unit.
   kirocrewSourceUpdate = import ./kirocrew-source-build.nix { inherit pkgs lib; } {
-    pinnedSourceTag = pinnedSourceTag;
+    inherit pinnedSourceTag;
     restartUnit = "kirocrew.service";
     restartScope = "--user";
   };
@@ -107,94 +107,98 @@ in
   # glab is installed system-wide by nixos/kirocrew.nix (root-owned symlink
   # at /usr/local/libexec/kirocrew/glab). No sudo needed here.
 
-  # On headless hosts, the KiroCrew gateway runs as a system service under
-  # the dedicated kirocrew user (nixos/kirocrew-services.nix). The user-level
-  # service is only used on workstation profiles.
-  systemd.user.services.kirocrew = lib.mkIf (cfg.enable && cfg.role == "workstation") {
-    Unit = {
-      Description = "KiroCrew Gateway";
-      After = [
-        "network-online.target"
-      ]
-      ++ lib.optionals hasSops [ "sops-nix.service" ]
-      ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
-      Wants =
-        lib.optionals hasSops [ "sops-nix.service" ]
-        ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
-    };
-    Service = {
-      Type = "simple";
-      ExecStartPre = [
-        "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
-        # Sandbox posture is asserted on every start so it survives upgrades
-        # and manual drift. MUST be 'off' on the workstation -- see the
-        # double-sandbox note in the header comment.
-        "${kirocrewExecutable} config set --local agent.sandbox off"
-      ];
-      ExecStart = "${kirocrewExecutable} gateway";
-      # Same caps as the EC2 gateway (nixos/kirocrew-services.nix): the gateway
-      # has peaked at ~13.5G under concurrent member load, and an uncapped one
-      # can take the whole desktop down. Percentages of physical RAM, since the
-      # machines differ. The user manager delegates the memory controller here.
-      MemoryHigh = "70%";
-      MemoryMax = "85%";
-      Restart = "always";
-      RestartSec = 5;
-      Environment = [
-        "KIROCREW_HOME=%h/.kiro/crew"
-        "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
-        "TMPDIR=%t/kirocrew-tmp"
-        "XDG_RUNTIME_DIR=%t"
-        "DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus"
-        "SSH_AUTH_SOCK=%h/.1password/agent.sock"
-        "PATH=%h/.local/bin:/etc/profiles/per-user/${config.home.username}/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin"
-        "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
-        "KIROCREW_BIND=127.0.0.1"
-      ];
-    };
-    Install = {
-      WantedBy = [ "default.target" ];
-    };
-  };
+  systemd.user = {
+    services = {
+      # On headless hosts, the KiroCrew gateway runs as a system service under
+      # the dedicated kirocrew user (nixos/kirocrew-services.nix). The user-level
+      # service is only used on workstation profiles.
+      kirocrew = lib.mkIf (cfg.enable && cfg.role == "workstation") {
+        Unit = {
+          Description = "KiroCrew Gateway";
+          After = [
+            "network-online.target"
+          ]
+          ++ lib.optionals hasSops [ "sops-nix.service" ]
+          ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
+          Wants =
+            lib.optionals hasSops [ "sops-nix.service" ]
+            ++ lib.optionals syncWorkstationSkills [ "kirocrew-skill-sync.service" ];
+        };
+        Service = {
+          Type = "simple";
+          ExecStartPre = [
+            "${pkgs.coreutils}/bin/mkdir -p %t/kirocrew-tmp"
+            # Sandbox posture is asserted on every start so it survives upgrades
+            # and manual drift. MUST be 'off' on the workstation -- see the
+            # double-sandbox note in the header comment.
+            "${kirocrewExecutable} config set --local agent.sandbox off"
+          ];
+          ExecStart = "${kirocrewExecutable} gateway";
+          # Same caps as the EC2 gateway (nixos/kirocrew-services.nix): the gateway
+          # has peaked at ~13.5G under concurrent member load, and an uncapped one
+          # can take the whole desktop down. Percentages of physical RAM, since the
+          # machines differ. The user manager delegates the memory controller here.
+          MemoryHigh = "70%";
+          MemoryMax = "85%";
+          Restart = "always";
+          RestartSec = 5;
+          Environment = [
+            "KIROCREW_HOME=%h/.kiro/crew"
+            "PYTHONTZPATH=${pkgs.tzdata}/share/zoneinfo"
+            "TMPDIR=%t/kirocrew-tmp"
+            "XDG_RUNTIME_DIR=%t"
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus"
+            "SSH_AUTH_SOCK=%h/.1password/agent.sock"
+            "PATH=%h/.local/bin:/etc/profiles/per-user/${config.home.username}/bin:%h/.nix-profile/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin"
+            "LD_LIBRARY_PATH=${kirocrewLibraryPath}"
+            "KIROCREW_BIND=127.0.0.1"
+          ];
+        };
+        Install = {
+          WantedBy = [ "default.target" ];
+        };
+      };
 
-  systemd.user.services.kirocrew-skill-sync = lib.mkIf syncWorkstationSkills {
-    Unit = {
-      Description = "Refresh pinned KiroCrew skill directories";
-      After = [ "network-online.target" ];
-    };
-    Service = {
-      Type = "oneshot";
-      ExecStart = "${workstationSkillSync}/bin/kirocrew-workstation-skill-sync";
-      UMask = "0022";
-      TimeoutStartSec = "5min";
-    };
-    Install.WantedBy = [ "default.target" ];
-  };
-  # No timer: the revision is pinned and is part of the script above, so a pin
-  # bump changes this unit and `home-manager switch` restarts it; the service
-  # also runs at login (WantedBy) and before the gateway (Wants).
+      kirocrew-skill-sync = lib.mkIf syncWorkstationSkills {
+        Unit = {
+          Description = "Refresh pinned KiroCrew skill directories";
+          After = [ "network-online.target" ];
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${workstationSkillSync}/bin/kirocrew-workstation-skill-sync";
+          UMask = "0022";
+          TimeoutStartSec = "5min";
+        };
+        Install.WantedBy = [ "default.target" ];
+      };
+      # No timer: the revision is pinned and is part of the script above, so a pin
+      # bump changes this unit and `home-manager switch` restarts it; the service
+      # also runs at login (WantedBy) and before the gateway (Wants).
 
-  # Refresh stable tags daily. New releases are built and validated alongside
-  # the active one; the gateway restarts only after the atomic symlink switch.
-  # On headless hosts, the system-level kirocrew-gateway service manages its
-  # own installation; this user-level updater is disabled there.
-  systemd.user.services.kirocrew-source-update = lib.mkIf (cfg.enable && cfg.role == "workstation") {
-    Unit.Description = "Update KiroCrew source release";
-    Service = {
-      Type = "oneshot";
-      ExecStart = "${kirocrewSourceUpdate}/bin/kirocrew-source-update --restart";
-      TimeoutStartSec = "20min";
+      # Refresh stable tags daily. New releases are built and validated alongside
+      # the active one; the gateway restarts only after the atomic symlink switch.
+      # On headless hosts, the system-level kirocrew-gateway service manages its
+      # own installation; this user-level updater is disabled there.
+      kirocrew-source-update = lib.mkIf (cfg.enable && cfg.role == "workstation") {
+        Unit.Description = "Update KiroCrew source release";
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${kirocrewSourceUpdate}/bin/kirocrew-source-update --restart";
+          TimeoutStartSec = "20min";
+        };
+      };
     };
-  };
 
-  systemd.user.timers.kirocrew-source-update = lib.mkIf (cfg.enable && cfg.role == "workstation") {
-    Unit.Description = "Daily KiroCrew stable-tag check";
-    Timer = {
-      OnCalendar = "daily";
-      Persistent = true;
-      RandomizedDelaySec = "1h";
-      Unit = "kirocrew-source-update.service";
+    timers.kirocrew-source-update = lib.mkIf (cfg.enable && cfg.role == "workstation") {
+      Unit.Description = "Daily KiroCrew stable-tag check";
+      Timer = {
+        OnCalendar = "daily";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
+        Unit = "kirocrew-source-update.service";
+      };
+      Install.WantedBy = [ "timers.target" ];
     };
-    Install.WantedBy = [ "timers.target" ];
   };
 }

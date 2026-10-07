@@ -19,17 +19,19 @@
 
     defaultSopsFile = ./secrets/secrets.yaml;
 
-    secrets.git-ssh-key = {
-      # %r is replaced with $XDG_RUNTIME_DIR at runtime
-      path = "%r/secrets/git-ssh-key";
-    };
+    secrets = {
+      git-ssh-key = {
+        # %r is replaced with $XDG_RUNTIME_DIR at runtime
+        path = "%r/secrets/git-ssh-key";
+      };
 
-    secrets.slack-bot-token = {
-      path = "%r/secrets/slack-bot-token";
-    };
+      slack-bot-token = {
+        path = "%r/secrets/slack-bot-token";
+      };
 
-    secrets.slack-app-token = {
-      path = "%r/secrets/slack-app-token";
+      slack-app-token = {
+        path = "%r/secrets/slack-app-token";
+      };
     };
 
     templates."pasta-fetchers.env" = {

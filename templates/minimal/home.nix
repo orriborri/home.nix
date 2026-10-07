@@ -5,21 +5,20 @@
     username = "user";
     homeDirectory = "/home/user";
     stateVersion = "26.05";
+    packages = with pkgs; [
+      git
+      neovim
+      zsh
+    ];
   };
 
-  programs.home-manager.enable = true;
-
-  home.packages = with pkgs; [
-    git
-    neovim
-    zsh
-  ];
-
-  programs.git = {
-    enable = true;
-    userName = "Your Name";
-    userEmail = "your.email@example.com";
+  programs = {
+    home-manager.enable = true;
+    git = {
+      enable = true;
+      userName = "Your Name";
+      userEmail = "your.email@example.com";
+    };
+    zsh.enable = true;
   };
-
-  programs.zsh.enable = true;
 }

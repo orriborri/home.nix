@@ -10,48 +10,155 @@ let
   crgVersion = import ./crg-version.nix;
 in
 {
-  # Development packages organized by category
-  home.packages = with pkgs; [
-    # Programming languages
-    nodejs_latest
-    pnpm
-    python3 # Python interpreter
-    pipx # Install Python apps in isolated environments
+  home = {
+    # Development packages organized by category
+    packages = with pkgs; [
+      # Programming languages
+      nodejs_latest
+      pnpm
+      python3 # Python interpreter
+      pipx # Install Python apps in isolated environments
 
-    # Development tools
-    curl # HTTP client (CLI)
-    openssl # TLS/SSL toolkit
-    tokei # Code statistics
-    jq # JSON processor
-    xh # HTTP client
-    pre-commit # Git hooks
-    lazyworktree # Git worktree TUI
-    glab # GitLab CLI
-    uv # Python package manager
+      # Development tools
+      curl # HTTP client (CLI)
+      openssl # TLS/SSL toolkit
+      tokei # Code statistics
+      jq # JSON processor
+      xh # HTTP client
+      pre-commit # Git hooks
+      lazyworktree # Git worktree TUI
+      glab # GitLab CLI
+      uv # Python package manager
 
-    # Nix development tools
-    nix # Nix CLI (nix-shell, nix-build, nix develop, etc.)
-    nil # Nix LSP
-    nixd # Alternative Nix LSP
-    nixfmt # Nix formatter (updated from nixfmt-rfc-style)
+      # Nix development tools
+      nix # Nix CLI (nix-shell, nix-build, nix develop, etc.)
+      nil # Nix LSP
+      nixd # Alternative Nix LSP
+      nixfmt # Nix formatter (updated from nixfmt-rfc-style)
 
-    # Shell utilities
-    zsh
+      # Shell utilities
+      zsh
 
-    # AI coding tools
-    claude-code # Anthropic Claude Code CLI
-    codex # OpenAI Codex CLI
+      # AI coding tools
+      claude-code # Anthropic Claude Code CLI
+      codex # OpenAI Codex CLI
 
-    # AWS tools
-    ssm-session-manager-plugin # SSM tunnel for kirocrew EC2 instance
+      # AWS tools
+      ssm-session-manager-plugin # SSM tunnel for kirocrew EC2 instance
 
-    # Containers (rootless, daemonless — Docker alternative)
-    podman # Container/pod manager; `docker` alias set below
-    podman-compose # docker-compose workflows on the podman backend
-  ];
+      # Containers (rootless, daemonless — Docker alternative)
+      podman # Container/pod manager; `docker` alias set below
+      podman-compose # docker-compose workflows on the podman backend
+    ];
 
-  # Docker-compatible CLI shim so existing muscle memory and scripts work.
-  home.shellAliases.docker = "podman";
+    # Docker-compatible CLI shim so existing muscle memory and scripts work.
+    shellAliases.docker = "podman";
+
+    sessionVariables = {
+      # Point Docker-compatible tooling (compose plugin, testcontainers, etc.) at
+      # the rootless podman socket. Session variables are plain shell exports, so
+      # %t does not expand here; $XDG_RUNTIME_DIR is expanded when the shell sources
+      # them (the systemd unit above does use %t).
+      DOCKER_HOST = "unix://$XDG_RUNTIME_DIR/podman/podman.sock";
+
+      # Testcontainers' Ryuk reaper bind-mounts the socket into a container_t
+      # container; SELinux (enforcing) denies the write, so Ryuk exits and startup
+      # fails. Disabling it is the documented setup for rootless podman.
+      TESTCONTAINERS_RYUK_DISABLED = "true";
+
+      # Development environment variables
+      # Development paths
+      EDITOR = "nvim";
+
+      # Node.js configuration
+      NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
+    };
+
+    activation = {
+      # Install Python tools via uv (isolated venvs, managed by Home Manager activation)
+      uvTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        export PATH="${pkgs.uv}/bin:${pkgs.python3}/bin:$PATH"
+        crg="$HOME/.local/bin/code-review-graph"
+        installed=""
+        if [ -x "$crg" ]; then
+          installed="$("$crg" --version 2>/dev/null | tr -dc '0-9.' || true)"
+        fi
+        if [ "$installed" != ${lib.escapeShellArg crgVersion} ]; then
+          ${pkgs.uv}/bin/uv tool install --force "code-review-graph==${crgVersion}" \
+            || echo "warning: could not install code-review-graph==${crgVersion}" >&2
+        fi
+      '';
+
+      # Clone repos declared in config/repos.toml (idempotent -- skips existing)
+      # Reads from the XDG path placed by kirocrew-config.nix.
+      # Filters by kirocrew.role ('targets' per repo) and honours 'shallow' for clone
+      # depth. The role is passed in explicitly: activation does not source
+      # hm-session-vars.sh, so KIROCREW_ROLE from sessionVariables is not set here.
+      cloneRepos = lib.mkIf config.kirocrew.enable (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+              MANIFEST="$HOME/.config/kirocrew/repos.toml"
+              if [ -f "$MANIFEST" ]; then
+                PATH=/usr/bin:${pkgs.openssh}/bin:$PATH KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
+          import tomllib, os, subprocess, sys
+          with open(sys.argv[1], 'rb') as f:
+              data = tomllib.load(f)
+          home = os.path.expanduser('~')
+          role = os.environ.get('KIROCREW_ROLE', 'workstation')
+          git = sys.argv[2]
+          for repo in data.get('repos', []):
+              targets = repo.get('targets', ['workstation', 'headless'])
+              if role not in targets:
+                  continue
+              # The pinned skills checkout is installed by its supervised service.
+              if repo.get('revision') and repo['path'] == 'code/mattpocock-skills':
+                  continue
+              target = os.path.join(home, repo['path'])
+              if not os.path.isdir(target):
+                  os.makedirs(os.path.dirname(target), exist_ok=True)
+                  shallow = repo.get('shallow', True)
+                  cmd = [git, 'clone']
+                  if shallow:
+                      cmd += ['--depth=1']
+                  cmd += [repo['remote'], target]
+                  print(f'Cloning {repo[\"remote\"]} -> {target}')
+                  result = subprocess.run(cmd, capture_output=True, text=True)
+                  if result.returncode != 0:
+                      lines = result.stderr.strip().splitlines()
+                      print(f'warning: clone of {repo[\"remote\"]} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
+          " "$MANIFEST" "${pkgs.git}/bin/git"
+              fi
+        ''
+      );
+
+      # Auto-register git repos from the manifest with code-review-graph
+      crgRegisterRepos = lib.mkIf config.kirocrew.enable (
+        lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
+              CRG="$HOME/.local/bin/code-review-graph"
+              MANIFEST="$HOME/.config/kirocrew/repos.toml"
+              if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
+                KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
+          import tomllib, os, subprocess, sys
+          with open(sys.argv[1], 'rb') as f:
+              repos = tomllib.load(f).get('repos', [])
+          home = os.path.expanduser('~')
+          crg = sys.argv[2]
+          role = os.environ.get('KIROCREW_ROLE', 'workstation')
+          for repo in repos:
+              targets = repo.get('targets', ['workstation', 'headless'])
+              if role not in targets:
+                  continue
+              target = os.path.join(home, repo['path'])
+              if os.path.isdir(os.path.join(target, '.git')):
+                  result = subprocess.run([crg, 'register', target], capture_output=True, text=True)
+                  if result.returncode != 0:
+                      lines = result.stderr.strip().splitlines()
+                      print(f'warning: code-review-graph register {target} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
+          " "$MANIFEST" "$CRG"
+              fi
+        ''
+      );
+    };
+  };
 
   # docker-compose (the compose plugin) talks to a Docker-compatible API socket,
   # not the podman CLI. Nix's podman package ships no podman.socket unit on
@@ -73,109 +180,6 @@ in
       WantedBy = [ "default.target" ];
     };
   };
-
-  # Point Docker-compatible tooling (compose plugin, testcontainers, etc.) at
-  # the rootless podman socket. Session variables are plain shell exports, so
-  # %t does not expand here; $XDG_RUNTIME_DIR is expanded when the shell sources
-  # them (the systemd unit above does use %t).
-  home.sessionVariables.DOCKER_HOST = "unix://$XDG_RUNTIME_DIR/podman/podman.sock";
-
-  # Testcontainers' Ryuk reaper bind-mounts the socket into a container_t
-  # container; SELinux (enforcing) denies the write, so Ryuk exits and startup
-  # fails. Disabling it is the documented setup for rootless podman.
-  home.sessionVariables.TESTCONTAINERS_RYUK_DISABLED = "true";
-
-  # Development environment variables
-  home.sessionVariables = {
-    # Development paths
-    EDITOR = "nvim";
-
-    # Node.js configuration
-    NPM_CONFIG_PREFIX = "$HOME/.npm-packages";
-  };
-
-  # Install Python tools via uv (isolated venvs, managed by Home Manager activation)
-  home.activation.uvTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    export PATH="${pkgs.uv}/bin:${pkgs.python3}/bin:$PATH"
-    crg="$HOME/.local/bin/code-review-graph"
-    installed=""
-    if [ -x "$crg" ]; then
-      installed="$("$crg" --version 2>/dev/null | tr -dc '0-9.' || true)"
-    fi
-    if [ "$installed" != ${lib.escapeShellArg crgVersion} ]; then
-      ${pkgs.uv}/bin/uv tool install --force "code-review-graph==${crgVersion}" \
-        || echo "warning: could not install code-review-graph==${crgVersion}" >&2
-    fi
-  '';
-
-  # Clone repos declared in config/repos.toml (idempotent -- skips existing)
-  # Reads from the XDG path placed by kirocrew-config.nix.
-  # Filters by kirocrew.role ('targets' per repo) and honours 'shallow' for clone
-  # depth. The role is passed in explicitly: activation does not source
-  # hm-session-vars.sh, so KIROCREW_ROLE from sessionVariables is not set here.
-  home.activation.cloneRepos = lib.mkIf config.kirocrew.enable (
-    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          MANIFEST="$HOME/.config/kirocrew/repos.toml"
-          if [ -f "$MANIFEST" ]; then
-            PATH=/usr/bin:${pkgs.openssh}/bin:$PATH KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
-      import tomllib, os, subprocess, sys
-      with open(sys.argv[1], 'rb') as f:
-          data = tomllib.load(f)
-      home = os.path.expanduser('~')
-      role = os.environ.get('KIROCREW_ROLE', 'workstation')
-      git = sys.argv[2]
-      for repo in data.get('repos', []):
-          targets = repo.get('targets', ['workstation', 'headless'])
-          if role not in targets:
-              continue
-          # The pinned skills checkout is installed by its supervised service.
-          if repo.get('revision') and repo['path'] == 'code/mattpocock-skills':
-              continue
-          target = os.path.join(home, repo['path'])
-          if not os.path.isdir(target):
-              os.makedirs(os.path.dirname(target), exist_ok=True)
-              shallow = repo.get('shallow', True)
-              cmd = [git, 'clone']
-              if shallow:
-                  cmd += ['--depth=1']
-              cmd += [repo['remote'], target]
-              print(f'Cloning {repo[\"remote\"]} -> {target}')
-              result = subprocess.run(cmd, capture_output=True, text=True)
-              if result.returncode != 0:
-                  lines = result.stderr.strip().splitlines()
-                  print(f'warning: clone of {repo[\"remote\"]} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
-      " "$MANIFEST" "${pkgs.git}/bin/git"
-          fi
-    ''
-  );
-
-  # Auto-register git repos from the manifest with code-review-graph
-  home.activation.crgRegisterRepos = lib.mkIf config.kirocrew.enable (
-    lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
-          CRG="$HOME/.local/bin/code-review-graph"
-          MANIFEST="$HOME/.config/kirocrew/repos.toml"
-          if [ -x "$CRG" ] && [ -f "$MANIFEST" ]; then
-            KIROCREW_ROLE=${lib.escapeShellArg config.kirocrew.role} ${pkgs.python3}/bin/python3 -c "
-      import tomllib, os, subprocess, sys
-      with open(sys.argv[1], 'rb') as f:
-          repos = tomllib.load(f).get('repos', [])
-      home = os.path.expanduser('~')
-      crg = sys.argv[2]
-      role = os.environ.get('KIROCREW_ROLE', 'workstation')
-      for repo in repos:
-          targets = repo.get('targets', ['workstation', 'headless'])
-          if role not in targets:
-              continue
-          target = os.path.join(home, repo['path'])
-          if os.path.isdir(os.path.join(target, '.git')):
-              result = subprocess.run([crg, 'register', target], capture_output=True, text=True)
-              if result.returncode != 0:
-                  lines = result.stderr.strip().splitlines()
-                  print(f'warning: code-review-graph register {target} failed (exit {result.returncode}): ' + (' '.join(lines)[:200] or 'no output'), file=sys.stderr)
-      " "$MANIFEST" "$CRG"
-          fi
-    ''
-  );
 
   # code-review-graph daemon: auto-updates graphs for all registered repos
   systemd.user.services.crg-daemon = {

@@ -100,11 +100,13 @@
         sops-nix.homeManagerModules.sops
         ./sops.nix
         {
-          kirocrew.enable = true;
-          kirocrew.role = "workstation";
-          # Pin the daily source-update timer to the same release the
-          # headless hosts run (./kirocrew-source-tag.nix).
-          kirocrew.sourceTag = kirocrewSourceTag;
+          kirocrew = {
+            enable = true;
+            role = "workstation";
+            # Pin the daily source-update timer to the same release the
+            # headless hosts run (./kirocrew-source-tag.nix).
+            sourceTag = kirocrewSourceTag;
+          };
         }
       ];
 
@@ -1547,19 +1549,23 @@
           ./nixos/kirocrew.nix
           home-manager.nixosModules.home-manager
           {
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = {
-              pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit llm-agents;
-            };
-            home-manager.users.orre = { ... }: {
-              imports = kirocrewModules;
-              kirocrew.enable = true;
-              kirocrew.role = "headless";
-              # Pinned to an immutable release tag (single source of truth:
-              # ./kirocrew-source-tag.nix) so a new upstream release cannot
-              # deploy itself unreviewed. Set to null to follow newest stable.
-              kirocrew.sourceTag = kirocrewSourceTag;
+            home-manager = {
+              useUserPackages = true;
+              extraSpecialArgs = {
+                pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
+                inherit llm-agents;
+              };
+              users.orre = { ... }: {
+                imports = kirocrewModules;
+                kirocrew = {
+                  enable = true;
+                  role = "headless";
+                  # Pinned to an immutable release tag (single source of truth:
+                  # ./kirocrew-source-tag.nix) so a new upstream release cannot
+                  # deploy itself unreviewed. Set to null to follow newest stable.
+                  sourceTag = kirocrewSourceTag;
+                };
+              };
             };
           }
         ];
@@ -1579,19 +1585,23 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = {
-              pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
-              inherit llm-agents;
-            };
-            home-manager.users.orre = { ... }: {
-              imports = kirocrewModules;
-              kirocrew.enable = true;
-              kirocrew.role = "headless";
-              # Pinned to an immutable release tag (single source of truth:
-              # ./kirocrew-source-tag.nix) so a new upstream release cannot
-              # deploy itself unreviewed. Set to null to follow newest stable.
-              kirocrew.sourceTag = kirocrewSourceTag;
+            home-manager = {
+              useUserPackages = true;
+              extraSpecialArgs = {
+                pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
+                inherit llm-agents;
+              };
+              users.orre = { ... }: {
+                imports = kirocrewModules;
+                kirocrew = {
+                  enable = true;
+                  role = "headless";
+                  # Pinned to an immutable release tag (single source of truth:
+                  # ./kirocrew-source-tag.nix) so a new upstream release cannot
+                  # deploy itself unreviewed. Set to null to follow newest stable.
+                  sourceTag = kirocrewSourceTag;
+                };
+              };
             };
           }
         ];
@@ -1611,19 +1621,23 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = {
-              pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
-              inherit llm-agents;
-            };
-            home-manager.users.orre = { ... }: {
-              imports = kirocrewModules;
-              kirocrew.enable = true;
-              kirocrew.role = "headless";
-              # Pinned to an immutable release tag (single source of truth:
-              # ./kirocrew-source-tag.nix) so a new upstream release cannot
-              # deploy itself unreviewed. Set to null to follow newest stable.
-              kirocrew.sourceTag = kirocrewSourceTag;
+            home-manager = {
+              useUserPackages = true;
+              extraSpecialArgs = {
+                pkgs-stable = nixpkgs-stable.legacyPackages."x86_64-linux";
+                inherit llm-agents;
+              };
+              users.orre = { ... }: {
+                imports = kirocrewModules;
+                kirocrew = {
+                  enable = true;
+                  role = "headless";
+                  # Pinned to an immutable release tag (single source of truth:
+                  # ./kirocrew-source-tag.nix) so a new upstream release cannot
+                  # deploy itself unreviewed. Set to null to follow newest stable.
+                  sourceTag = kirocrewSourceTag;
+                };
+              };
             };
           }
         ];
@@ -1641,19 +1655,23 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = {
-              pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
-              inherit llm-agents;
-            };
-            home-manager.users.orre = { ... }: {
-              imports = kirocrewModules;
-              kirocrew.enable = true;
-              kirocrew.role = "headless";
-              # Pinned to an immutable release tag (single source of truth:
-              # ./kirocrew-source-tag.nix) so a new upstream release cannot
-              # deploy itself unreviewed. Set to null to follow newest stable.
-              kirocrew.sourceTag = kirocrewSourceTag;
+            home-manager = {
+              useUserPackages = true;
+              extraSpecialArgs = {
+                pkgs-stable = nixpkgs-stable.legacyPackages."aarch64-linux";
+                inherit llm-agents;
+              };
+              users.orre = { ... }: {
+                imports = kirocrewModules;
+                kirocrew = {
+                  enable = true;
+                  role = "headless";
+                  # Pinned to an immutable release tag (single source of truth:
+                  # ./kirocrew-source-tag.nix) so a new upstream release cannot
+                  # deploy itself unreviewed. Set to null to follow newest stable.
+                  sourceTag = kirocrewSourceTag;
+                };
+              };
             };
           }
         ];
