@@ -247,7 +247,7 @@ Different surface from the gateway (IDE/CLI):
 ### `KIROCREW_PROJECT_DIR`
 
 - **Not set anywhere** in the Nix modules. The gateway service
-  (`kirocrew-services.nix`) sets `KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew`,
+  (`kirocrew-gateway.nix`) sets `KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew`,
   `HOME`, `KIROCREW_BIND`, `KIROCREW_DEVFLEET_BIN_GIT`, `SSH_AUTH_SOCK`, etc.,
   but not `KIROCREW_PROJECT_DIR`. So the native project-skills auto-copy path is
   dormant — which is likely why the (broken) sync service was written to

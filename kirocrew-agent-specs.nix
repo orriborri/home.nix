@@ -286,7 +286,7 @@ let
   #   - pasta    -> @pasta-kb (gateway-provided; reads the vault + synced
   #                 Slack/Linear/GitLab history). NOT redefined here.
   #   - Linear   -> @linear (gateway-provided, read-write). NOT redefined here.
-  #   - Slack    -> @slack MCP (kirocrew-services.nix) reusing the shared sops
+  #   - Slack    -> @slack MCP (nixos/kirocrew-mcp-servers.nix) reusing the shared sops
   #                 slack-token; read (search/history/users) + post.
   #   - GitLab   -> no GitLab MCP exists, so live GitLab actions go through the
   #                 `glab` CLI, which needs execute_bash (operator-approved;

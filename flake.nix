@@ -665,10 +665,10 @@
 
           # S4: the global npm agent backends install exact versions.
           acp-backends-pinned = pkgs.runCommand "check-acp-backends-pinned" { } ''
-            f=${self}/nixos/kirocrew-services.nix
+            f=${self}/nixos/kirocrew-gateway.nix
             for v in claudeAcpVersion codexAcpVersion; do
               grep -q "$v = \"[0-9]\+\.[0-9]\+\.[0-9]\+\"" "$f" \
-                || { echo "$v is not pinned to x.y.z in kirocrew-services.nix" >&2; exit 1; }
+                || { echo "$v is not pinned to x.y.z in kirocrew-gateway.nix" >&2; exit 1; }
             done
             if grep -n 'npm install --global @agentclientprotocol/[a-z-]*$' "$f" >&2; then
               echo "unversioned global npm install" >&2

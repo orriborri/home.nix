@@ -1,9 +1,9 @@
 { pkgs, ... }:
 
 # NixOS module: the 1Password agent socket relay for the KiroCrew gateway.
-# Split out of kirocrew-services.nix; the gateway unit there sets
-# SSH_AUTH_SOCK=/run/kirocrew/1p-agent.sock and the tmpfiles rules there
-# create /run/kirocrew-agent and /run/kirocrew.
+# Split out of kirocrew-services.nix; the gateway unit (kirocrew-gateway.nix)
+# sets SSH_AUTH_SOCK=/run/kirocrew/1p-agent.sock and the tmpfiles rules in
+# kirocrew-services.nix create /run/kirocrew-agent and /run/kirocrew.
 {
   # ── 1Password agent socket bridge ──────────────────────────────────────────
   # The launcher (`launch-ec2 portal`) forwards the operator's local 1Password

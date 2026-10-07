@@ -56,7 +56,7 @@ let
 
   # Grant the display user write access to vault NOTE CONTENT only, then make
   # Git internals inaccessible. Mirrors the setfacl cross-user pattern already
-  # used for legacy Kiro access in kirocrew-services.nix. Runs as root before
+  # used for legacy Kiro access in kirocrew-gateway.nix. Runs as root before
   # the session starts. Idempotent.
   vaultGrant = pkgs.writeShellApplication {
     name = "obsidian-web-vault-grant";
@@ -322,7 +322,7 @@ in
       RestartSec = 5;
       TimeoutStopSec = 20;
 
-      # ── systemd hardening (mirrors kirocrew-services.nix) ──────────────
+      # ── systemd hardening (mirrors kirocrew-gateway.nix) ──────────────
       # Hide operator/other homes; the service keeps its own StateDirectory.
       # Xpra/Obsidian (Electron) need a user namespace for their own sandbox;
       # keep namespaces available but drop other privilege vectors.

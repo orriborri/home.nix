@@ -15,6 +15,7 @@
     ./kirocrew-security.nix
     ./kirocrew-disk-check.nix
     ./kirocrew-services.nix
+    ./kirocrew-gateway.nix
     ./kirocrew-1p-relay.nix
     ./pasta.nix
     ./kirocrew-review-agents.nix

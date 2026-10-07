@@ -4,7 +4,7 @@
 # fetch timers, the source build they share, and the ACL grant that lets the
 # pasta user rewrite the vault's .feeds/ directory. Runs under the dedicated
 # `pasta` user; the kb store it writes is read by the kb-mcp server the
-# KiroCrew gateway (kirocrew-services.nix) spawns. Split out of
+# KiroCrew gateway (kirocrew-gateway.nix) spawns. Split out of
 # kirocrew-services.nix, which keeps the pasta tmpfiles rules.
 #
 # Replaces the Home Manager user service (pasta-service.nix) on headless/EC2

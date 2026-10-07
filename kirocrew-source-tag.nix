@@ -10,7 +10,7 @@
 # Consumed by:
 #   - flake.nix            → kirocrew.sourceTag for the workstation + headless
 #                            Home Manager outputs
-#   - nixos/kirocrew-services.nix → pinnedSourceTag for the headless system
+#   - nixos/kirocrew-gateway.nix → pinnedSourceTag for the headless system
 #                            service's ExecStartPre builder
 #
 # Must be a tag that exists upstream (the builder fails fast if it does not).
@@ -24,5 +24,5 @@
 # earlier 15G host (no swap) it peaked ~13.5G and exited 1 under concurrent
 # member load. Addressed by resizing the EC2 host to 30G with zram swap
 # (nixos/kirocrew-ec2.nix) and capping the gateway's memory with
-# MemoryHigh/MemoryMax (nixos/kirocrew-services.nix).
+# MemoryHigh/MemoryMax (nixos/kirocrew-gateway.nix).
 "v0.7.2"

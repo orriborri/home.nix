@@ -11,7 +11,7 @@
 # `$HOME/.local/bin/kirocrew` convenience link.
 #
 # Both the workstation (Home Manager user service, kirocrew-service.nix) and
-# the headless/EC2 host (NixOS system service, nixos/kirocrew-services.nix)
+# the headless/EC2 host (NixOS system service, nixos/kirocrew-gateway.nix)
 # consume this so the two profiles build from source identically.
 #
 # Everything is derived from $HOME at runtime, so the same package works for

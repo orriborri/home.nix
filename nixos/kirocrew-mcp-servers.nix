@@ -9,7 +9,7 @@
 # MCP servers the KiroCrew gateway spawns over stdio: the CFM Tips and Slack
 # venv builders, their credential-loading launchers, and the writer for the
 # gateway's mcp.json + the kirocrew user's pasta config. Plain function, not
-# a NixOS module: kirocrew-services.nix imports it, runs the builders from
+# a NixOS module: kirocrew-gateway.nix imports it, runs the builders from
 # the gateway's ordered ExecStartPre list and kirocrewMcpConfig from the
 # kirocrew-mcp-config oneshot.
 let

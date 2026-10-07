@@ -8,7 +8,7 @@
 # Reusable NixOS module: KiroCrew system-level dependencies.
 #
 # On headless/EC2 hosts, the gateway runs as a system service under the
-# dedicated kirocrew user (see kirocrew-services.nix). On workstations,
+# dedicated kirocrew user (see kirocrew-gateway.nix). On workstations,
 # it runs as a Home Manager user service under the operator user.
 #
 # This module provides source-build dependencies, the kiro-cli symlink,
