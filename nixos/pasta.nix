@@ -342,245 +342,251 @@ let
   };
 in
 {
-  systemd.services.pasta-feeds-write-access = {
-    description = "Grant the pasta user write access to the vault .feeds directory";
-    after = [ "kirocrew-vault-clone.service" ];
-    requires = [ "kirocrew-vault-clone.service" ];
-    before = [ "pasta-daemon.service" ];
-    requiredBy = [ "pasta-daemon.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pastaFeedsWriteAccess}/bin/pasta-feeds-write-access";
-      RemainAfterExit = true;
+  systemd = {
+    services = {
+      pasta-feeds-write-access = {
+        description = "Grant the pasta user write access to the vault .feeds directory";
+        after = [ "kirocrew-vault-clone.service" ];
+        requires = [ "kirocrew-vault-clone.service" ];
+        before = [ "pasta-daemon.service" ];
+        requiredBy = [ "pasta-daemon.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pastaFeedsWriteAccess}/bin/pasta-feeds-write-access";
+          RemainAfterExit = true;
+        };
+      };
+
+      # ── Pasta daemon ───────────────────────────────────────────────────────────
+      # Builds pasta-backend from source (as an ExecStartPre) under the pasta
+      # user's home, then runs it. Indexes the EC2 vault checkout read-only and
+      # writes its index to ${pastaHome}/data. Slack credentials are provided by
+      # sops through pasta-fetchers.env for its inline fetch cycle.
+      pasta-daemon = {
+        enable = true;
+        description = "Pasta vault indexer";
+        after = [
+          "network-online.target"
+          "kirocrew-vault-clone.service"
+          "pasta-feeds-write-access.service"
+          "sops-install-secrets.service"
+        ];
+        wants = [
+          "network-online.target"
+          "sops-install-secrets.service"
+        ];
+        requires = [ "kirocrew-vault-clone.service" ];
+        wantedBy = [ "multi-user.target" ];
+
+        serviceConfig = hardening // {
+          Type = "simple";
+          User = "pasta";
+          Group = "pasta";
+          EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
+          # Build/refresh pasta-backend from source before starting it. First build
+          # on Graviton can take a while, hence the long TimeoutStartSec below.
+          ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
+          ExecStart = "${pastaHome}/bin/pasta-backend";
+          Restart = "on-failure";
+          RestartSec = 10;
+          TimeoutStartSec = "30min";
+          WorkingDirectory = pastaHome;
+
+          # ── systemd hardening ──────────────────────────────────────────────
+          MemoryDenyWriteExecute = false; # Pasta may use JIT for search
+
+          # Pasta reads the vault, writes only its own index state — plus the
+          # vault's .feeds/ dir, which the daemon's fetch cycle rewrites via
+          # write_feeds(). The vault stays read-only except for that one subdir:
+          # systemd applies the most-specific path rule, so listing .feeds under
+          # ReadWritePaths re-grants write to only it while the rest of the vault
+          # remains read-only. The leading '-' makes it non-fatal if the dir is
+          # absent (fresh box before the vault clone). The pasta user also needs a
+          # filesystem-level ACL grant on this dir (pasta-feeds-write-access below),
+          # since a persisted `user:pasta:r-x` ACL otherwise denies the write.
+          ReadOnlyPaths = [
+            vaultCheckout
+          ];
+          ReadWritePaths = [
+            pastaHome
+            "-${vaultCheckout}/.feeds"
+          ];
+
+          Environment = [
+            "HOME=${pastaHome}"
+            # Pasta resolves vault_path and [kb] data_dir from
+            # ${pastaHome}/.pasta/config.toml (written by the build ExecStartPre).
+            # These two are not read by the current binary's config path, but are
+            # kept as documentation of the effective values.
+            "PASTA_VAULT_PATH=${vaultCheckout}"
+            "PASTA_DATA_DIR=${pastaDataDir}"
+            # The daemon's feed cycle shells out to slack-api and linear-api.
+            # Use the same packaged helper directory as pasta-fetch-external so
+            # feed generation sees real remote data instead of silently returning
+            # empty Slack/Linear results when the helpers are absent from PATH.
+            "PATH=${pastaFetchBin}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+            "LD_LIBRARY_PATH=${pastaLibraryPath}"
+            "PROTOC=${pkgs.protobuf}/bin/protoc"
+            "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+          ];
+        };
+      };
+
+      # ── Pasta vault indexer (periodic) ──────────────────────────────────────────
+      # The pasta-daemon above provides the IPC socket and runs the credential-gated
+      # fetch cycle (gmail/linear/slack/calendar) plus task housekeeping — but its
+      # scheduler's fetch cycle deliberately EXCLUDES the `vault` source, so it never
+      # refreshes the kb store that kb-mcp serves. On this host the vault is the only
+      # source (the pasta user has no forge/messaging creds), so vault indexing must
+      # be driven explicitly.
+      #
+      # `kb sync --source vault` fetches the vault checkout and indexes it into
+      # ${pastaDataDir} (Parquet -> LanceDB + Tantivy) — the same store kb-mcp reads.
+      # It is credential-free, idempotent ("No new records to sync" when current),
+      # and safe to run on a timer. This keeps the gateway's knowledge base fresh as
+      # the git-crypt vault sync lands new notes, with no manual step.
+      pasta-vault-index = {
+        description = "Index the vault into the pasta kb store (kb sync --source vault)";
+        after = [
+          "network-online.target"
+          "kirocrew-vault-clone.service"
+          "pasta-daemon.service"
+          "ollama.service"
+        ];
+        wants = [
+          "network-online.target"
+          # Prefer the local embedder to be up so the embedding step succeeds;
+          # `wants` (not `requires`) so a degraded Ollama still lets FTS indexing
+          # run rather than blocking the vault index entirely.
+          "ollama.service"
+        ];
+        # The kb binary is built/linked by pasta-daemon's ExecStartPre
+        # (pasta-source-build). Require the daemon so ${pastaHome}/bin/kb exists and
+        # the pinned ${pastaHome}/.pasta/config.toml has been written before we run.
+        requires = [ "kirocrew-vault-clone.service" ];
+
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "pasta";
+          Group = "pasta";
+          EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
+          # Build/refresh the pasta binaries + pinned config first, so this unit is
+          # self-sufficient even if it fires before pasta-daemon has started once
+          # (e.g. right after boot, timer-triggered). Reuses the same builder.
+          ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
+          ExecStart = "${pastaHome}/bin/kb sync --source vault";
+          TimeoutStartSec = "30min";
+          WorkingDirectory = pastaHome;
+
+          # ── systemd hardening (mirrors pasta-daemon) ───────────────────────
+          MemoryDenyWriteExecute = false; # kb may use JIT for search/embedding
+
+          # Reads the vault, writes only its own index state.
+          ReadOnlyPaths = [ vaultCheckout ];
+          ReadWritePaths = [ pastaHome ];
+
+          Environment = [
+            "HOME=${pastaHome}"
+            "PASTA_VAULT_PATH=${vaultCheckout}"
+            "PASTA_DATA_DIR=${pastaDataDir}"
+            "PATH=${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+            "LD_LIBRARY_PATH=${pastaLibraryPath}"
+            "PROTOC=${pkgs.protobuf}/bin/protoc"
+            "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+            "RUST_LOG=info"
+          ];
+        };
+      };
+
+      # ── Pasta external-source fetch (periodic) ──────────────────────────────────
+      # Fetches the forge/messaging sources — slack, linear, gitlab (MRs), git
+      # (commits) — into the same kb store the vault indexer writes, so the evidence
+      # graph gains real cross-source edges (commit→Linear-issue references, MR↔issue
+      # links, message mentions). Credentials come from sops (owned by pasta); the
+      # ExecStartPre (pastaFetchSetup) materializes the token files, logs glab in,
+      # and clones the git repos before the sync runs. Gmail/calendar are handled
+      # separately (their gogcli keyring auth doesn't transplant to a headless box).
+      pasta-fetch-external = {
+        description = "Fetch external sources (slack/linear/gitlab/git) into the pasta kb store";
+        after = [
+          "network-online.target"
+          "pasta-daemon.service"
+          "ollama.service"
+          "sops-install-secrets.service"
+        ];
+        wants = [
+          "network-online.target"
+          "ollama.service"
+        ];
+        # The kb binary + pinned config are produced by pasta-daemon's ExecStartPre.
+        requires = [ "pasta-daemon.service" ];
+
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "pasta";
+          Group = "pasta";
+          # Refresh binaries/config, then provision creds + repos, then sync.
+          ExecStartPre = [
+            "${pastaSourceBuild}/bin/pasta-source-build"
+            "${pastaFetchSetup}/bin/pasta-fetch-setup"
+          ];
+          ExecStart = "${pastaHome}/bin/kb sync --source slack,linear,gitlab,git";
+          TimeoutStartSec = "30min";
+          WorkingDirectory = pastaHome;
+
+          # ── systemd hardening (mirrors pasta-vault-index) ──────────────────
+          MemoryDenyWriteExecute = false;
+
+          # Writes its own index state + repo clones + token files, all under
+          # ${pastaHome}. Reads the decrypted sops secrets from the same tree.
+          ReadWritePaths = [ pastaHome ];
+
+          # External fetch must reach the internet, but never IMDS.
+
+          Environment = [
+            "HOME=${pastaHome}"
+            "PASTA_VAULT_PATH=${vaultCheckout}"
+            "PASTA_DATA_DIR=${pastaDataDir}"
+            # Helpers (slack-api/linear-api) + glab + git + system tools on PATH so
+            # pasta's binary auto-detection and the git fetcher resolve them.
+            "PATH=${pastaFetchBin}/bin:${pkgs.glab}/bin:${pkgs.git}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
+            "LD_LIBRARY_PATH=${pastaLibraryPath}"
+            "PROTOC=${pkgs.protobuf}/bin/protoc"
+            "PROTOC_INCLUDE=${pkgs.protobuf}/include"
+            "RUST_LOG=info"
+          ];
+        };
+      };
     };
-  };
 
-  # ── Pasta daemon ───────────────────────────────────────────────────────────
-  # Builds pasta-backend from source (as an ExecStartPre) under the pasta
-  # user's home, then runs it. Indexes the EC2 vault checkout read-only and
-  # writes its index to ${pastaHome}/data. Slack credentials are provided by
-  # sops through pasta-fetchers.env for its inline fetch cycle.
-  systemd.services.pasta-daemon = {
-    enable = true;
-    description = "Pasta vault indexer";
-    after = [
-      "network-online.target"
-      "kirocrew-vault-clone.service"
-      "pasta-feeds-write-access.service"
-      "sops-install-secrets.service"
-    ];
-    wants = [
-      "network-online.target"
-      "sops-install-secrets.service"
-    ];
-    requires = [ "kirocrew-vault-clone.service" ];
-    wantedBy = [ "multi-user.target" ];
+    timers = {
+      pasta-vault-index = {
+        description = "Periodically index the vault into the pasta kb store";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # First run shortly after boot, then every 15 minutes. Persistent catches
+          # up one missed run after the host was stopped (matches the vault sync
+          # cadence and keeps the kb store fresh without hammering the embedder).
+          OnBootSec = "5min";
+          OnUnitActiveSec = "15min";
+          Persistent = true;
+          Unit = "pasta-vault-index.service";
+        };
+      };
 
-    serviceConfig = hardening // {
-      Type = "simple";
-      User = "pasta";
-      Group = "pasta";
-      EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
-      # Build/refresh pasta-backend from source before starting it. First build
-      # on Graviton can take a while, hence the long TimeoutStartSec below.
-      ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
-      ExecStart = "${pastaHome}/bin/pasta-backend";
-      Restart = "on-failure";
-      RestartSec = 10;
-      TimeoutStartSec = "30min";
-      WorkingDirectory = pastaHome;
-
-      # ── systemd hardening ──────────────────────────────────────────────
-      MemoryDenyWriteExecute = false; # Pasta may use JIT for search
-
-      # Pasta reads the vault, writes only its own index state — plus the
-      # vault's .feeds/ dir, which the daemon's fetch cycle rewrites via
-      # write_feeds(). The vault stays read-only except for that one subdir:
-      # systemd applies the most-specific path rule, so listing .feeds under
-      # ReadWritePaths re-grants write to only it while the rest of the vault
-      # remains read-only. The leading '-' makes it non-fatal if the dir is
-      # absent (fresh box before the vault clone). The pasta user also needs a
-      # filesystem-level ACL grant on this dir (pasta-feeds-write-access below),
-      # since a persisted `user:pasta:r-x` ACL otherwise denies the write.
-      ReadOnlyPaths = [
-        vaultCheckout
-      ];
-      ReadWritePaths = [
-        pastaHome
-        "-${vaultCheckout}/.feeds"
-      ];
-
-      Environment = [
-        "HOME=${pastaHome}"
-        # Pasta resolves vault_path and [kb] data_dir from
-        # ${pastaHome}/.pasta/config.toml (written by the build ExecStartPre).
-        # These two are not read by the current binary's config path, but are
-        # kept as documentation of the effective values.
-        "PASTA_VAULT_PATH=${vaultCheckout}"
-        "PASTA_DATA_DIR=${pastaDataDir}"
-        # The daemon's feed cycle shells out to slack-api and linear-api.
-        # Use the same packaged helper directory as pasta-fetch-external so
-        # feed generation sees real remote data instead of silently returning
-        # empty Slack/Linear results when the helpers are absent from PATH.
-        "PATH=${pastaFetchBin}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
-        "LD_LIBRARY_PATH=${pastaLibraryPath}"
-        "PROTOC=${pkgs.protobuf}/bin/protoc"
-        "PROTOC_INCLUDE=${pkgs.protobuf}/include"
-      ];
-    };
-  };
-
-  # ── Pasta vault indexer (periodic) ──────────────────────────────────────────
-  # The pasta-daemon above provides the IPC socket and runs the credential-gated
-  # fetch cycle (gmail/linear/slack/calendar) plus task housekeeping — but its
-  # scheduler's fetch cycle deliberately EXCLUDES the `vault` source, so it never
-  # refreshes the kb store that kb-mcp serves. On this host the vault is the only
-  # source (the pasta user has no forge/messaging creds), so vault indexing must
-  # be driven explicitly.
-  #
-  # `kb sync --source vault` fetches the vault checkout and indexes it into
-  # ${pastaDataDir} (Parquet -> LanceDB + Tantivy) — the same store kb-mcp reads.
-  # It is credential-free, idempotent ("No new records to sync" when current),
-  # and safe to run on a timer. This keeps the gateway's knowledge base fresh as
-  # the git-crypt vault sync lands new notes, with no manual step.
-  systemd.services.pasta-vault-index = {
-    description = "Index the vault into the pasta kb store (kb sync --source vault)";
-    after = [
-      "network-online.target"
-      "kirocrew-vault-clone.service"
-      "pasta-daemon.service"
-      "ollama.service"
-    ];
-    wants = [
-      "network-online.target"
-      # Prefer the local embedder to be up so the embedding step succeeds;
-      # `wants` (not `requires`) so a degraded Ollama still lets FTS indexing
-      # run rather than blocking the vault index entirely.
-      "ollama.service"
-    ];
-    # The kb binary is built/linked by pasta-daemon's ExecStartPre
-    # (pasta-source-build). Require the daemon so ${pastaHome}/bin/kb exists and
-    # the pinned ${pastaHome}/.pasta/config.toml has been written before we run.
-    requires = [ "kirocrew-vault-clone.service" ];
-
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "pasta";
-      Group = "pasta";
-      EnvironmentFile = [ "-/var/lib/pasta/secrets/pasta-fetchers.env" ];
-      # Build/refresh the pasta binaries + pinned config first, so this unit is
-      # self-sufficient even if it fires before pasta-daemon has started once
-      # (e.g. right after boot, timer-triggered). Reuses the same builder.
-      ExecStartPre = "${pastaSourceBuild}/bin/pasta-source-build";
-      ExecStart = "${pastaHome}/bin/kb sync --source vault";
-      TimeoutStartSec = "30min";
-      WorkingDirectory = pastaHome;
-
-      # ── systemd hardening (mirrors pasta-daemon) ───────────────────────
-      MemoryDenyWriteExecute = false; # kb may use JIT for search/embedding
-
-      # Reads the vault, writes only its own index state.
-      ReadOnlyPaths = [ vaultCheckout ];
-      ReadWritePaths = [ pastaHome ];
-
-      Environment = [
-        "HOME=${pastaHome}"
-        "PASTA_VAULT_PATH=${vaultCheckout}"
-        "PASTA_DATA_DIR=${pastaDataDir}"
-        "PATH=${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
-        "LD_LIBRARY_PATH=${pastaLibraryPath}"
-        "PROTOC=${pkgs.protobuf}/bin/protoc"
-        "PROTOC_INCLUDE=${pkgs.protobuf}/include"
-        "RUST_LOG=info"
-      ];
-    };
-  };
-
-  systemd.timers.pasta-vault-index = {
-    description = "Periodically index the vault into the pasta kb store";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      # First run shortly after boot, then every 15 minutes. Persistent catches
-      # up one missed run after the host was stopped (matches the vault sync
-      # cadence and keeps the kb store fresh without hammering the embedder).
-      OnBootSec = "5min";
-      OnUnitActiveSec = "15min";
-      Persistent = true;
-      Unit = "pasta-vault-index.service";
-    };
-  };
-
-  # ── Pasta external-source fetch (periodic) ──────────────────────────────────
-  # Fetches the forge/messaging sources — slack, linear, gitlab (MRs), git
-  # (commits) — into the same kb store the vault indexer writes, so the evidence
-  # graph gains real cross-source edges (commit→Linear-issue references, MR↔issue
-  # links, message mentions). Credentials come from sops (owned by pasta); the
-  # ExecStartPre (pastaFetchSetup) materializes the token files, logs glab in,
-  # and clones the git repos before the sync runs. Gmail/calendar are handled
-  # separately (their gogcli keyring auth doesn't transplant to a headless box).
-  systemd.services.pasta-fetch-external = {
-    description = "Fetch external sources (slack/linear/gitlab/git) into the pasta kb store";
-    after = [
-      "network-online.target"
-      "pasta-daemon.service"
-      "ollama.service"
-      "sops-install-secrets.service"
-    ];
-    wants = [
-      "network-online.target"
-      "ollama.service"
-    ];
-    # The kb binary + pinned config are produced by pasta-daemon's ExecStartPre.
-    requires = [ "pasta-daemon.service" ];
-
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "pasta";
-      Group = "pasta";
-      # Refresh binaries/config, then provision creds + repos, then sync.
-      ExecStartPre = [
-        "${pastaSourceBuild}/bin/pasta-source-build"
-        "${pastaFetchSetup}/bin/pasta-fetch-setup"
-      ];
-      ExecStart = "${pastaHome}/bin/kb sync --source slack,linear,gitlab,git";
-      TimeoutStartSec = "30min";
-      WorkingDirectory = pastaHome;
-
-      # ── systemd hardening (mirrors pasta-vault-index) ──────────────────
-      MemoryDenyWriteExecute = false;
-
-      # Writes its own index state + repo clones + token files, all under
-      # ${pastaHome}. Reads the decrypted sops secrets from the same tree.
-      ReadWritePaths = [ pastaHome ];
-
-      # External fetch must reach the internet, but never IMDS.
-
-      Environment = [
-        "HOME=${pastaHome}"
-        "PASTA_VAULT_PATH=${vaultCheckout}"
-        "PASTA_DATA_DIR=${pastaDataDir}"
-        # Helpers (slack-api/linear-api) + glab + git + system tools on PATH so
-        # pasta's binary auto-detection and the git fetcher resolve them.
-        "PATH=${pastaFetchBin}/bin:${pkgs.glab}/bin:${pkgs.git}/bin:${pastaHome}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin"
-        "LD_LIBRARY_PATH=${pastaLibraryPath}"
-        "PROTOC=${pkgs.protobuf}/bin/protoc"
-        "PROTOC_INCLUDE=${pkgs.protobuf}/include"
-        "RUST_LOG=info"
-      ];
-    };
-  };
-
-  systemd.timers.pasta-fetch-external = {
-    description = "Periodically fetch external sources into the pasta kb store";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      # Offset from the vault indexer (which runs at boot+5m/every 15m) so the
-      # two don't contend for the embedder. Hourly matches the workstation's
-      # per-source schedule cadence and respects API rate limits.
-      OnBootSec = "12min";
-      OnUnitActiveSec = "1h";
-      Persistent = true;
-      Unit = "pasta-fetch-external.service";
+      pasta-fetch-external = {
+        description = "Periodically fetch external sources into the pasta kb store";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # Offset from the vault indexer (which runs at boot+5m/every 15m) so the
+          # two don't contend for the embedder. Hourly matches the workstation's
+          # per-source schedule cadence and respects API rate limits.
+          OnBootSec = "12min";
+          OnUnitActiveSec = "1h";
+          Persistent = true;
+          Unit = "pasta-fetch-external.service";
+        };
+      };
     };
   };
 }

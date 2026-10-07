@@ -54,128 +54,130 @@
 
     defaultSopsFile = ../secrets/secrets.yaml;
 
-    # GitLab deploy token for the vault repo (HTTPS auth). Username and token
-    # are separate secrets; kirocrew-vault-git.nix feeds them to git via
-    # GIT_ASKPASS so the token never lands in .git/config.
-    secrets.vault-git-token = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/vault-git-token";
-    };
-    secrets.vault-git-token-user = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/vault-git-token-user";
-    };
+    secrets = {
+      # GitLab deploy token for the vault repo (HTTPS auth). Username and token
+      # are separate secrets; kirocrew-vault-git.nix feeds them to git via
+      # GIT_ASKPASS so the token never lands in .git/config.
+      vault-git-token = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/vault-git-token";
+      };
+      vault-git-token-user = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/vault-git-token-user";
+      };
 
-    # git-crypt symmetric key: unlocks the encrypted vault after clone. Base64
-    # of the raw key exported by the workstation wizard.
-    secrets.vault-git-crypt-key = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/vault-git-crypt-key";
-    };
+      # git-crypt symmetric key: unlocks the encrypted vault after clone. Base64
+      # of the raw key exported by the workstation wizard.
+      vault-git-crypt-key = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/vault-git-crypt-key";
+      };
 
-    # Xpra authentication password for the browser-Obsidian session
-    # (kirocrew-obsidian-xpra.nix). Provisioned to the display user's private
-    # state, where the Xpra `file` auth module reads it. sops-nix decrypts as
-    # root using the kirocrew age key, then chowns to obsidian-web.
-    secrets.xpra-password = {
-      owner = config.users.users.obsidian-web.name;
-      inherit (config.users.users.obsidian-web) group;
-      mode = "0400";
-      path = "/var/lib/obsidian-web/secrets/xpra-password";
-    };
+      # Xpra authentication password for the browser-Obsidian session
+      # (kirocrew-obsidian-xpra.nix). Provisioned to the display user's private
+      # state, where the Xpra `file` auth module reads it. sops-nix decrypts as
+      # root using the kirocrew age key, then chowns to obsidian-web.
+      xpra-password = {
+        owner = config.users.users.obsidian-web.name;
+        inherit (config.users.users.obsidian-web) group;
+        mode = "0400";
+        path = "/var/lib/obsidian-web/secrets/xpra-password";
+      };
 
-    # ── Pasta external-source fetch credentials ─────────────────────────────
-    # Consumed by the pasta-fetch-external service (kirocrew-services.nix),
-    # which runs `kb sync` for the forge/messaging sources. Owned by the pasta
-    # user (the fetcher's identity) and decrypted to its private secrets dir.
-    # The fetch unit's ExecStartPre reconstructs the exact token files the
-    # helper CLIs expect (`~/.config/{slack,linear}-api/token.json`) and logs
-    # glab in from these — the raw values never land in the Nix store or config.
+      # ── Pasta external-source fetch credentials ─────────────────────────────
+      # Consumed by the pasta-fetch-external service (kirocrew-services.nix),
+      # which runs `kb sync` for the forge/messaging sources. Owned by the pasta
+      # user (the fetcher's identity) and decrypted to its private secrets dir.
+      # The fetch unit's ExecStartPre reconstructs the exact token files the
+      # helper CLIs expect (`~/.config/{slack,linear}-api/token.json`) and logs
+      # glab in from these — the raw values never land in the Nix store or config.
 
-    # Linear GraphQL API key (`lin_api_...`). Read by the `linear-api` helper.
-    secrets.pasta-linear-api-key = {
-      owner = config.users.users.pasta.name;
-      inherit (config.users.users.pasta) group;
-      mode = "0400";
-      path = "/var/lib/pasta/secrets/linear-api-key";
-      key = "linear-api-key";
-    };
+      # Linear GraphQL API key (`lin_api_...`). Read by the `linear-api` helper.
+      pasta-linear-api-key = {
+        owner = config.users.users.pasta.name;
+        inherit (config.users.users.pasta) group;
+        mode = "0400";
+        path = "/var/lib/pasta/secrets/linear-api-key";
+        key = "linear-api-key";
+      };
 
-    # Slack bot/app tokens used by the pasta fetcher process environment.
-    secrets.pasta-slack-bot-token = {
-      owner = config.users.users.pasta.name;
-      inherit (config.users.users.pasta) group;
-      mode = "0400";
-      path = "/var/lib/pasta/secrets/slack-bot-token";
-      key = "slack-bot-token";
-    };
-    secrets.pasta-slack-app-token = {
-      owner = config.users.users.pasta.name;
-      inherit (config.users.users.pasta) group;
-      mode = "0400";
-      path = "/var/lib/pasta/secrets/slack-app-token";
-      key = "slack-app-token";
-    };
+      # Slack bot/app tokens used by the pasta fetcher process environment.
+      pasta-slack-bot-token = {
+        owner = config.users.users.pasta.name;
+        inherit (config.users.users.pasta) group;
+        mode = "0400";
+        path = "/var/lib/pasta/secrets/slack-bot-token";
+        key = "slack-bot-token";
+      };
+      pasta-slack-app-token = {
+        owner = config.users.users.pasta.name;
+        inherit (config.users.users.pasta) group;
+        mode = "0400";
+        path = "/var/lib/pasta/secrets/slack-app-token";
+        key = "slack-app-token";
+      };
 
-    # GitLab personal access token (`glpat-...`). Used both for `glab` auth
-    # (MR fetch) and to clone the `[repos]` over HTTPS (git fetch), so the
-    # pasta user needs no SSH key on the box.
-    secrets.pasta-gitlab-token = {
-      owner = config.users.users.pasta.name;
-      inherit (config.users.users.pasta) group;
-      mode = "0400";
-      path = "/var/lib/pasta/secrets/gitlab-token";
-      key = "gitlab-token";
-    };
+      # GitLab personal access token (`glpat-...`). Used both for `glab` auth
+      # (MR fetch) and to clone the `[repos]` over HTTPS (git fetch), so the
+      # pasta user needs no SSH key on the box.
+      pasta-gitlab-token = {
+        owner = config.users.users.pasta.name;
+        inherit (config.users.users.pasta) group;
+        mode = "0400";
+        path = "/var/lib/pasta/secrets/gitlab-token";
+        key = "gitlab-token";
+      };
 
-    # ── CFM Tips MCP server AWS credentials ─────────────────────────────────
-    # Read-only AWS keys for the cfm-tips cost-optimization MCP server the
-    # gateway spawns (kirocrew-services.nix mcp.json). These belong to a
-    # DEDICATED IAM principal that carries ONLY the consolidated read-only cost
-    # policy from the CFM Tips README — not the instance role, which the gateway
-    # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew; the
-    # server's launcher (kirocrew-services.nix cfmTipsMcpLauncher) reads them
-    # into AWS_* for the server process only.
-    secrets.cfm-tips-aws-access-key-id = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/cfm-tips-aws-access-key-id";
-      key = "cfm-tips-aws-access-key-id";
-    };
-    secrets.cfm-tips-aws-secret-access-key = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/cfm-tips-aws-secret-access-key";
-      key = "cfm-tips-aws-secret-access-key";
-    };
+      # ── CFM Tips MCP server AWS credentials ─────────────────────────────────
+      # Read-only AWS keys for the cfm-tips cost-optimization MCP server the
+      # gateway spawns (kirocrew-services.nix mcp.json). These belong to a
+      # DEDICATED IAM principal that carries ONLY the consolidated read-only cost
+      # policy from the CFM Tips README — not the instance role, which the gateway
+      # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew; the
+      # server's launcher (kirocrew-services.nix cfmTipsMcpLauncher) reads them
+      # into AWS_* for the server process only.
+      cfm-tips-aws-access-key-id = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/cfm-tips-aws-access-key-id";
+        key = "cfm-tips-aws-access-key-id";
+      };
+      cfm-tips-aws-secret-access-key = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/cfm-tips-aws-secret-access-key";
+        key = "cfm-tips-aws-secret-access-key";
+      };
 
-    # ── Slack MCP server token (gateway) ────────────────────────────────────
-    # A SECOND decrypt target for the SAME sops `slack-bot-token` (the pasta
-    # user gets its own copy above at /var/lib/pasta/secrets/slack-bot-token).
-    # The gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
-    # so it needs its own kirocrew-owned copy of the identical secret. Consumed
-    # by the Slack MCP server the gateway spawns: its launcher
-    # (kirocrew-services.nix slackMcpLauncher) reads this file into
-    # SLACK_TOKEN for the server process only.
-    #
-    # This is the Slack BOT token (`xoxb-...`); the user token (`xoxp-...`)
-    # was retired. Bot tokens cannot call search.messages, so the MCP's
-    # slack_search_messages tool fails with not_allowed_token_type; history,
-    # users and chat.postMessage work within the bot's scopes.
-    secrets.kirocrew-slack-token = {
-      owner = config.users.users.kirocrew.name;
-      inherit (config.users.users.kirocrew) group;
-      mode = "0400";
-      path = "/var/lib/kirocrew/secrets/slack-token";
-      key = "slack-bot-token";
+      # ── Slack MCP server token (gateway) ────────────────────────────────────
+      # A SECOND decrypt target for the SAME sops `slack-bot-token` (the pasta
+      # user gets its own copy above at /var/lib/pasta/secrets/slack-bot-token).
+      # The gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
+      # so it needs its own kirocrew-owned copy of the identical secret. Consumed
+      # by the Slack MCP server the gateway spawns: its launcher
+      # (kirocrew-services.nix slackMcpLauncher) reads this file into
+      # SLACK_TOKEN for the server process only.
+      #
+      # This is the Slack BOT token (`xoxb-...`); the user token (`xoxp-...`)
+      # was retired. Bot tokens cannot call search.messages, so the MCP's
+      # slack_search_messages tool fails with not_allowed_token_type; history,
+      # users and chat.postMessage work within the bot's scopes.
+      kirocrew-slack-token = {
+        owner = config.users.users.kirocrew.name;
+        inherit (config.users.users.kirocrew) group;
+        mode = "0400";
+        path = "/var/lib/kirocrew/secrets/slack-token";
+        key = "slack-bot-token";
+      };
     };
   };
 

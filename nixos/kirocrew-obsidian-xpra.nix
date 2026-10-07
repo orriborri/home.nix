@@ -270,95 +270,99 @@ in
     description = "Obsidian browser (Xpra) display user";
   };
 
-  # Private state: home, XDG dirs, secrets, and TLS material. 0700 so no other
-  # service can read the plaintext .obsidian config or the Xpra password.
-  systemd.tmpfiles.rules = [
-    "d ${stateDir} 0700 obsidian-web obsidian-web -"
-    "d ${stateDir}/secrets 0700 obsidian-web obsidian-web -"
-    "d ${stateDir}/tls 0700 obsidian-web obsidian-web -"
-  ];
-
-  # ── ACL grant (root oneshot, ordered before the session) ───────────────────
-  systemd.services.obsidian-web-vault-grant = {
-    description = "Grant obsidian-web write access to vault note content (not .git)";
-    after = [ "kirocrew-vault-clone.service" ];
-    requires = [ "kirocrew-vault-clone.service" ];
-    before = [ "obsidian-web.service" ];
-    requiredBy = [ "obsidian-web.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${vaultGrant}/bin/obsidian-web-vault-grant";
-    };
-  };
-
-  # ── Persistent Obsidian-over-Xpra session ──────────────────────────────────
-  systemd.services.obsidian-web = {
-    description = "Obsidian desktop over Xpra HTML5 (loopback)";
-    after = [
-      "network.target"
-      "kirocrew-vault-clone.service"
-      "obsidian-web-vault-grant.service"
+  systemd = {
+    # Private state: home, XDG dirs, secrets, and TLS material. 0700 so no other
+    # service can read the plaintext .obsidian config or the Xpra password.
+    tmpfiles.rules = [
+      "d ${stateDir} 0700 obsidian-web obsidian-web -"
+      "d ${stateDir}/secrets 0700 obsidian-web obsidian-web -"
+      "d ${stateDir}/tls 0700 obsidian-web obsidian-web -"
     ];
-    requires = [
-      "kirocrew-vault-clone.service"
-      "obsidian-web-vault-grant.service"
-    ];
-    wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = hardening // {
-      Type = "simple";
-      User = "obsidian-web";
-      Group = "obsidian-web";
-      UMask = "0077";
-      WorkingDirectory = stateDir;
+    services = {
+      # ── ACL grant (root oneshot, ordered before the session) ───────────────────
+      obsidian-web-vault-grant = {
+        description = "Grant obsidian-web write access to vault note content (not .git)";
+        after = [ "kirocrew-vault-clone.service" ];
+        requires = [ "kirocrew-vault-clone.service" ];
+        before = [ "obsidian-web.service" ];
+        requiredBy = [ "obsidian-web.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${vaultGrant}/bin/obsidian-web-vault-grant";
+        };
+      };
 
-      ExecStartPre = [
-        "${tlsInit}/bin/obsidian-web-tls-init"
-        "${obsidianInit}/bin/obsidian-web-init"
-      ];
-      ExecStart = "${obsidianStart}/bin/obsidian-web-start";
-      Restart = "on-failure";
-      RestartSec = 5;
-      TimeoutStopSec = 20;
+      # ── Persistent Obsidian-over-Xpra session ──────────────────────────────────
+      obsidian-web = {
+        description = "Obsidian desktop over Xpra HTML5 (loopback)";
+        after = [
+          "network.target"
+          "kirocrew-vault-clone.service"
+          "obsidian-web-vault-grant.service"
+        ];
+        requires = [
+          "kirocrew-vault-clone.service"
+          "obsidian-web-vault-grant.service"
+        ];
+        wantedBy = [ "multi-user.target" ];
 
-      # ── systemd hardening (mirrors kirocrew-gateway.nix) ──────────────
-      # Hide operator/other homes; the service keeps its own StateDirectory.
-      # Xpra/Obsidian (Electron) need a user namespace for their own sandbox;
-      # keep namespaces available but drop other privilege vectors.
-      RestrictNamespaces = false;
-      MemoryDenyWriteExecute = false; # Electron/Node JIT needs W+X
+        serviceConfig = hardening // {
+          Type = "simple";
+          User = "obsidian-web";
+          Group = "obsidian-web";
+          UMask = "0077";
+          WorkingDirectory = stateDir;
 
-      # Writable: only note content and the service's private state. Git
-      # internals stay read-only even though note content is writable.
-      ReadWritePaths = [
-        vaultDir
-        stateDir
-      ];
-      ReadOnlyPaths = [
-        "-${vaultDir}/.git"
-        "-${vaultDir}/.gitattributes"
-        "-${vaultDir}/.gitignore"
-      ];
+          ExecStartPre = [
+            "${tlsInit}/bin/obsidian-web-tls-init"
+            "${obsidianInit}/bin/obsidian-web-init"
+          ];
+          ExecStart = "${obsidianStart}/bin/obsidian-web-start";
+          Restart = "on-failure";
+          RestartSec = 5;
+          TimeoutStopSec = 20;
 
-      # No IMDS access from the display process.
-      # Loopback listener + local sockets only.
-      RestrictAddressFamilies = [
-        "AF_UNIX"
-        "AF_INET"
-        "AF_INET6"
-      ];
+          # ── systemd hardening (mirrors kirocrew-gateway.nix) ──────────────
+          # Hide operator/other homes; the service keeps its own StateDirectory.
+          # Xpra/Obsidian (Electron) need a user namespace for their own sandbox;
+          # keep namespaces available but drop other privilege vectors.
+          RestrictNamespaces = false;
+          MemoryDenyWriteExecute = false; # Electron/Node JIT needs W+X
 
-      Environment = [
-        "HOME=${stateDir}"
-        "XDG_CONFIG_HOME=${stateDir}/.config"
-        "XDG_CACHE_HOME=${stateDir}/.cache"
-        "XDG_DATA_HOME=${stateDir}/.local/share"
-        "XDG_STATE_HOME=${stateDir}/.local/state"
-        "XDG_RUNTIME_DIR=/run/obsidian-web"
-      ];
-      RuntimeDirectory = "obsidian-web";
-      RuntimeDirectoryMode = "0700";
+          # Writable: only note content and the service's private state. Git
+          # internals stay read-only even though note content is writable.
+          ReadWritePaths = [
+            vaultDir
+            stateDir
+          ];
+          ReadOnlyPaths = [
+            "-${vaultDir}/.git"
+            "-${vaultDir}/.gitattributes"
+            "-${vaultDir}/.gitignore"
+          ];
+
+          # No IMDS access from the display process.
+          # Loopback listener + local sockets only.
+          RestrictAddressFamilies = [
+            "AF_UNIX"
+            "AF_INET"
+            "AF_INET6"
+          ];
+
+          Environment = [
+            "HOME=${stateDir}"
+            "XDG_CONFIG_HOME=${stateDir}/.config"
+            "XDG_CACHE_HOME=${stateDir}/.cache"
+            "XDG_DATA_HOME=${stateDir}/.local/share"
+            "XDG_STATE_HOME=${stateDir}/.local/state"
+            "XDG_RUNTIME_DIR=/run/obsidian-web"
+          ];
+          RuntimeDirectory = "obsidian-web";
+          RuntimeDirectoryMode = "0700";
+        };
+      };
     };
   };
 }

@@ -17,54 +17,60 @@
 {
   # ── Service users ──────────────────────────────────────────────────────────
 
-  users.groups.kirocrew = { };
-  users.groups.pasta = { };
+  users = {
+    groups = {
+      kirocrew = { };
+      pasta = { };
 
-  # Shared group for files that both kirocrew and pasta need to read
-  # (e.g. the vault checkout).
-  users.groups.vault-readers = { };
+      # Shared group for files that both kirocrew and pasta need to read
+      # (e.g. the vault checkout).
+      vault-readers = { };
 
-  # Shared group for the code repository tree at /var/lib/code. Both the
-  # operator (orre), who clones/pulls the repos, and the gateway (kirocrew),
-  # whose agent edits them, are members so they can read and write the same
-  # working trees. The tree is setgid + group-writable (see kirocrew-code.nix)
-  # so new files inherit this group.
-  users.groups.code-writers = { };
+      # Shared group for the code repository tree at /var/lib/code. Both the
+      # operator (orre), who clones/pulls the repos, and the gateway (kirocrew),
+      # whose agent edits them, are members so they can read and write the same
+      # working trees. The tree is setgid + group-writable (see kirocrew-code.nix)
+      # so new files inherit this group.
+      code-writers = { };
+    };
 
-  users.users.kirocrew = {
-    isSystemUser = true;
-    group = "kirocrew";
-    extraGroups = [
-      "vault-readers"
-      "code-writers"
-    ];
-    home = "/var/lib/kirocrew";
-    createHome = true;
-    shell = pkgs.bashInteractive;
-    description = "KiroCrew gateway and agent workloads";
-  };
+    users = {
+      kirocrew = {
+        isSystemUser = true;
+        group = "kirocrew";
+        extraGroups = [
+          "vault-readers"
+          "code-writers"
+        ];
+        home = "/var/lib/kirocrew";
+        createHome = true;
+        shell = pkgs.bashInteractive;
+        description = "KiroCrew gateway and agent workloads";
+      };
 
-  users.users.pasta = {
-    isSystemUser = true;
-    group = "pasta";
-    extraGroups = [ "vault-readers" ];
-    home = "/var/lib/pasta";
-    createHome = true;
-    shell = pkgs.bashInteractive;
-    description = "Pasta vault indexer";
-  };
+      pasta = {
+        isSystemUser = true;
+        group = "pasta";
+        extraGroups = [ "vault-readers" ];
+        home = "/var/lib/pasta";
+        createHome = true;
+        shell = pkgs.bashInteractive;
+        description = "Pasta vault indexer";
+      };
 
-  # ── Admin user (orre) — tightened ──────────────────────────────────────────
-  # Retains sudo for human administration. Removed from docker group.
-  # Docker is disabled entirely; if needed later, a separate builder identity
-  # can be introduced.
-  users.users.orre = {
-    isNormalUser = true;
-    extraGroups = [
-      "wheel"
-      "code-writers"
-    ];
-    shell = pkgs.zsh;
+      # ── Admin user (orre) — tightened ──────────────────────────────────────────
+      # Retains sudo for human administration. Removed from docker group.
+      # Docker is disabled entirely; if needed later, a separate builder identity
+      # can be introduced.
+      orre = {
+        isNormalUser = true;
+        extraGroups = [
+          "wheel"
+          "code-writers"
+        ];
+        shell = pkgs.zsh;
+      };
+    };
   };
 
   # Passwordless sudo for wheel users. The instance is SSM-only with key-based

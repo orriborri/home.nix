@@ -36,48 +36,61 @@
   boot.loader.grub.configurationLimit = 2;
 
   networking.hostName = "kirocrew";
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
-
-  # ── Automatic store cleanup ────────────────────────────────────────────────
-  # This box is a long-lived agent workspace on a fixed 79G root and had filled
-  # to 100% because every `nixos-rebuild switch` pins another system generation
-  # as a live GC root, so a plain `nix-collect-garbage` reclaims nothing until
-  # old generations are deleted. Delete generations older than 14 days weekly
-  # (keeps recent rollback points) and hard-link identical store paths to shrink
-  # the store further. Manual `nixos-rebuild switch` still works unchanged.
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 14d";
-  };
-  nix.settings.auto-optimise-store = true;
-
-  # Journald would otherwise grow to 10% of the 79G root (default SystemMaxUse).
-  services.journald.settings.Journal.SystemMaxUse = "1G";
-
-  # ── SSH: key-only, reachable over SSM (no public port) ─────────────────────
-  # sshd still runs, but you reach it THROUGH the SSM tunnel (AWS-StartSSHSession),
-  # so the security group needs no inbound rule. root stays key-only via the
-  # launch key amazon-init injects.
-  services.openssh = {
-    enable = true;
-    # SSM reaches sshd over loopback, which the firewall always accepts.
-    openFirewall = false;
+  nix = {
     settings = {
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-      PermitRootLogin = "prohibit-password";
-      X11Forwarding = true;
+      experimental-features = [
+        "nix-command"
+        "flakes"
+      ];
+      auto-optimise-store = true;
     };
-    extraConfig = ''
-      XAuthLocation ${pkgs.xauth}/bin/xauth
-      # Allow the launcher's `-R /run/kirocrew-agent/orre-1p.sock` forward
-      # (1Password agent bridge) to replace a stale socket on reconnect.
-      StreamLocalBindUnlink yes
-    '';
+    # ── Automatic store cleanup ────────────────────────────────────────────────
+    # This box is a long-lived agent workspace on a fixed 79G root and had filled
+    # to 100% because every `nixos-rebuild switch` pins another system generation
+    # as a live GC root, so a plain `nix-collect-garbage` reclaims nothing until
+    # old generations are deleted. Delete generations older than 14 days weekly
+    # (keeps recent rollback points) and hard-link identical store paths to shrink
+    # the store further. Manual `nixos-rebuild switch` still works unchanged.
+    gc = {
+      automatic = true;
+      dates = "weekly";
+      options = "--delete-older-than 14d";
+    };
+  };
+
+  services = {
+    # Journald would otherwise grow to 10% of the 79G root (default SystemMaxUse).
+    journald.settings.Journal.SystemMaxUse = "1G";
+
+    # ── SSH: key-only, reachable over SSM (no public port) ─────────────────────
+    # sshd still runs, but you reach it THROUGH the SSM tunnel (AWS-StartSSHSession),
+    # so the security group needs no inbound rule. root stays key-only via the
+    # launch key amazon-init injects.
+    openssh = {
+      enable = true;
+      # SSM reaches sshd over loopback, which the firewall always accepts.
+      openFirewall = false;
+      settings = {
+        PasswordAuthentication = false;
+        KbdInteractiveAuthentication = false;
+        PermitRootLogin = "prohibit-password";
+        X11Forwarding = true;
+      };
+      extraConfig = ''
+        XAuthLocation ${pkgs.xauth}/bin/xauth
+        # Allow the launcher's `-R /run/kirocrew-agent/orre-1p.sock` forward
+        # (1Password agent bridge) to replace a stale socket on reconnect.
+        StreamLocalBindUnlink yes
+      '';
+    };
+
+    # ── SSM agent: the box's outbound control channel ──────────────────────────
+    # Enables Session Manager (shell), SSH-over-SSM (nixos-rebuild --target-host
+    # via a ProxyCommand), and port-forwarding (dashboard 5476) with ZERO inbound
+    # ports. Requires an instance profile carrying AmazonSSMManagedInstanceCore
+    # (attach at launch with --iam-instance-profile). The stock NixOS AMI does not
+    # run this agent, so the FIRST rebuild bootstraps it (see nixos/kirocrew.md).
+    amazon-ssm-agent.enable = true;
   };
 
   # ── Memory: compressed RAM swap ────────────────────────────────────────────
@@ -93,14 +106,6 @@
     algorithm = "zstd";
     memoryPercent = 50;
   };
-
-  # ── SSM agent: the box's outbound control channel ──────────────────────────
-  # Enables Session Manager (shell), SSH-over-SSM (nixos-rebuild --target-host
-  # via a ProxyCommand), and port-forwarding (dashboard 5476) with ZERO inbound
-  # ports. Requires an instance profile carrying AmazonSSMManagedInstanceCore
-  # (attach at launch with --iam-instance-profile). The stock NixOS AMI does not
-  # run this agent, so the FIRST rebuild bootstraps it (see nixos/kirocrew.md).
-  services.amazon-ssm-agent.enable = true;
 
   # ── User settings ──────────────────────────────────────────────────────────
   # apply-ec2-data installs the EC2 launch key for root at boot; the static

@@ -148,61 +148,65 @@ in
     git-crypt
   ];
 
-  # Vault is a git working tree owned by the gateway; readable by pasta via
-  # vault-readers. Not world-readable.
-  systemd.tmpfiles.rules = [
-    "d ${vaultDir} 2750 kirocrew vault-readers -"
-  ];
+  systemd = {
+    # Vault is a git working tree owned by the gateway; readable by pasta via
+    # vault-readers. Not world-readable.
+    tmpfiles.rules = [
+      "d ${vaultDir} 2750 kirocrew vault-readers -"
+    ];
 
-  systemd.services.kirocrew-vault-clone = {
-    description = "Clone and unlock the KiroCrew git vault";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    before = [ "kirocrew-gateway.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      User = "kirocrew";
-      Group = "kirocrew";
-      UMask = "0007";
-      ExecStart = "${vaultClone}/bin/kirocrew-vault-clone";
-      ReadWritePaths = [
-        vaultDir
-        "/var/lib/kirocrew"
-      ];
+    services = {
+      kirocrew-vault-clone = {
+        description = "Clone and unlock the KiroCrew git vault";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        before = [ "kirocrew-gateway.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          User = "kirocrew";
+          Group = "kirocrew";
+          UMask = "0007";
+          ExecStart = "${vaultClone}/bin/kirocrew-vault-clone";
+          ReadWritePaths = [
+            vaultDir
+            "/var/lib/kirocrew"
+          ];
+        };
+      };
+
+      kirocrew-vault-sync = {
+        description = "Commit, reconcile, and push KiroCrew vault changes (retryable)";
+        after = [ "kirocrew-vault-clone.service" ];
+        requires = [ "kirocrew-vault-clone.service" ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "kirocrew";
+          Group = "kirocrew";
+          UMask = "0007";
+          ExecStart = "${vaultSync}/bin/kirocrew-vault-sync";
+          ReadWritePaths = [
+            vaultDir
+            "/var/lib/kirocrew"
+          ];
+        };
+      };
     };
-  };
 
-  systemd.services.kirocrew-vault-sync = {
-    description = "Commit, reconcile, and push KiroCrew vault changes (retryable)";
-    after = [ "kirocrew-vault-clone.service" ];
-    requires = [ "kirocrew-vault-clone.service" ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "kirocrew";
-      Group = "kirocrew";
-      UMask = "0007";
-      ExecStart = "${vaultSync}/bin/kirocrew-vault-sync";
-      ReadWritePaths = [
-        vaultDir
-        "/var/lib/kirocrew"
-      ];
-    };
-  };
-
-  # Periodically persist and push agent edits. A run that fails (e.g. push
-  # rejected, remote briefly unreachable) leaves local commits intact; the next
-  # timed run fetches, reconciles, and retries the push even on a clean tree.
-  systemd.timers.kirocrew-vault-sync = {
-    description = "Sync KiroCrew vault every 10 minutes";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "5m";
-      OnUnitActiveSec = "10m";
-      Persistent = true;
-      RandomizedDelaySec = "30s";
-      Unit = "kirocrew-vault-sync.service";
+    # Periodically persist and push agent edits. A run that fails (e.g. push
+    # rejected, remote briefly unreachable) leaves local commits intact; the next
+    # timed run fetches, reconciles, and retries the push even on a clean tree.
+    timers.kirocrew-vault-sync = {
+      description = "Sync KiroCrew vault every 10 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "5m";
+        OnUnitActiveSec = "10m";
+        Persistent = true;
+        RandomizedDelaySec = "30s";
+        Unit = "kirocrew-vault-sync.service";
+      };
     };
   };
 }

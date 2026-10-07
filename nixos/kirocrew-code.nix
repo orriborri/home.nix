@@ -434,185 +434,189 @@ let
   };
 in
 {
-  systemd.tmpfiles.rules = [
-    "d ${codeDir} 2775 kirocrew code-writers -"
-    # Shared worktree root plus a per-repo subdirectory mirroring the checkout
-    # layout (wt/<repo-relpath>). Worktrees created off the managed checkouts
-    # live here — outside the checkouts themselves — so repo-sync's
-    # fast-forward does not disturb them. setgid + group-writable so both the
-    # operator and the gateway/agent (both in code-writers) can create and
-    # edit worktrees.
-    "d ${codeDir}/wt 2775 kirocrew code-writers -"
-    "d ${mirrorDir} 0750 orre code-writers -"
-    "d ${graphStateDir} 0750 kirocrew code-writers -"
-    # CRG per-user state dir; must exist so ProtectSystem=strict can bind it
-    # read-write for the sync/daemon units (the '-' optional-path form left it
-    # read-only when absent, so CRG's mkdir hit a read-only FS).
-    "d /var/lib/kirocrew/.code-review-graph 0750 kirocrew kirocrew -"
-  ]
-  # Intermediate parent dirs (e.g. wt/readpeak) as group-owned, so tmpfiles
-  # doesn't leave auto-created parents root:root 0755.
-  ++ map (dir: "d ${codeDir}/wt/${dir} 2775 kirocrew code-writers -") worktreeParentDirs
-  ++ map (repo: "d ${worktreeFor repo} 2775 kirocrew code-writers -") headlessRepos;
+  systemd = {
+    tmpfiles.rules = [
+      "d ${codeDir} 2775 kirocrew code-writers -"
+      # Shared worktree root plus a per-repo subdirectory mirroring the checkout
+      # layout (wt/<repo-relpath>). Worktrees created off the managed checkouts
+      # live here — outside the checkouts themselves — so repo-sync's
+      # fast-forward does not disturb them. setgid + group-writable so both the
+      # operator and the gateway/agent (both in code-writers) can create and
+      # edit worktrees.
+      "d ${codeDir}/wt 2775 kirocrew code-writers -"
+      "d ${mirrorDir} 0750 orre code-writers -"
+      "d ${graphStateDir} 0750 kirocrew code-writers -"
+      # CRG per-user state dir; must exist so ProtectSystem=strict can bind it
+      # read-write for the sync/daemon units (the '-' optional-path form left it
+      # read-only when absent, so CRG's mkdir hit a read-only FS).
+      "d /var/lib/kirocrew/.code-review-graph 0750 kirocrew kirocrew -"
+    ]
+    # Intermediate parent dirs (e.g. wt/readpeak) as group-owned, so tmpfiles
+    # doesn't leave auto-created parents root:root 0755.
+    ++ map (dir: "d ${codeDir}/wt/${dir} 2775 kirocrew code-writers -") worktreeParentDirs
+    ++ map (repo: "d ${worktreeFor repo} 2775 kirocrew code-writers -") headlessRepos;
 
-  systemd.services.repo-fetch = {
-    description = "Fetch protected KiroCrew repository mirrors";
-    after = [
-      "network-online.target"
-      "home-manager-orre.service"
-    ];
-    wants = [ "network-online.target" ];
-    onSuccess = [ "repo-sync.service" ];
-    onFailure = [ "repo-sync.service" ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "orre";
-      Group = "code-writers";
-      UMask = "0027";
-      ExecStart = "${repoFetch}/bin/kirocrew-repo-fetch";
-      ReadWritePaths = [ mirrorDir ];
-      ProtectHome = "read-only";
-      RestrictAddressFamilies = [
-        "AF_UNIX"
-        "AF_INET"
-        "AF_INET6"
-      ];
+    services = {
+      repo-fetch = {
+        description = "Fetch protected KiroCrew repository mirrors";
+        after = [
+          "network-online.target"
+          "home-manager-orre.service"
+        ];
+        wants = [ "network-online.target" ];
+        onSuccess = [ "repo-sync.service" ];
+        onFailure = [ "repo-sync.service" ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "orre";
+          Group = "code-writers";
+          UMask = "0027";
+          ExecStart = "${repoFetch}/bin/kirocrew-repo-fetch";
+          ReadWritePaths = [ mirrorDir ];
+          ProtectHome = "read-only";
+          RestrictAddressFamilies = [
+            "AF_UNIX"
+            "AF_INET"
+            "AF_INET6"
+          ];
+        };
+      };
+
+      repo-sync = {
+        description = "Update KiroCrew working trees from protected mirrors";
+        after = [ "repo-fetch.service" ];
+        onSuccess = [
+          "code-review-graph-sync.service"
+          "kirocrew-skill-sync.service"
+        ];
+        onFailure = [
+          "code-review-graph-sync.service"
+          "kirocrew-skill-sync.service"
+        ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "kirocrew";
+          Group = "code-writers";
+          UMask = "0002";
+          ExecStart = "${repoCheckout}/bin/kirocrew-repo-checkout-sync";
+          ReadOnlyPaths = [ mirrorDir ];
+          ReadWritePaths = [ codeDir ];
+          RestrictAddressFamilies = [ "AF_UNIX" ];
+        };
+      };
+
+      code-review-graph-install = {
+        description = "Install code-review-graph (uv tool) for the kirocrew user";
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        before = [
+          "code-review-graph-sync.service"
+          "code-review-graph-daemon.service"
+        ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          User = "kirocrew";
+          Group = "kirocrew";
+          UMask = "0022";
+          ExecStart = "${crgInstall}/bin/kirocrew-code-review-graph-install";
+          TimeoutStartSec = "10min";
+          ReadWritePaths = [ "/var/lib/kirocrew" ];
+        };
+      };
+
+      code-review-graph-sync = {
+        description = "Build and register KiroCrew Code Review Graph indexes";
+        after = [
+          "repo-sync.service"
+          "code-review-graph-install.service"
+        ];
+        requires = [ "code-review-graph-install.service" ];
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "kirocrew";
+          Group = "code-writers";
+          UMask = "0002";
+          ExecStart = "${graphSync}/bin/kirocrew-code-review-graph-sync";
+          Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
+          ReadWritePaths = [
+            codeDir
+            graphStateDir
+            "/var/lib/kirocrew/.code-review-graph"
+          ];
+        };
+      };
+
+      code-review-graph-daemon = {
+        description = "Code Review Graph repository watcher";
+        wants = [ "code-review-graph-sync.service" ];
+        after = [
+          "code-review-graph-sync.service"
+          "code-review-graph-install.service"
+        ];
+        requires = [ "code-review-graph-install.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = hardening // {
+          Type = "simple";
+          User = "kirocrew";
+          Group = "code-writers";
+          UMask = "0002";
+          ExecStartPre = "-${crgBin} daemon stop";
+          ExecStart = "${crgBin} daemon start --foreground";
+          Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
+          Restart = "on-failure";
+          RestartSec = 5;
+          ReadWritePaths = [
+            codeDir
+            graphStateDir
+            "/var/lib/kirocrew/.code-review-graph"
+          ];
+        };
+      };
+
+      # Reconcile complete skill directories. Ownership state and recoverable
+      # previous versions live outside the gateway's discovery tree.
+      kirocrew-skill-sync = {
+        description = "Sync agent skills from managed checkouts into KiroCrew";
+        after = [ "repo-sync.service" ];
+        wantedBy = [ ]; # triggered by repo-sync success or failure
+        serviceConfig = hardening // {
+          Type = "oneshot";
+          User = "kirocrew";
+          Group = "kirocrew";
+          UMask = "0022";
+          ExecStart = lib.escapeShellArgs (
+            [
+              "${skillsTools.sync}/bin/kirocrew-skill-sync"
+              "--archive-legacy"
+              "--source"
+              "${destinationFor skillsRepo}/skills"
+              "--destination"
+              "/var/lib/kirocrew/.kiro/crew/skills"
+              "--state"
+              "/var/lib/kirocrew/.kiro/crew/skill-sync/mattpocock"
+            ]
+            ++ lib.optionals (skillsRepo ? revision) [
+              "--revision"
+              skillsRepo.revision
+            ]
+          );
+          ReadOnlyPaths = [ codeDir ];
+          ReadWritePaths = [ "/var/lib/kirocrew" ];
+        };
+      };
     };
-  };
 
-  systemd.timers.repo-fetch = {
-    description = "Fetch KiroCrew repositories every 15 minutes";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "2m";
-      OnUnitActiveSec = "15m";
-      Persistent = true;
-      RandomizedDelaySec = "30s";
-      Unit = "repo-fetch.service";
-    };
-  };
-
-  systemd.services.repo-sync = {
-    description = "Update KiroCrew working trees from protected mirrors";
-    after = [ "repo-fetch.service" ];
-    onSuccess = [
-      "code-review-graph-sync.service"
-      "kirocrew-skill-sync.service"
-    ];
-    onFailure = [
-      "code-review-graph-sync.service"
-      "kirocrew-skill-sync.service"
-    ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "kirocrew";
-      Group = "code-writers";
-      UMask = "0002";
-      ExecStart = "${repoCheckout}/bin/kirocrew-repo-checkout-sync";
-      ReadOnlyPaths = [ mirrorDir ];
-      ReadWritePaths = [ codeDir ];
-      RestrictAddressFamilies = [ "AF_UNIX" ];
-    };
-  };
-
-  systemd.services.code-review-graph-install = {
-    description = "Install code-review-graph (uv tool) for the kirocrew user";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    before = [
-      "code-review-graph-sync.service"
-      "code-review-graph-daemon.service"
-    ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      User = "kirocrew";
-      Group = "kirocrew";
-      UMask = "0022";
-      ExecStart = "${crgInstall}/bin/kirocrew-code-review-graph-install";
-      TimeoutStartSec = "10min";
-      ReadWritePaths = [ "/var/lib/kirocrew" ];
-    };
-  };
-
-  systemd.services.code-review-graph-sync = {
-    description = "Build and register KiroCrew Code Review Graph indexes";
-    after = [
-      "repo-sync.service"
-      "code-review-graph-install.service"
-    ];
-    requires = [ "code-review-graph-install.service" ];
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "kirocrew";
-      Group = "code-writers";
-      UMask = "0002";
-      ExecStart = "${graphSync}/bin/kirocrew-code-review-graph-sync";
-      Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
-      ReadWritePaths = [
-        codeDir
-        graphStateDir
-        "/var/lib/kirocrew/.code-review-graph"
-      ];
-    };
-  };
-
-  systemd.services.code-review-graph-daemon = {
-    description = "Code Review Graph repository watcher";
-    wants = [ "code-review-graph-sync.service" ];
-    after = [
-      "code-review-graph-sync.service"
-      "code-review-graph-install.service"
-    ];
-    requires = [ "code-review-graph-install.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = hardening // {
-      Type = "simple";
-      User = "kirocrew";
-      Group = "code-writers";
-      UMask = "0002";
-      ExecStartPre = "-${crgBin} daemon stop";
-      ExecStart = "${crgBin} daemon start --foreground";
-      Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
-      Restart = "on-failure";
-      RestartSec = 5;
-      ReadWritePaths = [
-        codeDir
-        graphStateDir
-        "/var/lib/kirocrew/.code-review-graph"
-      ];
-    };
-  };
-
-  # Reconcile complete skill directories. Ownership state and recoverable
-  # previous versions live outside the gateway's discovery tree.
-  systemd.services.kirocrew-skill-sync = {
-    description = "Sync agent skills from managed checkouts into KiroCrew";
-    after = [ "repo-sync.service" ];
-    wantedBy = [ ]; # triggered by repo-sync success or failure
-    serviceConfig = hardening // {
-      Type = "oneshot";
-      User = "kirocrew";
-      Group = "kirocrew";
-      UMask = "0022";
-      ExecStart = lib.escapeShellArgs (
-        [
-          "${skillsTools.sync}/bin/kirocrew-skill-sync"
-          "--archive-legacy"
-          "--source"
-          "${destinationFor skillsRepo}/skills"
-          "--destination"
-          "/var/lib/kirocrew/.kiro/crew/skills"
-          "--state"
-          "/var/lib/kirocrew/.kiro/crew/skill-sync/mattpocock"
-        ]
-        ++ lib.optionals (skillsRepo ? revision) [
-          "--revision"
-          skillsRepo.revision
-        ]
-      );
-      ReadOnlyPaths = [ codeDir ];
-      ReadWritePaths = [ "/var/lib/kirocrew" ];
+    timers.repo-fetch = {
+      description = "Fetch KiroCrew repositories every 15 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "2m";
+        OnUnitActiveSec = "15m";
+        Persistent = true;
+        RandomizedDelaySec = "30s";
+        Unit = "repo-fetch.service";
+      };
     };
   };
 }

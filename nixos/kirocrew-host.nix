@@ -13,7 +13,14 @@
     fsType = "ext4";
   };
 
-  networking.hostName = "kirocrew";
+  networking = {
+    hostName = "kirocrew";
+    # ── Firewall: SSH only. Dashboard (5476) stays loopback + SSH tunnel. ──────
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [ 22 ];
+    };
+  };
 
   nix.settings.experimental-features = [
     "nix-command"
@@ -43,10 +50,6 @@
       PasswordAuthentication = true; # LOCAL VM convenience; false + keys for EC2
     };
   };
-
-  # ── Firewall: SSH only. Dashboard (5476) stays loopback + SSH tunnel. ──────
-  networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 ];
 
   # ── Container runtime (backend for oci-containers in kirocrew.nix) ─────────
   virtualisation.docker.enable = true;
