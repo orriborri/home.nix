@@ -1658,26 +1658,6 @@
         ];
       };
 
-      # Legacy example retained for reference:
-      # nixosConfigurations.default = nixpkgs.lib.nixosSystem {
-      #   system = "x86_64-linux";
-      #   modules = [
-      #     ./nixos/configuration.nix
-      #     home-manager.nixosModules.home-manager
-      #     {
-      #       home-manager.useGlobalPkgs = true;
-      #       home-manager.useUserPackages = true;
-      #       home-manager.users.orre = { pkgs, lib, config, ... }: {
-      #         imports = [ ./home.nix ];
-      #       };
-      #       home-manager.extraSpecialArgs = {
-      #         powerlineLib = mkPowerlineLib nixpkgs.legacyPackages.x86_64-linux;
-      #         pkgs-stable = nixpkgs-stable.legacyPackages.x86_64-linux;
-      #       };
-      #     }
-      #   ];
-      # };
-
       # Templates for bootstrapping new configs
       templates = {
         default = {

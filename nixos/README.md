@@ -2,13 +2,10 @@
 
 ## Setup
 
-1. Copy this to `/etc/nixos/configuration.nix` or import it
-2. Generate hardware config: `nixos-generate-config`
-3. Add hardware import to configuration.nix:
-   ```nix
-   imports = [ ./hardware-configuration.nix ];
-   ```
-4. Rebuild: `sudo nixos-rebuild switch --flake ~/.config/home-manager#default`
+The only NixOS host is the KiroCrew EC2 gateway (`kirocrew-ec2.nix`); the
+`kirocrew` VM profile exists for local testing. See `kirocrew.md`.
+
+Rebuild on the host: `sudo nixos-rebuild switch --flake ~/.config/home-manager#kirocrew-ec2`
 
 ## On Fedora
 

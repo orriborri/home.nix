@@ -44,9 +44,8 @@
 │   ├── kiro.nix          # Kiro IDE Home Manager module
 │   └── kiro-package.nix  # Kiro IDE standalone package
 │
-├── nixos/                # NixOS-specific configuration
-│   ├── README.md
-│   └── configuration.nix
+├── nixos/                # NixOS-specific configuration (KiroCrew EC2 gateway)
+│   └── README.md
 │
 ├── templates/            # Flake templates
 │   └── minimal/          # Minimal Home Manager template
@@ -120,7 +119,7 @@ Custom arguments passed to modules:
 
 ### Files
 - Module files: lowercase with hyphens (e.g., `starship.nix`)
-- Configuration files: descriptive names (e.g., `configuration.nix`)
+- Configuration files: descriptive names (e.g., `kirocrew-ec2.nix`)
 - Scripts: lowercase with `.sh` extension
 
 ### Variables
