@@ -438,6 +438,29 @@
               touch $out
             '';
 
+          # O7: language servers come from extraPackages; mason would download
+          # dynamically linked copies that shadow them and fail on NixOS.
+          nvim-no-mason =
+            let
+              nv = self.homeConfigurations.orre.config.programs.neovim;
+            in
+            pkgs.runCommand "check-nvim-no-mason"
+              {
+                plugins = lib.concatMapStringsSep "\n" (p: (p.plugin or p).name) nv.plugins;
+                inherit (nv) initLua;
+                passAsFile = [
+                  "plugins"
+                  "initLua"
+                ];
+              }
+              ''
+                if grep -n mason "$pluginsPath" "$initLuaPath" >&2; then
+                  echo "mason is still installed or set up" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           # C25: the packaged nvim-treesitter is the main branch, whose setup()
           # ignores highlight/indent; highlighting must be started per buffer.
           nvim-treesitter-active =

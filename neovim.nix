@@ -14,8 +14,6 @@
 
       # LSP
       nvim-lspconfig
-      mason-nvim
-      mason-lspconfig-nvim
 
       # Completion
       nvim-cmp
@@ -124,13 +122,7 @@
       require("catppuccin").setup()
       vim.cmd.colorscheme "catppuccin"
 
-      -- LSP setup
-      require("mason").setup()
-      require("mason-lspconfig").setup({
-        ensure_installed = { "ts_ls", "eslint", "lua_ls" },
-        automatic_installation = false,
-      })
-
+      -- LSP setup (servers come from extraPackages)
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
       vim.lsp.config("pyright", {
