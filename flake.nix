@@ -252,6 +252,18 @@
         // lib.mapAttrs' (
           name: os: lib.nameValuePair "nixos-${name}" (evalCheck name os.config.system.build.toplevel.drvPath)
         ) self.nixosConfigurations
+        # O5: the HM sops-nix module validates secret keys in the manifest's
+        # build-time checkPhase, which the context-stripped eval checks never
+        # reach. Keeping the ExecStart string context pulls the sops-nix-user
+        # script, and with it the checked manifest, into the build.
+        // lib.mapAttrs' (
+          name: hm:
+          lib.nameValuePair "hm-sops-${name}" (
+            pkgs.writeText "hm-sops-${name}" (
+              toString hm.config.systemd.user.services.sops-nix.Service.ExecStart
+            )
+          )
+        ) (lib.filterAttrs (_: hm: hm.config.systemd.user.services ? sops-nix) self.homeConfigurations)
         // {
           kirocrew-ec2-sops = pkgs.writeText "kirocrew-ec2-sops" ec2OnX86.config.system.activationScripts.setupSecrets.text;
 
