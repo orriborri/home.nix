@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Pre-push gate: run `nix flake check` on each commit being pushed (the
-# committed tree, not the working tree).
+# Pre-push gate: run `nix flake check` on the tip commit of each pushed ref
+# (the committed tree, not the working tree; intermediate commits of a
+# multi-commit push are not checked).
 #
 # Enable once per clone:  git config core.hooksPath .githooks
 # Bypass in an emergency: git push --no-verify
