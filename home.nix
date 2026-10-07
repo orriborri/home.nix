@@ -105,7 +105,6 @@ in
     zoxide = (import ./zoxide.nix { inherit pkgs; });
     carapace = (import ./carapace.nix { inherit pkgs; });
     atuin = (import ./atuin.nix { inherit pkgs; });
-    neovim = (import ./neovim-config.nix { inherit pkgs; });
     git = (import ./git.nix { inherit pkgs lib; });
     gitui = (import ./gitui.nix { inherit pkgs; });
     lazygit = (import ./lazygit.nix { inherit pkgs; });

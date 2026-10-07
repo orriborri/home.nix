@@ -390,6 +390,31 @@
                 touch $out
               '';
 
+          # C10: one neovim module. No second config file, no plugin declared
+          # twice, which-key set up once.
+          nvim-single-module =
+            let
+              nv = self.homeConfigurations.orre.config.programs.neovim;
+            in
+            pkgs.runCommand "check-nvim-single-module"
+              {
+                plugins = lib.concatMapStringsSep "\n" (p: (p.plugin or p).name) nv.plugins;
+                inherit (nv) initLua;
+                passAsFile = [
+                  "plugins"
+                  "initLua"
+                ];
+              }
+              ''
+                [ ! -e ${self}/neovim-config.nix ] \
+                  || { echo "neovim-config.nix still exists next to neovim.nix" >&2; exit 1; }
+                dups=$(sort "$pluginsPath" | uniq -d)
+                [ -z "$dups" ] || { echo "plugins declared twice: $dups" >&2; exit 1; }
+                n=$(grep -c 'which-key").setup\|wk.setup' "$initLuaPath" || true)
+                [ "$n" -le 1 ] || { echo "which-key set up $n times" >&2; exit 1; }
+                touch $out
+              '';
+
           # C29: python buffers get no 2-space setlocal or retab-on-save; conform's
           # ruff_format owns python indentation and the two fought on every save.
           nvim-no-python-retab =
