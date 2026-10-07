@@ -132,7 +132,7 @@
 
   # Vault storage is a git-crypt-encrypted git checkout managed by
   # kirocrew-vault-git.nix (KiroCrew owns the repo). The former read-only S3
-  # mount module (kirocrew-vault.nix) is retained but no longer imported.
+  # mount module was removed; see docs/adr/002 for the history.
 
   # zsh as a valid login shell; home-manager (./home.nix) manages its config.
   programs.zsh.enable = true;

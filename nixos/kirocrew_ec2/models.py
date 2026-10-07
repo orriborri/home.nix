@@ -40,7 +40,7 @@ LEGACY_CODE_DIRS = (
     "/home/orre/code",
 )
 # Writable Obsidian vault on the instance, owned by kirocrew (see
-# kirocrew-vault.nix). Registered as a gateway project directory so the agent
+# kirocrew-vault-git.nix). Registered as a gateway project directory so the agent
 # can read and write vault notes.
 REMOTE_VAULT_DIR = "/var/lib/vault"
 # KiroCrew gateway service user's home on headless hosts (see
