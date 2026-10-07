@@ -391,11 +391,15 @@
               '';
 
           # S11: the OpenVPN AWS patch is vendored, not fetched from a moving
-          # branch URL.
+          # branch URL, and tracks the 2.6 series nixpkgs ships.
           aws-vpn-patch-vendored = pkgs.runCommand "check-aws-vpn-patch-vendored" { } ''
             cd ${self}/packages/aws-vpn-client
-            [ -s openvpn-v2.5.1-aws.patch ] \
-              || { echo "openvpn-v2.5.1-aws.patch is not vendored" >&2; exit 1; }
+            [ -s openvpn-v2.6.12-aws.patch ] \
+              || { echo "openvpn-v2.6.12-aws.patch is not vendored" >&2; exit 1; }
+            if grep -n 'openvpn-2\.5\|2\.5\.1-aws' default.nix >&2; then
+              echo "default.nix still pins OpenVPN 2.5.1" >&2
+              exit 1
+            fi
             if grep -n 'raw.githubusercontent.com\|fetchpatch' default.nix >&2; then
               echo "default.nix still fetches the patch from a URL" >&2
               exit 1

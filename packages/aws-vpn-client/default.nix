@@ -10,8 +10,8 @@
 # source), which does not install on Fedora Silverblue. This module instead
 # packages the open-source approach from samm-git/aws-vpn-client:
 #
-#   * openvpn-aws          — nixpkgs OpenVPN pinned to 2.5.1 + the AWS
-#                            `auth-federate` patch (stock 2.6.x will not apply).
+#   * openvpn-aws          — nixpkgs OpenVPN (2.6 series) + the AWS
+#                            `auth-federate` patch.
 #   * aws-vpn-saml-server  — a tiny Go server that catches the SAML POST on
 #                            127.0.0.1:35001 (vendored, patched to honor
 #                            SAML_RESPONSE_PATH).
@@ -28,10 +28,10 @@
 # sudo for the final openvpn invocation — that part is inherently a privileged
 # host action and cannot be owned by user-level Home Manager.
 #
-# To upgrade OpenVPN / the patch: bump the version + src hash below and replace
-# ./openvpn-v2.5.1-aws.patch with the matching patch from
-# https://github.com/samm-git/aws-vpn-client (vendored, so a moved or deleted
-# upstream branch cannot break or change the build).
+# OpenVPN itself comes from nixpkgs, so a nixpkgs bump moves it; if a bump
+# ever breaks the patch, replace ./openvpn-v2.6.12-aws.patch with the matching
+# one from https://github.com/samm-git/aws-vpn-client (vendored, so a moved or
+# deleted upstream branch cannot break or change the build).
 #
 # Upstream was archived on 2026-02-05 at commit
 # 41610c3c5a3e10fe5a76bdd21d5b6779b789f812 and migrated to
@@ -48,16 +48,11 @@
 # notes it "doesn't seem to be necessary for the vpn to work".
 
 let
-  # Patched OpenVPN. The AWS patch targets 2.5.1, so pin the source there and
-  # let nixpkgs' own openvpn derivation supply the openssl/lzo/build wiring.
+  # Patched OpenVPN: nixpkgs' own openvpn derivation (source, openssl/lzo and
+  # build wiring) plus the AWS patch for the 2.6 series.
   openvpn-aws = pkgs.openvpn.overrideAttrs (old: {
     pname = "openvpn-aws";
-    version = "2.5.1-aws";
-    src = pkgs.fetchurl {
-      url = "https://swupdate.openvpn.org/community/releases/openvpn-2.5.1.tar.gz";
-      hash = "sha256-6VgrjpRXmUvY1QASvoLCOy9GXaUUYMmyNgqB2g9OBuY=";
-    };
-    patches = (old.patches or [ ]) ++ [ ./openvpn-v2.5.1-aws.patch ];
+    patches = (old.patches or [ ]) ++ [ ./openvpn-v2.6.12-aws.patch ];
   });
 
   # Wrap the patched binary so it is reachable as `openvpn-aws` on PATH without
