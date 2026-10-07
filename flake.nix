@@ -1085,6 +1085,43 @@
                 touch $out
               '';
 
+          # C27: the stable-channel bump ignores a nixos-YY.MM branch until its
+          # YY.MM release tag exists (the branch appears as a beta weeks earlier).
+          # Runs `update.sh --update` against stub git/date/nix in a scratch dir.
+          update-sh-stable-channel-release =
+            pkgs.runCommand "check-update-sh-stable-channel-release"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.gnugrep
+                  pkgs.gnused
+                ];
+              }
+              ''
+                mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
+                cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                printf 'x = { nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.11"; };\n' > "$TMPDIR/repo/flake.nix"
+                cat > "$TMPDIR/bin/git" <<'EOS'
+                #!/bin/sh
+                case "$*" in
+                  *--heads*) printf 'a\trefs/heads/nixos-25.11\na\trefs/heads/nixos-26.05\na\trefs/heads/nixos-26.11\n' ;;
+                  *--tags*) printf 'a\trefs/tags/25.11\na\trefs/tags/26.05\na\trefs/tags/26.05-beta\na\trefs/tags/26.11-pre\n' ;;
+                esac
+                EOS
+                printf '#!/bin/sh\necho 2611\n' > "$TMPDIR/bin/date"
+                for c in nix home-manager nix-collect-garbage; do
+                  printf '#!/bin/sh\n' > "$TMPDIR/bin/$c"
+                done
+                chmod +x "$TMPDIR"/bin/*
+                PATH="$TMPDIR/bin:$PATH" bash "$TMPDIR/repo/update.sh" --update > "$TMPDIR/log" 2>&1 \
+                  || { echo "update.sh --update failed:" >&2; cat "$TMPDIR/log" >&2; exit 1; }
+                grep -q 'nixos-26.05' "$TMPDIR/repo/flake.nix" \
+                  || { echo "stable channel was not bumped to the released 26.05:" >&2; cat "$TMPDIR/repo/flake.nix" "$TMPDIR/log" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

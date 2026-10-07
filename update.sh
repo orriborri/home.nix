@@ -10,19 +10,22 @@ cd "$(dirname "$0")"
 # --update: only update flake inputs
 # --upgrade: only dnf upgrade
 # (kiro IDE + CLI now come from nixpkgs and update via `nix flake update`)
-# Point nixpkgs-stable at the newest released nixos-YY.MM branch. Branches
-# dated after the current month are skipped: they appear at branch-off, as
-# betas, weeks before the release.
+# Point nixpkgs-stable at the newest released nixos-YY.MM branch. A branch only
+# counts once its YY.MM release tag exists (without -beta/-pre): the branch
+# appears at branch-off, as a beta, weeks before the release.
 bump_stable_channel() {
-    local flake current latest
+    local flake current latest released
     flake=flake.nix
     current=$(grep -oP 'nixpkgs-stable\.url = "github:NixOS/nixpkgs/nixos-\K[0-9]+\.[0-9]+' "$flake") || {
         echo "  ⚠️  nixpkgs-stable not pinned to a nixos-YY.MM branch; skipping"
         return 0
     }
+    released=$(git ls-remote --tags https://github.com/NixOS/nixpkgs 'refs/tags/[0-9]*' 2>/dev/null \
+        | grep -oP 'refs/tags/\K[0-9]+\.[0-9]+$' | tr '\n' ' ') || true
     latest=$(git ls-remote --heads https://github.com/NixOS/nixpkgs 'refs/heads/nixos-[0-9]*' 2>/dev/null \
         | grep -oP 'refs/heads/nixos-\K[0-9]+\.[0-9]+$' \
-        | awk -v now="$(date +%y%m)" '{ split($0, v, "."); if (v[1] * 100 + v[2] <= now) print }' \
+        | awk -v now="$(date +%y%m)" -v released=" $released" \
+            '{ split($0, v, "."); if (v[1] * 100 + v[2] <= now && index(released, " " $0 " ")) print }' \
         | sort -V | tail -1) || true
     if [[ -z "$latest" ]]; then
         echo "  ⚠️  Could not list nixpkgs branches; keeping nixos-$current"
