@@ -53,7 +53,7 @@
       bandwhich
     ];
 
-  # Shell aliases for utilities (using mkDefault to allow override)
+  # Shell aliases for utilities
   home.shellAliases = {
     cat = "bat";
     find = "fd";
