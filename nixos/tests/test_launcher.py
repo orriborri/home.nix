@@ -298,3 +298,34 @@ class AgeKeyBootstrapTests(unittest.TestCase):
         (self.tmp / ".config" / "sops" / "age" / "keys.txt").unlink()
         with self.assertRaises(launcher_module.LauncherError):
             self.launcher._bootstrap_age_key(FakeKeyRemote(set()))  # type: ignore[arg-type]
+
+
+class SyncStateTests(unittest.TestCase):
+    """sync-state pushes config.json and the workspace, never skills (K2)."""
+
+    def test_skills_are_not_pushed(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as home:
+            crew = Path(home) / ".kiro" / "crew"
+            (crew / "skills" / "foo").mkdir(parents=True)
+            (crew / "skills" / "foo" / "SKILL.md").write_text("---\nname: foo\n---\n")
+            (crew / "workspace" / "memory").mkdir(parents=True)
+
+            remote = FakeKeyRemote(present=set())
+            launcher = object.__new__(Launcher)
+            launcher._remote = lambda state: remote  # type: ignore[assignment]
+            sent: list[str] = []
+            launcher._send_directory = (  # type: ignore[assignment]
+                lambda r, local_path, remote_rel: sent.append(remote_rel)
+            )
+
+            with mock.patch.object(Path, "home", return_value=Path(home)), \
+                    mock.patch("builtins.print"):
+                launcher._sync_state(object())
+
+        self.assertEqual(sent, [".kiro/crew/workspace/memory"])
+        self.assertFalse(
+            [cmd for cmd, _ in remote.writes if "skills" in cmd],
+            "sync-state still talks to the remote skills directory",
+        )

@@ -96,7 +96,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "                     and all state; the instance briefly goes down.\n"
             "  new                launch a new instance\n"
             "  migrate-kirocrew   migrate local KiroCrew state to the instance\n"
-            "  sync-state         sync local kirocrew config, skills, and workspace to remote\n"
+            "  sync-state         sync local kirocrew config and workspace to remote\n"
             "  auth [target]      run MCP OAuth locally and install the token on the gateway\n"
             "                     (no target = all of them; targets: linear, metabase)"
         ),

@@ -1532,7 +1532,7 @@ PY
     # ── State sync ───────────────────────────────────────────────────────────
 
     def _sync_state(self, state: InstanceState) -> None:
-        """Sync local kirocrew config, skills, and workspace to the remote."""
+        """Sync local kirocrew config and workspace to the remote."""
         remote = self._remote(state)
         crew_dir = Path.home() / ".kiro" / "crew"
         print("\n» Syncing KiroCrew state to remote...")
@@ -1549,25 +1549,7 @@ PY
             )
             print("  ✓ config.json")
 
-        # 2. Skills (rsync-like: send any missing skill directories)
-        local_skills = crew_dir / "skills"
-        if local_skills.is_dir():
-            local_skill_names = {d.name for d in local_skills.iterdir() if d.is_dir()}
-            remote_list = remote.run(
-                "orre", "ls ~/.kiro/crew/skills/ 2>/dev/null || true", capture=True
-            ).stdout.strip()
-            remote_skill_names = set(remote_list.splitlines()) if remote_list else set()
-            missing = sorted(local_skill_names - remote_skill_names)
-            if missing:
-                print(f"  Syncing {len(missing)} missing skills...")
-                for skill_name in missing:
-                    self._send_directory(remote, local_skills / skill_name,
-                                         f".kiro/crew/skills/{skill_name}")
-                print(f"  ✓ {len(missing)} skills synced: {', '.join(missing)}")
-            else:
-                print("  ✓ Skills already in sync")
-
-        # 3. Workspace subdirectories (memory, tasks, knowledge)
+        # 2. Workspace subdirectories (memory, tasks, knowledge)
         local_workspace = crew_dir / "workspace"
         for subdir in ("memory", "tasks", "knowledge"):
             local_sub = local_workspace / subdir
