@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-   
-    "eks-experts": {
-      "command": "npx",
-      "args": ["-y", "@aws/mcp-server-eks-experts"]
-    }
-  }
-}
