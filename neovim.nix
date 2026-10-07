@@ -70,11 +70,6 @@
       pyright
       ruff
 
-      # Formatters
-      prettier
-      stylua
-      nixpkgs-fmt
-
       # Tools
       ripgrep
       fd

@@ -438,6 +438,24 @@
               touch $out
             '';
 
+          # T16: every formatter in extraPackages is wired into conform; the repo
+          # formats nix with nixfmt, not nixpkgs-fmt.
+          nvim-no-unwired-formatters =
+            pkgs.runCommand "check-nvim-no-unwired-formatters"
+              {
+                extraPackages =
+                  lib.concatMapStringsSep "\n" lib.getName
+                    self.homeConfigurations.orre.config.programs.neovim.extraPackages;
+                passAsFile = [ "extraPackages" ];
+              }
+              ''
+                if grep -nx 'prettier\|stylua\|nixpkgs-fmt' "$extraPackagesPath" >&2; then
+                  echo "formatter installed but not wired into conform" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           # O7: language servers come from extraPackages; mason would download
           # dynamically linked copies that shadow them and fail on NixOS.
           nvim-no-mason =
