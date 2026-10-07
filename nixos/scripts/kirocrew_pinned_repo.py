@@ -31,6 +31,16 @@ def main():
     if args.operation == "fetch":
         if git(destination, "rev-parse", "--is-bare-repository") != "true":
             raise ValueError("Pinned mirror must be a bare repository")
+        # A commit SHA is immutable: if the pin ref already resolves to it, a
+        # repeat fetch (the sync timer, a second login) has nothing to download.
+        pinned = subprocess.run(
+            ["git", "-C", str(destination), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+        )
+        if pinned.returncode == 0 and pinned.stdout.strip() == args.revision:
+            print(f"Already mirrored {args.revision}; skipping fetch: {destination}")
+            return
         git(
             destination,
             "fetch",

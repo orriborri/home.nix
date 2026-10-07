@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,13 @@ class PinnedRepoTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
+
+    def test_fetch_of_an_already_mirrored_revision_does_not_touch_the_remote(self):
+        self.run_helper("fetch", self.first)
+        # An immutable SHA that is already in the mirror needs no network: a
+        # repeat fetch must succeed even when the remote is gone.
+        shutil.rmtree(self.origin)
+        self.run_helper("fetch", self.first)
 
     def test_fetches_old_commit_and_updates_detached_checkout_from_shallow_mirror(self):
         self.run_helper("fetch", self.first)
