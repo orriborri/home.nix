@@ -21,18 +21,15 @@ home-manager switch --flake .#orre
 # macOS configuration
 home-manager switch --flake .#orre@darwin
 
-# Minimal configuration (no desktop environment)
-home-manager switch --flake .#orre-minimal
+# COSMIC desktop profile
+home-manager switch --flake .#orre@cosmic
 ```
 
 ### Packages
 
 ```bash
-# Build Kiro IDE package
-nix build .#kiro-ide
-
-# Run Kiro IDE directly
-nix run .#kiro-ide
+# Build the KiroCrew EC2 AMI
+nix build .#kirocrew-ami
 ```
 
 ### Development Shells
@@ -56,8 +53,7 @@ Import individual modules in your own flake:
   outputs = { home-nix, ... }: {
     homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
       modules = [
-        home-nix.homeManagerModules.shell
-        home-nix.homeManagerModules.development
+        home-nix.homeModules.kiro
         # ... your config
       ];
     };
@@ -66,11 +62,7 @@ Import individual modules in your own flake:
 ```
 
 Available modules:
-- `shell` - zsh, starship, atuin, zoxide, etc.
-- `development` - git, neovim, development tools
-- `desktop` - alacritty, wezterm, zellij
-- `utilities` - system utilities
-- `security` - GPG, SSH hardening
+- `default` - the full home configuration as a module
 - `kiro` - Kiro IDE
 
 ### Libraries
@@ -126,7 +118,7 @@ home-manager build --flake .
 home-manager switch --flake .
 
 # Apply specific configuration
-home-manager switch --flake .#orre-minimal
+home-manager switch --flake .#orre@cosmic
 ```
 
 ### Updating
@@ -184,9 +176,8 @@ Add to your `flake.nix`:
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       modules = [
         # Import specific modules
-        home-nix.homeManagerModules.shell
-        home-nix.homeManagerModules.development
-        
+        home-nix.homeModules.kiro
+
         # Your custom config
         ./home.nix
       ];
@@ -200,7 +191,7 @@ Add to your `flake.nix`:
 ```nix
 {
   home.packages = [
-    home-nix.packages.x86_64-linux.kiro-ide
+    home-nix.packages.x86_64-linux.kirocrew-ami
   ];
 }
 ```
@@ -221,8 +212,8 @@ Most outputs are available for all systems, with some exceptions (e.g., Kiro IDE
 flake.nix
 ├── inputs          # Dependencies (nixpkgs, home-manager, etc.)
 └── outputs
-    ├── packages    # Standalone packages (kiro-ide)
-    ├── homeManagerModules  # Reusable modules
+    ├── packages    # Standalone packages (kirocrew-ami)
+    ├── homeModules # Reusable modules (default, kiro)
     ├── nixosModules        # NixOS modules
     ├── homeConfigurations  # Pre-built configs
     ├── devShells   # Development environments
