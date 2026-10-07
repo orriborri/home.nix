@@ -48,7 +48,6 @@ home-manager switch --flake .
 ├── flake.nix                 # Flake configuration with multi-system support
 ├── flake.lock                # Lockfile for reproducible builds
 ├── home.nix                  # Main entry point: imports all tool files
-├── home-cosmic.nix           # COSMIC profile = home.nix + cosmic.nix
 ├── FLAKES.md                 # Comprehensive flakes guide
 │
 │   # Per-tool configs live flat at the root (FruitieX-style), imported by home.nix
@@ -61,7 +60,9 @@ home-manager switch --flake .
 │
 ├── packages/                # Custom package definitions
 │   ├── kiro.nix             # Kiro IDE Home Manager module
-│   └── kiro-package.nix     # Kiro IDE standalone package
+│   ├── claude-desktop.nix   # Claude Desktop (from llm-agents)
+│   ├── aidlc.nix            # aidlc CLI package
+│   └── aws-vpn-client/      # AWS VPN client (patched openvpn)
 ├── templates/               # Flake templates
 │   └── minimal/             # Minimal starter template
 └── nixos/                   # NixOS-specific configuration
@@ -72,19 +73,21 @@ home-manager switch --flake .
 This repository exports multiple outputs for reuse:
 
 ### Home Configurations
-- `orre` - Full configuration for Linux
+- `orre` - Full workstation configuration for x86_64 Linux
+- `orre@cosmic` - `orre` plus the COSMIC desktop integration
+- `orre@aarch64` - `orre` for aarch64 Linux
 - `orre@darwin` - macOS configuration
-- `orre-minimal` - Minimal config without desktop environment
+- `devcontainer`, `devcontainer-arm` - headless profiles for dev containers
+
+### NixOS Configurations
+- `kirocrew` - QEMU VM profile for local testing
+- `kirocrew-ec2` - the KiroCrew EC2 gateway (see `nixos/kirocrew.md`)
 
 ### Packages
-- `kiro-ide` - Kiro AI IDE (x86_64-linux)
+- `kirocrew-ami` - EC2 AMI image of `kirocrew-ec2`
 
 ### Modules (Reusable)
-- `shell` - zsh, starship, atuin, zoxide
-- `development` - git, neovim, dev tools
-- `desktop` - terminals, multiplexers
-- `security` - GPG, SSH hardening
-- `utilities` - system utilities
+- `default` - the full home configuration as a module
 - `kiro` - Kiro IDE
 
 ### Templates
@@ -112,8 +115,7 @@ Import modules or packages:
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       modules = [
         # Import specific modules
-        home-nix.homeManagerModules.shell
-        home-nix.homeManagerModules.development
+        home-nix.homeModules.kiro
         
         # Your config
         ./home.nix
@@ -188,7 +190,7 @@ home-manager build --flake .
 home-manager switch --flake .
 
 # Apply specific configuration
-home-manager switch --flake .#orre-minimal
+home-manager switch --flake .#orre@cosmic
 
 # Update flake inputs
 nix flake update
