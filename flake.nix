@@ -474,6 +474,24 @@
               touch $out
             '';
 
+          # C32: init.vim (extraConfig) is sourced before initLua sets mapleader,
+          # so <leader> maps written there bind to backslash.
+          nvim-grep-maps-on-leader =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-grep-maps-on-leader" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              ${nvim}/bin/nvim --headless \
+                +'lua for _, lhs in ipairs({ " gg", " gw" }) do if vim.fn.maparg(lhs, "n") == "" then io.stderr:write("unbound leader map: ", lhs, "\n") vim.cmd("cquit 1") end end' \
+                +'lua for _, lhs in ipairs({ "\\gg", "\\gw" }) do if vim.fn.maparg(lhs, "n") ~= "" then io.stderr:write("map bound to backslash: ", lhs, "\n") vim.cmd("cquit 1") end end' \
+                +q
+              touch $out
+            '';
+
           # T16: every formatter in extraPackages is wired into conform; the repo
           # formats nix with nixfmt, not nixpkgs-fmt.
           nvim-no-unwired-formatters =

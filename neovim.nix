@@ -257,6 +257,8 @@
       map("n", "<leader>gc", "<cmd>Git commit<cr>", { desc = "Commit" })
       map("n", "<leader>gl", "<cmd>Git pull<cr>", { desc = "Pull" })
       map("n", "<leader>gd", "<cmd>Git diff<cr>", { desc = "Diff" })
+      map("n", "<leader>gg", ":grep ", { desc = "Grep" })
+      map("n", "<leader>gw", ":grep <C-r><C-w><CR>:copen<CR>", { desc = "Grep word" })
 
       -- Lualine
       require("lualine").setup({
@@ -271,8 +273,6 @@
         { "<leader>c", group = "code" },
         { "<leader>f", group = "find" },
         { "<leader>g", group = "git" },
-        { "<leader>gg", desc = "Grep" },
-        { "<leader>gw", desc = "Grep word" },
         { "<leader>r", group = "refactor" },
         { "<leader>s", group = "search" },
         { "<leader>x", group = "trouble" },
@@ -329,10 +329,9 @@
       " Auto-save when leaving insert mode or losing focus
       autocmd InsertLeave,FocusLost * silent! wall
 
-      " Git grep as default search
+      " Git grep as default search (the <leader>gg/gw maps live in initLua,
+      " because this file is sourced before mapleader is set)
       set grepprg=git\ grep\ -n
-      nnoremap <leader>gg :grep<Space>
-      nnoremap <leader>gw :grep <C-r><C-w><CR>:copen<CR>
 
       " Split navigation with Ctrl-h/j/k/l
       nnoremap <C-h> <C-w>h
