@@ -362,3 +362,12 @@ the Home Manager module.
   now: the sync service is verified live on both gateways and keeps an
   ownership manifest for rollback, which extra paths do not. Revisit the next
   time the sync helper needs changes.
+- **K3 — custom gateway agents stay unmanaged.** KiroCrew custom agents
+  (`agents/<name>.json`, CLI-side `.kiro/agents/<name>.{json,md}`, section 4)
+  are still not produced by this repo: nothing in `config/repos.toml`,
+  `nixos/kirocrew-code.nix` or `nixos/kirocrew_ec2/` writes them, and
+  `_sync_state` never copied them. What the repo does manage are the crew
+  specs installed by the review-agents, dev-crew and assistant activation
+  scripts and registered by `kirocrew-register-agents`
+  (`nixos/kirocrew-services.nix:781`). No change: add a managed agent only
+  when one is actually needed, through that same activation-script pattern.
