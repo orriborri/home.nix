@@ -339,3 +339,26 @@ the Home Manager module.
 - This repo: `config/repos.toml`, `nixos/kirocrew-code.nix`,
   `nixos/kirocrew-services.nix`, `nixos/kirocrew_ec2/launcher.py`,
   `nixos/kirocrew_ec2/cli.py`, `nixos/kirocrew.md`
+
+## Decisions 2026-10-06
+
+- **K1 — Option B rejected.** `KIROCREW_PROJECT_DIR` is not a skills-only
+  knob. In the KiroCrew source (`2c9f24f64`, pyproject 0.8.0) it is read by
+  `cli.py:286,1236` (project auto-detection), `env.py:536,604` (source-tree
+  root and git-worktree classification), `config/loader.py:2067`,
+  `agent.py:393` (project root), `skills.py:372`, `mcp_discovery.py:801`,
+  `cli_setup.py:173,300`, `github_runner.py:209`,
+  `dashboard/handlers/{files.py:3506,core.py:1237,updates.py:740,1285,1556}`,
+  `slack/gateway.py:2759,2827,11080`, `platform/update_capability.py:380`,
+  `platform/update_layout.py:76`, `apps/backend.py:1866` and
+  `apps/builtins/dev_fleet/repository.py:251,272`. Pointing it at the skills
+  checkout would make that checkout the gateway's project for every one of
+  them. Option A (directory-mirror sync, implemented above) stands.
+- **Future alternative: `skills.extra_paths`.** Defined in
+  `config/sections.py:3713`, loaded by `config/loader.py:3475`, consumed by
+  `skills.py:2002-2008`: read-only extra skill directories, a global skill wins
+  on a duplicate name, sensitive paths are skipped. It could replace the sync
+  service by listing the pinned checkout's `skills/` directly. Not adopted
+  now: the sync service is verified live on both gateways and keeps an
+  ownership manifest for rollback, which extra paths do not. Revisit the next
+  time the sync helper needs changes.
