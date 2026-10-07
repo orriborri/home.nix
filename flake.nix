@@ -1041,6 +1041,24 @@
                 touch $out
               '';
 
+          # O11: one mechanism bumps nixpkgs-stable (update.sh bump_stable_channel);
+          # renovate.json keeps only the nix manager and lockfile maintenance.
+          renovate-single-bump-mechanism =
+            let
+              cfg = builtins.fromJSON (builtins.readFile ./renovate.json);
+            in
+            pkgs.runCommand "check-renovate-single-bump-mechanism"
+              {
+                regex = lib.boolToString (cfg ? regexManagers);
+                nix = lib.boolToString (cfg.nix.enabled or false);
+                lock = lib.boolToString (cfg.lockFileMaintenance.enabled or false);
+              }
+              ''
+                [ "$regex" = false ] || { echo "renovate.json still has regexManagers" >&2; exit 1; }
+                [ "$nix" = true ] && [ "$lock" = true ] || { echo "renovate.json lost the nix manager or lockFileMaintenance" >&2; exit 1; }
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
