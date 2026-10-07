@@ -438,6 +438,28 @@
               touch $out
             '';
 
+          # C25: the packaged nvim-treesitter is the main branch, whose setup()
+          # ignores highlight/indent; highlighting must be started per buffer.
+          nvim-treesitter-active =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-treesitter-active" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              printf 'def f():\n    return 1\n' > "$TMPDIR/x.py"
+              got=$(${nvim}/bin/nvim --headless "$TMPDIR/x.py" \
+                +'lua io.stdout:write(tostring(vim.treesitter.highlighter.active[vim.api.nvim_get_current_buf()] ~= nil), " ", vim.bo.indentexpr, "\n")' \
+                +q 2> /dev/null)
+              case "$got" in
+                "true v:lua.require'nvim-treesitter'.indentexpr()") ;;
+                *) echo "treesitter not active on a python buffer: got '$got'" >&2; exit 1 ;;
+              esac
+              touch $out
+            '';
+
           # C29: python buffers get no 2-space setlocal or retab-on-save; conform's
           # ruff_format owns python indentation and the two fought on every save.
           nvim-no-python-retab =
