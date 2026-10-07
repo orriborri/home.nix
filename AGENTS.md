@@ -8,17 +8,17 @@
 - `nix flake show` — list module, package, and template outputs.
 - `nix flake check` — evaluate modules and packages in CI-equivalent mode.
 - `home-manager build --flake .` — dry-run profile activation without touching `$HOME`.
-- `home-manager switch --flake .#orre` (or `.#orre-minimal`) — apply a specific configuration.
+- `home-manager switch --flake .#orre` — apply a specific configuration.
 - `nix run .#update` (or `./update.sh`) — bump inputs and rebuild using the scripted order.
 
 ## Coding Style & Naming Conventions
-`.editorconfig` enforces LF endings, trimmed whitespace, and space-based indentation. Use two spaces for Nix, YAML, JSON, shell, and JavaScript files; Python alone keeps four. Run `nix fmt` before committing so formatter drift never lands in review. Name modules after their function (`modules/development/git.nix`, `modules/desktop/cosmic.nix`), keep derivations pure, and add comments only when necessary.
+`.editorconfig` enforces LF endings, trimmed whitespace, and space-based indentation. Use two spaces for Nix, YAML, JSON, shell, and JavaScript files; Python alone keeps four. Run `nix fmt` before committing so formatter drift never lands in review. Name modules after their function (`git.nix`, `cosmic.nix`), keep derivations pure, and add comments only when necessary.
 
 ## Testing Guidelines
-Treat `nix flake check` as the minimum bar for every change. Follow it with `home-manager build --flake .` to catch evaluation regressions, then `home-manager switch --flake .#orre-minimal` whenever the tweak touches outputs shared with the minimal profile or templates. Use `nix develop .#test` for linting/shellcheck and list the commands you ran in the PR.
+Treat `nix flake check` as the minimum bar for every change. Follow it with `home-manager build --flake .` to catch evaluation regressions, then `home-manager switch --flake .#orre` whenever the tweak touches outputs shared with the minimal profile or templates. Use `nix develop .#test` for linting/shellcheck and list the commands you ran in the PR.
 
 ## Commit & Pull Request Guidelines
 History favors Conventional Commits (`feat:`, `fix:`, `chore:`, etc.), so write imperative messages that cover one logical change and cite issues in the footer when needed. Pull requests should include a short motivation, screenshots for UI-facing desktop edits, the exact commands you ran (see Testing), and the target platform (`x86_64-linux`, `aarch64-darwin`, etc.).
 
 ## Security & Configuration Tips
-Security knobs belong in `modules/security.nix`; reference GPG key IDs or `pass` stores rather than committing secrets. Bump versions via `nix flake update` followed by `nix run .#update` to avoid drift between lockfiles and scripts. New templates or scripts must default to safe flags and explicitly call the intended flake output (`.#orre`, `.#orre@darwin`).
+Security knobs belong in `security.nix`; reference GPG key IDs or `pass` stores rather than committing secrets. Bump versions via `nix flake update` followed by `nix run .#update` to avoid drift between lockfiles and scripts. New templates or scripts must default to safe flags and explicitly call the intended flake output (`.#orre`, `.#orre@darwin`).
