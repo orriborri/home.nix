@@ -1022,6 +1022,25 @@
                 touch $out
               '';
 
+          # O10: the `nix flake check` gate also runs in CI (the pre-push hook is
+          # per clone), and the workflow files lint clean.
+          github-workflows =
+            let
+              dir = ./.github/workflows;
+            in
+            pkgs.runCommand "check-github-workflows"
+              {
+                nativeBuildInputs = [ pkgs.actionlint ];
+                present = lib.boolToString (builtins.pathExists dir);
+                src = if builtins.pathExists dir then dir else null;
+              }
+              ''
+                [ "$present" = true ] || { echo ".github/workflows is missing" >&2; exit 1; }
+                grep -rq 'nix flake check' "$src" || { echo "no workflow runs nix flake check" >&2; exit 1; }
+                actionlint "$src"/*.yml
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =
