@@ -16,6 +16,7 @@
     ./kirocrew-disk-check.nix
     ./kirocrew-services.nix
     ./kirocrew-1p-relay.nix
+    ./pasta.nix
     ./kirocrew-review-agents.nix
     ./kirocrew-review-skills.nix
     ./kirocrew-steering.nix

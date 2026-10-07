@@ -653,13 +653,13 @@
 
           # S4: the headless pasta build is pinned to a commit, not origin HEAD.
           pasta-pinned = pkgs.runCommand "check-pasta-pinned" { } ''
-            f=${self}/nixos/kirocrew-services.nix
+            f=${self}/nixos/pasta.nix
             if grep -n 'srcRoot.*origin HEAD' "$f" >&2; then
               echo "pasta build still follows origin HEAD" >&2
               exit 1
             fi
             grep -q 'pastaRev = "[0-9a-f]\{40\}"' "$f" \
-              || { echo "no 40-hex pastaRev pinned in kirocrew-services.nix" >&2; exit 1; }
+              || { echo "no 40-hex pastaRev pinned in pasta.nix" >&2; exit 1; }
             touch $out
           '';
 
