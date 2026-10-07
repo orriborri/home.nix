@@ -252,6 +252,12 @@
         end,
       })
 
+      -- Fugitive
+      map("n", "<leader>gs", "<cmd>Git<cr>", { desc = "Status" })
+      map("n", "<leader>gc", "<cmd>Git commit<cr>", { desc = "Commit" })
+      map("n", "<leader>gl", "<cmd>Git pull<cr>", { desc = "Pull" })
+      map("n", "<leader>gd", "<cmd>Git diff<cr>", { desc = "Diff" })
+
       -- Lualine
       require("lualine").setup({
         options = {
@@ -265,10 +271,6 @@
         { "<leader>c", group = "code" },
         { "<leader>f", group = "find" },
         { "<leader>g", group = "git" },
-        { "<leader>gs", "<cmd>Git<cr>", desc = "Status" },
-        { "<leader>gc", "<cmd>Git commit<cr>", desc = "Commit" },
-        { "<leader>gl", "<cmd>Git pull<cr>", desc = "Pull" },
-        { "<leader>gd", "<cmd>Git diff<cr>", desc = "Diff" },
         { "<leader>gg", desc = "Grep" },
         { "<leader>gw", desc = "Grep word" },
         { "<leader>r", group = "refactor" },

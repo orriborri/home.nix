@@ -457,6 +457,23 @@
               touch $out
             '';
 
+          # C33: which-key add() entries with a rhs are descriptions only; the
+          # fugitive leader maps must be real keymaps.
+          nvim-fugitive-maps-bound =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-fugitive-maps-bound" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              ${nvim}/bin/nvim --headless \
+                +'lua for _, lhs in ipairs({ " gs", " gc", " gl", " gd" }) do if vim.fn.maparg(lhs, "n") == "" then io.stderr:write("unbound leader map: ", lhs, "\n") vim.cmd("cquit 1") end end' \
+                +q
+              touch $out
+            '';
+
           # T16: every formatter in extraPackages is wired into conform; the repo
           # formats nix with nixfmt, not nixpkgs-fmt.
           nvim-no-unwired-formatters =
