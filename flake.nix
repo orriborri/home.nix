@@ -438,6 +438,25 @@
               touch $out
             '';
 
+          # D10: the diagnostic maps call nothing neovim 0.12 deprecates.
+          nvim-no-deprecated-diagnostic-maps =
+            let
+              gen = self.homeConfigurations.orre.activationPackage;
+              nvim = self.homeConfigurations.orre.config.programs.neovim.finalPackage;
+            in
+            pkgs.runCommand "check-nvim-no-deprecated-diagnostic-maps" { } ''
+              export HOME=$TMPDIR
+              export XDG_CONFIG_HOME=${gen}/home-files/.config
+              export XDG_DATA_HOME=${gen}/home-files/.local/share
+              got=$(${nvim}/bin/nvim --headless \
+                +'lua for _, lhs in ipairs({ "[d", "]d" }) do vim.fn.maparg(lhs, "n", false, true).callback() end' \
+                +'lua io.stdout:write(vim.fn.execute("messages"), "\n")' +q 2> /dev/null)
+              case "$got" in
+                *deprecated*) echo "diagnostic map calls a deprecated function: $got" >&2; exit 1 ;;
+              esac
+              touch $out
+            '';
+
           # T16: every formatter in extraPackages is wired into conform; the repo
           # formats nix with nixfmt, not nixpkgs-fmt.
           nvim-no-unwired-formatters =

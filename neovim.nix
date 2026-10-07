@@ -151,8 +151,12 @@
       map("n", "gt", vim.lsp.buf.type_definition, { desc = "Goto type definition" })
       map("n", "<leader>ca", vim.lsp.buf.code_action, { desc = "Code action" })
       map("n", "<leader>rn", vim.lsp.buf.rename, { desc = "Rename symbol" })
-      map("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
-      map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+      map("n", "[d", function()
+        vim.diagnostic.jump({ count = -1, float = true })
+      end, { desc = "Previous diagnostic" })
+      map("n", "]d", function()
+        vim.diagnostic.jump({ count = 1, float = true })
+      end, { desc = "Next diagnostic" })
       map("n", "<leader>cd", vim.diagnostic.open_float, { desc = "Line diagnostics" })
 
       -- Completion setup
