@@ -989,6 +989,39 @@
                 touch $out
               '';
 
+          # C23: the agent specs do not set env.KIROCREW_HOME on the @kirocrew-core
+          # MCP entry (the gateway drops the reserved KIROCREW_ namespace), and
+          # no caller passes a crewHome for it.
+          agent-specs-no-kirocrew-home =
+            let
+              specs = builtins.readFile ./kirocrew-agent-specs.nix;
+              callers = lib.concatMapStringsSep "\n" (f: builtins.readFile f) [
+                ./kirocrew-agents-workstation.nix
+                ./nixos/kirocrew-assistant.nix
+                ./nixos/kirocrew-dev-crew.nix
+                ./nixos/kirocrew-review-agents.nix
+              ];
+            in
+            pkgs.runCommand "check-agent-specs-no-kirocrew-home"
+              {
+                inherit specs callers;
+                passAsFile = [
+                  "specs"
+                  "callers"
+                ];
+              }
+              ''
+                if grep -n 'KIROCREW_HOME\|crewHome' "$specsPath" >&2; then
+                  echo "kirocrew-agent-specs.nix still handles KIROCREW_HOME/crewHome" >&2
+                  exit 1
+                fi
+                if grep -n 'inherit kirocrewBin crewHome' "$callersPath" >&2; then
+                  echo "a caller still passes crewHome to the specs" >&2
+                  exit 1
+                fi
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

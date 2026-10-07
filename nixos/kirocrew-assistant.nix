@@ -55,7 +55,7 @@ let
   # the SAME spec from the same file, so the two hosts cannot drift.
   assistant =
     (import ../kirocrew-agent-specs.nix { inherit lib; } {
-      inherit kirocrewBin crewHome;
+      inherit kirocrewBin;
     }).assistant.${agentName};
 
   registerCrews = import ./kirocrew-register.nix { inherit pkgs; };

@@ -37,8 +37,8 @@
 # PATHS DIFFER FROM THE HEADLESS HOST — the user service runs the gateway from
 # the operator's PATH with KIROCREW_HOME=~/.kiro/crew (see kirocrew-service.nix
 # Environment=), so the @kirocrew-core MCP wiring inside each spec must point at
-# those, not at /var/lib/kirocrew. That is exactly what the spec file's
-# kirocrewBin/crewHome parameters are for.
+# that binary, not at /var/lib/kirocrew. That is what the spec file's
+# kirocrewBin parameter is for; `crewHome` below is only for the CLI calls here.
 let
   cfg = config.kirocrew;
 
@@ -53,7 +53,7 @@ let
 
   # Shared spec definitions — the single source of truth, wired to this host.
   specs = import ./kirocrew-agent-specs.nix { inherit lib; } {
-    inherit kirocrewBin crewHome;
+    inherit kirocrewBin;
   };
 
   # review-design-sage's prompt needs the readpeak-mr-review-panel rulepack

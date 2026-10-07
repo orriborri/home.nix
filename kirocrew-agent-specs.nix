@@ -14,17 +14,16 @@
 #                            owner = the operator
 #
 # WHY PARAMETERIZED. The only per-host difference in a spec is the @kirocrew-core
-# MCP wiring: the gateway binary path and KIROCREW_HOME differ between the
-# system service (/var/lib/kirocrew/.kiro/crew-venv/bin/kirocrew,
-# KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew) and the user service
-# (~/.local/bin/kirocrew, KIROCREW_HOME=~/.kiro/crew). Everything else — model,
-# tools, prompt, posture — is host-independent and must not drift, so it lives
-# here and nowhere else.
+# MCP wiring: the gateway binary path differs between the system service
+# (/var/lib/kirocrew/.kiro/crew-venv/bin/kirocrew) and the user service
+# (~/.local/bin/kirocrew). The gateway picks the crew home itself (the
+# KIROCREW_ env namespace is reserved for it), so no home is passed. Everything
+# else — model, tools, prompt, posture — is host-independent and must not
+# drift, so it lives here and nowhere else.
 #
 # USAGE:
 #   specs = import ./kirocrew-agent-specs.nix { inherit lib; } {
 #     kirocrewBin = "...";   # absolute path to the gateway executable
-#     crewHome    = "...";   # KIROCREW_HOME for the mcp-core child
 #   };
 #   specs.devCrew      # { architect, implementor, test-writer }
 #   specs.reviewPanel  # { review-design-sage, review-blast-radius,
@@ -38,7 +37,6 @@
 { lib }:
 {
   kirocrewBin,
-  crewHome,
 }:
 let
   # @kirocrew-core MCP — the one server that must be declared explicitly.
@@ -47,9 +45,6 @@ let
   kirocrewCoreMcp = {
     command = kirocrewBin;
     args = [ "mcp-core" ];
-    env = {
-      KIROCREW_HOME = crewHome;
-    };
   };
 
   sharedResources = [ "file://.kiro/steering/**/*.md" ];

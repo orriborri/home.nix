@@ -50,7 +50,7 @@ let
   # cannot drift.
   agents =
     (import ../kirocrew-agent-specs.nix { inherit lib; } {
-      inherit kirocrewBin crewHome;
+      inherit kirocrewBin;
     }).reviewPanel;
 
   # Render each agent to a Nix store JSON file. builtins.toJSON validates the

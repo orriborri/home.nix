@@ -84,7 +84,7 @@ let
   # Shared spec definitions, wired to this host's gateway binary and crew home.
   agents =
     (import ../kirocrew-agent-specs.nix { inherit lib; } {
-      inherit kirocrewBin crewHome;
+      inherit kirocrewBin;
     }).devCrew;
 
   # Render each agent to a Nix store JSON file. builtins.toJSON validates the
