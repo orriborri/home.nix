@@ -4,7 +4,7 @@
 # service user.
 #
 # On headless/EC2 hosts the gateway runs as a SYSTEM service under the
-# unprivileged `kirocrew` user (see kirocrew-services.nix). That user has no
+# unprivileged `kirocrew` user (see kirocrew-gateway.nix). That user has no
 # home-manager instance and no login session, so the HM sops module
 # (sops.nix, imported under home-manager.users.orre) cannot provision secrets
 # for it. This module fills that gap with system-level sops-nix so the gateway
@@ -92,7 +92,7 @@
       };
 
       # ── Pasta external-source fetch credentials ─────────────────────────────
-      # Consumed by the pasta-fetch-external service (kirocrew-services.nix),
+      # Consumed by the pasta-fetch-external service (pasta.nix),
       # which runs `kb sync` for the forge/messaging sources. Owned by the pasta
       # user (the fetcher's identity) and decrypted to its private secrets dir.
       # The fetch unit's ExecStartPre reconstructs the exact token files the
@@ -137,11 +137,11 @@
 
       # ── CFM Tips MCP server AWS credentials ─────────────────────────────────
       # Read-only AWS keys for the cfm-tips cost-optimization MCP server the
-      # gateway spawns (kirocrew-services.nix mcp.json). These belong to a
+      # gateway spawns (kirocrew-mcp-servers.nix mcp.json). These belong to a
       # DEDICATED IAM principal that carries ONLY the consolidated read-only cost
       # policy from the CFM Tips README — not the instance role, which the gateway
       # cannot reach (IMDS is blocked by IPAddressDeny). Owned by kirocrew; the
-      # server's launcher (kirocrew-services.nix cfmTipsMcpLauncher) reads them
+      # server's launcher (kirocrew-mcp-servers.nix cfmTipsMcpLauncher) reads them
       # into AWS_* for the server process only.
       cfm-tips-aws-access-key-id = {
         owner = config.users.users.kirocrew.name;
@@ -164,7 +164,7 @@
       # The gateway runs as `kirocrew` and cannot read pasta's 0400 pasta-owned file,
       # so it needs its own kirocrew-owned copy of the identical secret. Consumed
       # by the Slack MCP server the gateway spawns: its launcher
-      # (kirocrew-services.nix slackMcpLauncher) reads this file into
+      # (kirocrew-mcp-servers.nix slackMcpLauncher) reads this file into
       # SLACK_TOKEN for the server process only.
       #
       # This is the Slack BOT token (`xoxb-...`); the user token (`xoxp-...`)

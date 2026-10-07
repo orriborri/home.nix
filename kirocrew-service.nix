@@ -11,7 +11,7 @@
 #
 # On EC2/headless hosts, this user service is DISABLED because the gateway
 # runs as a system service under the dedicated kirocrew user instead
-# (see nixos/kirocrew-services.nix). This module remains active only on
+# (see nixos/kirocrew-gateway.nix). This module remains active only on
 # workstation profiles where everything runs under the operator user.
 #
 # Sandbox is set to 'off' on the workstation. KiroCrew v0.5.0 retired the
@@ -43,7 +43,7 @@
 #   warning in this mode (_warn_mode_off_unconfined) -- expected, not a fault.
 #
 #   The headless EC2 host is UNAFFECTED: it runs the gateway as a system
-#   service (nixos/kirocrew-services.nix) and sets its own posture there.
+#   service (nixos/kirocrew-gateway.nix) and sets its own posture there.
 let
   cfg = config.kirocrew;
   skillsTools = import ./nixos/kirocrew-skills-package.nix { inherit pkgs; };
@@ -92,7 +92,7 @@ let
     pkgs.zlib
   ];
   # Source builder shared with the headless NixOS system service
-  # (nixos/kirocrew-services.nix) so both profiles build from source
+  # (nixos/kirocrew-gateway.nix) so both profiles build from source
   # identically. On the workstation, `--restart` bounces the user unit.
   kirocrewSourceUpdate = import ./kirocrew-source-build.nix { inherit pkgs lib; } {
     inherit pinnedSourceTag;
@@ -110,7 +110,7 @@ in
   systemd.user = {
     services = {
       # On headless hosts, the KiroCrew gateway runs as a system service under
-      # the dedicated kirocrew user (nixos/kirocrew-services.nix). The user-level
+      # the dedicated kirocrew user (nixos/kirocrew-gateway.nix). The user-level
       # service is only used on workstation profiles.
       kirocrew = lib.mkIf (cfg.enable && cfg.role == "workstation") {
         Unit = {
@@ -134,7 +134,7 @@ in
             "${kirocrewExecutable} config set --local agent.sandbox off"
           ];
           ExecStart = "${kirocrewExecutable} gateway";
-          # Same caps as the EC2 gateway (nixos/kirocrew-services.nix): the gateway
+          # Same caps as the EC2 gateway (nixos/kirocrew-gateway.nix): the gateway
           # has peaked at ~13.5G under concurrent member load, and an uncapped one
           # can take the whole desktop down. Percentages of physical RAM, since the
           # machines differ. The user manager delegates the memory controller here.

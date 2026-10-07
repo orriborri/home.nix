@@ -877,7 +877,7 @@ systemctl is-active --quiet code-review-graph-daemon.service
         crew_dir = f"{REMOTE_KIROCREW_HOME}/.kiro/crew"
         workspace = f"{crew_dir}/workspace"
         # The gateway reads its config from ${KIROCREW_HOME}/config.json, where
-        # KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew (see kirocrew-services.nix).
+        # KIROCREW_HOME=/var/lib/kirocrew/.kiro/crew (see kirocrew-gateway.nix).
         # An earlier value here (/var/lib/kirocrew/config.json) targeted a stray
         # file the gateway never reads — so subagent_cwd_allowed_roots edits
         # silently had no effect (and hit a PermissionError on that 0600 file).
