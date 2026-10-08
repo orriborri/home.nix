@@ -128,5 +128,35 @@ in
         WantedBy = [ "default.target" ];
       };
     };
+
+    # pasta-start rebuilds in-tree on every daemon start, and dependency bumps
+    # (lance, arrow, datafusion) leave the old artifacts behind: target/ grew
+    # to 28G and filled the disk on 2026-10-07. cargo has no target-dir GC, so
+    # sweep artifacts untouched for 7 days once a week. --time only looks at
+    # mtimes, so the daemon's current release build is never removed.
+    systemd.user = {
+      services.cargo-sweep = {
+        Unit = {
+          Description = "Sweep stale cargo build artifacts under ~/code";
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.cargo-sweep}/bin/cargo-sweep sweep --time 7 --recursive ${config.home.homeDirectory}/code";
+        };
+      };
+
+      timers.cargo-sweep = {
+        Unit = {
+          Description = "Weekly cargo sweep";
+        };
+        Timer = {
+          OnCalendar = "Sun 04:00";
+          Persistent = true;
+        };
+        Install = {
+          WantedBy = [ "timers.target" ];
+        };
+      };
+    };
   };
 }
