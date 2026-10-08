@@ -186,6 +186,7 @@ in
     ./zellij-layout.nix
     # Features
     ./development.nix
+    ./git-worktree-prune.nix
     ./utilities.nix
     ./security.nix
     ./aidlc.nix
