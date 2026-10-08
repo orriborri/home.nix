@@ -1203,6 +1203,41 @@
               touch $out
             '';
 
+          # F1: one allowlisting HTTPS proxy on loopback. Default-deny host
+          # filter (anchored ERE per host), CONNECT to 443 only, loopback
+          # clients only. IMDS is not listed, so default-deny refuses it.
+          ec2-claude-egress-proxy =
+            let
+              unit = ec2OnX86.config.systemd.services.tinyproxy or { };
+            in
+            pkgs.runCommand "check-ec2-claude-egress-proxy"
+              {
+                execStart = unit.serviceConfig.ExecStart or "";
+              }
+              ''
+                fail() { echo "egress proxy: $*" >&2; exit 1; }
+                [ -n "$execStart" ] || fail "services.tinyproxy is not enabled"
+                conf=''${execStart##* -c }
+                [ -f "$conf" ] || fail "no tinyproxy.conf in ExecStart: $execStart"
+                for line in 'Listen 127.0.0.1' 'Port 8888' 'Allow 127.0.0.1' \
+                  'ConnectPort 443' 'FilterType ere' 'FilterDefaultDeny yes'; do
+                  grep -qxF "$line" "$conf" || fail "tinyproxy.conf lacks '$line'"
+                done
+                filter=$(sed -n 's/^Filter "\(.*\)"$/\1/p' "$conf")
+                [ -f "$filter" ] || fail "no Filter file in tinyproxy.conf"
+                for h in api.anthropic.com claude.ai claude.com platform.claude.com \
+                  registry.npmjs.org pypi.org files.pythonhosted.org crates.io \
+                  index.crates.io static.crates.io github.com codeload.github.com \
+                  objects.githubusercontent.com cache.nixos.org channels.nixos.org \
+                  releases.nixos.org tarballs.nixos.org; do
+                  want="^$(printf '%s' "$h" | sed 's/\./\\./g')\$"
+                  grep -qxF "$want" "$filter" || fail "filter lacks $want"
+                done
+                ! grep -q '169' "$filter" || fail "filter admits IMDS"
+                [ "$(grep -c . "$filter")" = 17 ] || fail "filter has entries beyond the 17 allowed hosts"
+                touch $out
+              '';
+
           # O8: the headless EC2 home has no gpg-agent with a GUI pinentry; the
           # workstation keeps it.
           gpg-agent-headless =
