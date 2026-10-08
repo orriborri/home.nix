@@ -47,4 +47,24 @@ in
       FilterDefaultDeny = true;
     };
   };
+
+  # nix-daemon and every build it forks (they share its cgroup) can reach only
+  # loopback, so `nix-shell -p` from a sandboxed uid substitutes and fetches
+  # through the proxy and nowhere else. Deploys are not routed through here:
+  # nixos-rebuild --target-host/--build-host (kirocrew-ec2.nix:6,
+  # kirocrew_ec2/launcher.py _rebuild_nixos) runs nix as root in the SSH
+  # session, outside nix-daemon.service. Not verified on the box: whether
+  # builtin:fetchurl in fixed-output builds honours the proxy env; if not,
+  # those fetches fail closed. Uncached builds needing other hosts fail by
+  # design.
+  systemd.services.nix-daemon = {
+    serviceConfig = {
+      IPAddressDeny = "any";
+      IPAddressAllow = "localhost";
+    };
+    environment = {
+      http_proxy = "http://127.0.0.1:8888";
+      https_proxy = "http://127.0.0.1:8888";
+    };
+  };
 }

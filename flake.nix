@@ -1238,6 +1238,28 @@
                 touch $out
               '';
 
+          # F1: nix-daemon (and every build it forks) can reach only loopback;
+          # its fetches and substitutions go through the egress proxy.
+          ec2-nix-daemon-egress =
+            let
+              unit = self.nixosConfigurations.kirocrew-ec2.config.systemd.services.nix-daemon;
+            in
+            pkgs.runCommand "check-ec2-nix-daemon-egress"
+              {
+                deny = toString (unit.serviceConfig.IPAddressDeny or "");
+                allow = toString (unit.serviceConfig.IPAddressAllow or "");
+                httpsProxy = unit.environment.https_proxy or "";
+                httpProxy = unit.environment.http_proxy or "";
+              }
+              ''
+                fail() { echo "nix-daemon egress: $*" >&2; exit 1; }
+                [ "$deny" = any ] || fail "IPAddressDeny is '$deny', want any"
+                [ "$allow" = localhost ] || fail "IPAddressAllow is '$allow', want localhost"
+                [ "$httpsProxy" = http://127.0.0.1:8888 ] || fail "https_proxy is '$httpsProxy'"
+                [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "http_proxy is '$httpProxy'"
+                touch $out
+              '';
+
           # O8: the headless EC2 home has no gpg-agent with a GUI pinentry; the
           # workstation keeps it.
           gpg-agent-headless =
