@@ -1203,6 +1203,10 @@
               touch $out
             '';
 
+          # F1: VM test of the Claude Remote Control sandbox: proxy allowlist,
+          # no direct egress, no IMDS, no git push, inactive until login.
+          claude-remote-sandbox = import ./nixos/tests/claude-remote.nix { inherit pkgs; };
+
           # F1: one allowlisting HTTPS proxy on loopback. Default-deny host
           # filter (anchored ERE per host), CONNECT to 443 only, loopback
           # clients only. IMDS is not listed, so default-deny refuses it.
