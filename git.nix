@@ -77,6 +77,17 @@
       ff = "only";
     };
 
+    # Refresh code-review-graph after a pull (ff -> post-merge, rebase ->
+    # post-rewrite). Config hooks run alongside a repo's own hooks. Only repos
+    # that already have a graph; backgrounded so the pull returns at once.
+    hook.crg-update = {
+      event = [
+        "post-merge"
+        "post-rewrite"
+      ];
+      command = ''top=$(git rev-parse --show-toplevel) && [ -d "$top/.code-review-graph" ] && command -v code-review-graph >/dev/null && { nohup code-review-graph update --skip-flows --repo "$top" --quiet >/dev/null 2>&1 & }; true'';
+    };
+
     diff = {
       compactionHeuristic = true;
       algorithm = "patience";

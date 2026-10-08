@@ -672,6 +672,24 @@
                 touch $out
               '';
 
+          # code-review-graph refreshes after every pull (ff pull -> post-merge,
+          # rebase pull -> post-rewrite), via a config hook that runs alongside
+          # repo hooks (core.hooksPath / .git/hooks) instead of replacing them.
+          crg-update-on-pull =
+            pkgs.runCommand "check-crg-update-on-pull"
+              {
+                nativeBuildInputs = [ pkgs.git ];
+                gitconfig = self.homeConfigurations.orre.config.xdg.configFile."git/config".source;
+              }
+              ''
+                ev=$({ git config -f "$gitconfig" --get-all hook.crg-update.event || true; } | sort | tr '\n' ' ')
+                [ "$ev" = "post-merge post-rewrite " ] \
+                  || { echo "hook.crg-update.event is '$ev', want post-merge post-rewrite" >&2; exit 1; }
+                git config -f "$gitconfig" hook.crg-update.command | grep -qF 'code-review-graph update' \
+                  || { echo "hook.crg-update.command does not run code-review-graph update" >&2; exit 1; }
+                touch $out
+              '';
+
           # S4: the headless pasta build is pinned to a commit, not origin HEAD.
           pasta-pinned = pkgs.runCommand "check-pasta-pinned" { } ''
             f=${self}/nixos/pasta.nix
