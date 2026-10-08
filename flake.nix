@@ -687,17 +687,37 @@
             touch $out
           '';
 
-          # S4: the MCP server venvs resolve dependencies as of a fixed date.
-          mcp-venv-deps-frozen = pkgs.runCommand "check-mcp-venv-deps-frozen" { } ''
-            f=${self}/nixos/kirocrew-mcp-servers.nix
-            n=$(grep -c 'pip" install .*mcp<2' "$f" || true)
-            [ "$n" = 2 ] || { echo "expected 2 dependency installs, found $n" >&2; exit 1; }
-            if grep -n 'pip" install .*mcp<2' "$f" | grep -v 'uploaded-prior-to' >&2; then
-              echo "dependency install without --uploaded-prior-to" >&2
-              exit 1
-            fi
-            touch $out
-          '';
+          # S4, T1: one venv-with-stamp builder serves both MCP servers, and
+          # each rendered build script keeps its stamp file, stamp value and
+          # dependency install frozen to a fixed date, so a deploy rebuilds
+          # neither venv.
+          mcp-venv-builder-shared =
+            let
+              mcp = import ./nixos/kirocrew-mcp-servers.nix {
+                inherit pkgs;
+                kirocrewHome = "/k";
+                pastaHome = "/p";
+                pastaDataDir = "/p/data";
+                vaultCheckout = "/v";
+              };
+            in
+            pkgs.runCommand "check-mcp-venv-builder-shared" { } ''
+              f=${self}/nixos/kirocrew-mcp-servers.nix
+              n=$(grep -c -- '-m venv' "$f" || true)
+              [ "$n" = 1 ] || { echo "expected 1 venv builder, found $n" >&2; exit 1; }
+              cfm=${mcp.cfmTipsSourceBuild}/bin/cfm-tips-source-build
+              slack=${mcp.slackMcpSourceBuild}/bin/kirocrew-slack-mcp-build
+              check() {
+                grep -qF -- "$2" "$1" || { echo "$1 lacks: $2" >&2; exit 1; }
+              }
+              check "$cfm" 'stamp="$venv/.cfm-tips-rev"'
+              check "$cfm" 'want="3:dcf19f1ed6905bc0c9f556ac28a1d33dd7128a67"'
+              check "$cfm" '--uploaded-prior-to 2026-10-06 -r "$srcRoot/requirements.txt" "mcp<2"'
+              check "$slack" 'stamp="$venv/.slack-mcp-src"'
+              check "$slack" 'want="3:/nix/store/'
+              check "$slack" '--uploaded-prior-to 2026-10-06 "mcp<2"'
+              touch $out
+            '';
 
           # C11: the workstation installs the same pinned code-review-graph, only
           # when the installed version differs, and does not hide failures.

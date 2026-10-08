@@ -35,6 +35,31 @@ let
   # cannot pull releases published later. Bump it deliberately, together with
   # the recipe numbers below.
   mcpVenvUploadedPriorTo = "2026-10-06";
+  # Shared venv step for both builders. Rebuilds "$venv" (set by the caller)
+  # from scratch when its interpreter is missing or the stamp file differs
+  # from `want` ("<recipe>:<pin>"). Bump the recipe number at the call site
+  # whenever its pip arguments or these steps change, so an existing venv is
+  # rebuilt rather than silently kept.
+  mcpVenvBuild =
+    {
+      label,
+      python,
+      stamp,
+      want,
+      pipArgs,
+    }:
+    ''
+      stamp="$venv/${stamp}"
+      want="${want}"
+      if [ ! -x "$venv/bin/python" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
+        echo "Building ${label} venv ($want)..."
+        rm -rf "$venv"
+        ${python}/bin/python3 -m venv "$venv"
+        "$venv/bin/pip" install --upgrade pip
+        "$venv/bin/pip" install --uploaded-prior-to ${mcpVenvUploadedPriorTo} ${pipArgs}
+        echo "$want" > "$stamp"
+      fi
+    '';
   cfmTipsRev = "dcf19f1ed6905bc0c9f556ac28a1d33dd7128a67";
   cfmTipsDir = "${kirocrewHome}/cfm-tips";
   cfmTipsServerBin = "${cfmTipsDir}/.venv/bin/python";
@@ -74,27 +99,23 @@ let
       git -C "$srcRoot" fetch --depth 1 origin "${cfmTipsRev}"
       git -C "$srcRoot" checkout --quiet --detach "${cfmTipsRev}"
 
-      # (Re)build the venv only when the interpreter or the pin changed. A
-      # stamp file records the revision the current venv was built against.
-      # RECIPE is appended so a change to the build recipe (e.g. the mcp pin
-      # below) forces a rebuild even when the source revision is unchanged.
-      stamp="$venv/.cfm-tips-rev"
-      cfmRecipe=3  # 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2 (v1 low-level Server API)
-      want="$cfmRecipe:${cfmTipsRev}"
-      if [ ! -x "${cfmTipsServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
-        echo "Building CFM Tips venv ($want)..."
-        rm -rf "$venv"
-        ${cfmTipsPython}/bin/python3 -m venv "$venv"
-        "$venv/bin/pip" install --upgrade pip
-        # requirements.txt omits mcp (the server imports it) — add it explicitly.
-        # Pin mcp<2: the server is written against the v1 low-level Server API
-        # (@server.list_tools / @server.call_tool). mcp 2.x removed those
-        # decorators, so an unpinned install pulls 2.x and the module fails to
-        # import at spawn (AttributeError: 'Server' object has no attribute
-        # 'list_tools') — verified broken on the box before this pin.
-        "$venv/bin/pip" install --uploaded-prior-to ${mcpVenvUploadedPriorTo} -r "$srcRoot/requirements.txt" "mcp<2"
-        echo "$want" > "$stamp"
-      fi
+      # (Re)build the venv only when the interpreter, the pinned revision or
+      # the recipe changed.
+      # requirements.txt omits mcp (the server imports it) — add it explicitly.
+      # Pin mcp<2: the server is written against the v1 low-level Server API
+      # (@server.list_tools / @server.call_tool). mcp 2.x removed those
+      # decorators, so an unpinned install pulls 2.x and the module fails to
+      # import at spawn (AttributeError: 'Server' object has no attribute
+      # 'list_tools') — verified broken on the box before this pin.
+      ${mcpVenvBuild {
+        label = "CFM Tips";
+        python = cfmTipsPython;
+        stamp = ".cfm-tips-rev";
+        # Recipe 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2
+        # (v1 low-level Server API).
+        want = "3:${cfmTipsRev}";
+        pipArgs = ''-r "$srcRoot/requirements.txt" "mcp<2"'';
+      }}
 
       # Smoke test: the module must import (proves boto3 + mcp resolved). Bounded
       # by timeout and non-fatal so a transient import hiccup can't wedge the
@@ -145,27 +166,23 @@ let
       cp -f ${slackMcpSrc}/server.py "$dir/server.py"
 
       # (Re)build the venv when the interpreter, the source hash, OR the build
-      # recipe changed. The stamp records "<recipe-version>:<source store path>";
-      # bump RECIPE whenever the pip pin or build steps change so an existing
-      # venv is rebuilt rather than silently kept.
-      RECIPE=3  # 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2 (v1 Server API)
-      stamp="$venv/.slack-mcp-src"
-      want="$RECIPE:${slackMcpSrc}"
-      if [ ! -x "${slackMcpServerBin}" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$want" ]; then
-        echo "Building slack-mcp venv ($want)..."
-        rm -rf "$venv"
-        ${slackMcpPython}/bin/python3 -m venv "$venv"
-        "$venv/bin/pip" install --upgrade pip
-        # Pin mcp<2: this server is written against the v1 low-level Server API
-        # (@server.list_tools / @server.call_tool + stdio_server). mcp 2.x
-        # removed those decorators (FastMCP became MCPServer), so an unpinned
-        # `pip install mcp` pulls 2.x and the module fails to import at spawn.
-        # Verified on the box: mcp 1.30.0 loads the decorators and auth.test
-        # succeeds. (The isolated venv means this pin doesn't affect any other
-        # server.)
-        "$venv/bin/pip" install --uploaded-prior-to ${mcpVenvUploadedPriorTo} "mcp<2"
-        echo "$want" > "$stamp"
-      fi
+      # recipe changed.
+      # Pin mcp<2: this server is written against the v1 low-level Server API
+      # (@server.list_tools / @server.call_tool + stdio_server). mcp 2.x
+      # removed those decorators (FastMCP became MCPServer), so an unpinned
+      # `pip install mcp` pulls 2.x and the module fails to import at spawn.
+      # Verified on the box: mcp 1.30.0 loads the decorators and auth.test
+      # succeeds. (The isolated venv means this pin doesn't affect any other
+      # server.)
+      ${mcpVenvBuild {
+        label = "slack-mcp";
+        python = slackMcpPython;
+        stamp = ".slack-mcp-src";
+        # Recipe 3: freeze dependencies with --uploaded-prior-to; 2: pin mcp<2
+        # (v1 Server API).
+        want = "3:${slackMcpSrc}";
+        pipArgs = ''"mcp<2"'';
+      }}
 
       # Smoke test: assert the v1 low-level Server API the module actually uses
       # is present (not just that `mcp` imports — v2 imports too but lacks these
