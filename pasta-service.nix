@@ -17,6 +17,14 @@ let
   # user-level service is available for workstation profiles if needed.
   isPastaHost = cfg.enable && cfg.role == "workstation";
   pastaRoot = "${config.home.homeDirectory}/code/pasta";
+  # The unit builds into its own target dir: its RUSTFLAGS and build-script
+  # env (PROTOC, OPENSSL_*) differ from dev builds, which share
+  # ~/code/pasta/target via the checkout's local .cargo/config.toml, so a
+  # shared dir made each side invalidate the other's cache and every restart
+  # recompiled from scratch. Nested in target/ so pasta's .gitignore covers
+  # it; the cargo-sweep timer does not (it sweeps the configured target dir's
+  # own profiles), so clean it by hand if it grows.
+  pastaTarget = "${pastaRoot}/target/service";
   pastaLibraryPath = lib.makeLibraryPath [
     pkgs.stdenv.cc.cc.lib
     pkgs.zlib
@@ -44,6 +52,7 @@ let
     text = ''
       cd ${lib.escapeShellArg pastaRoot}
 
+      export CARGO_TARGET_DIR=${lib.escapeShellArg pastaTarget}
       echo "Building pasta-backend..."
       cargo build --release -p pasta-backend -p kb-cli
 
@@ -52,8 +61,8 @@ let
       # the stable-channel cargo/rustc's own rpath, so cargo fails to start
       # with "GLIBC_ABI_DT_X86_64_PLT not found".
       export LD_LIBRARY_PATH="${pastaLibraryPath}"
-      export PATH="${lib.escapeShellArg pastaRoot}/target/release:$PATH"
-      exec ${lib.escapeShellArg pastaRoot}/target/release/pasta-backend
+      export PATH=${lib.escapeShellArg pastaTarget}/release:"$PATH"
+      exec ${lib.escapeShellArg pastaTarget}/release/pasta-backend
     '';
   };
   vaultWrapper = pkgs.writeShellScriptBin "vault" ''
@@ -72,10 +81,11 @@ in
       ]
       ++ [ vaultWrapper ];
 
-    # kb-cli builds to target/release/kb; expose it on interactive PATH too
-    # (the systemd service only sets PATH for pasta-backend's own exec).
+    # The unit's kb-cli build lands next to the daemon it was built with;
+    # expose it on interactive PATH too (the systemd service only sets PATH
+    # for pasta-backend's own exec).
     home.sessionPath = [
-      "${pastaRoot}/target/release"
+      "${pastaTarget}/release"
     ];
 
     systemd.user.services.pasta = {

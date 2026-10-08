@@ -645,6 +645,31 @@
                 touch $out
               '';
 
+          # The workstation pasta unit builds into its own target dir, so dev
+          # builds with other RUSTFLAGS/env in ~/code/pasta/target don't
+          # invalidate its cache, and `kb` on PATH is the daemon's own build.
+          pasta-own-target-dir =
+            let
+              hm = self.homeConfigurations.orre.config;
+              dir = "${hm.home.homeDirectory}/code/pasta/target/service";
+            in
+            pkgs.runCommand "check-pasta-own-target-dir"
+              {
+                start = lib.head hm.systemd.user.services.pasta.Service.ExecStart;
+                sessionPath = lib.concatStringsSep ":" hm.home.sessionPath;
+              }
+              ''
+                grep -qF 'export CARGO_TARGET_DIR=${dir}' "$start" \
+                  || { echo "pasta-start does not set CARGO_TARGET_DIR=${dir}" >&2; exit 1; }
+                grep -qF 'exec ${dir}/release/pasta-backend' "$start" \
+                  || { echo "pasta-start does not exec from ${dir}" >&2; exit 1; }
+                case ":$sessionPath:" in
+                  *":${dir}/release:"*) ;;
+                  *) echo "sessionPath lacks ${dir}/release: $sessionPath" >&2; exit 1 ;;
+                esac
+                touch $out
+              '';
+
           # S4: the headless pasta build is pinned to a commit, not origin HEAD.
           pasta-pinned = pkgs.runCommand "check-pasta-pinned" { } ''
             f=${self}/nixos/pasta.nix
