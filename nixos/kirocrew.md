@@ -110,9 +110,60 @@ firewall opens no port (`networking.firewall.allowedTCPPorts = [ ]`,
 `services.openssh.openFirewall = false`). sshd still runs, key-only with
 `PermitRootLogin prohibit-password`, and is reached through
 `AWS-StartSSHSession` as root; `orre` holds passwordless sudo via `wheel`,
-the `kirocrew` and `pasta` users have none. The instance profile must carry
+the `kirocrew`, `pasta` and `claude-remote` users have none. The instance profile must carry
 `AmazonSSMManagedInstanceCore`. There is no Tailscale, VPN, public inbound
 port, or browser terminal.
+
+## Claude Remote Control sandbox
+
+`claude-remote.service` (`kirocrew-claude-remote.nix`) runs `claude
+remote-control --name kirocrew --spawn worktree` so a session on claude.ai/code
+can work on the box without being able to publish anything.
+
+- **Uid.** `claude-remote` is a system user with home `/var/lib/claude-remote`
+  (0700) and workspace `/var/lib/claude-remote/workspace`. It is not a nix
+  trusted user, owns no sops secret and holds no ssh key or forge token.
+- **Unit.** The shared hardening set (`kirocrew-hardening.nix`), plus
+  `IPAddressDeny = any` / `IPAddressAllow = localhost`, which covers every
+  session and shell the unit spawns. `ANTHROPIC_API_KEY` and
+  `ANTHROPIC_AUTH_TOKEN` are unset. No `CLAUDE_CODE_DISABLE_*` variable is set:
+  they would disable Remote Control.
+- **Network.** The only way out is the loopback proxy (`kirocrew-claude-egress.nix`,
+  tinyproxy on `127.0.0.1:8888`): default-deny, exact-host allowlist, CONNECT
+  to 443 only. The host list is in that file: Claude API and login, npm, PyPI,
+  crates, GitHub read hosts and the NixOS cache and channel hosts. IMDS is not
+  on it. Every allowed host is a possible exfil channel (accepted risk).
+  `nix-daemon.service` is confined the same way, so `nix-shell -p` from the
+  uid substitutes through the proxy; uncached builds that fetch from other
+  hosts fail by design. Deploys are not affected: `nixos-rebuild
+  --target-host` runs nix in the SSH session, outside that unit.
+  Plain-http tools ignore uppercase `HTTP_PROXY` (curl does), so rely on
+  `HTTPS_PROXY`.
+- **No push.** The uid has no credentials, and `GIT_CONFIG_GLOBAL` points at the
+  store-backed `/etc/claude-remote/gitconfig`, which rewrites `git@`,
+  `ssh://`, `https://` and `http://` push URLs to `invalid-push://`. Fetching
+  still works. Results leave the box as a patch or bundle that a human reviews
+  and pushes from the laptop. A server-side guard (protected branches) is not
+  in this repo (BACKLOG F1.8).
+- **First login (human, once, after a deploy).** The unit has
+  `ConditionPathExists=/var/lib/claude-remote/.claude/.credentials.json`, so it
+  stays inactive, with no crash loop, until the uid has logged in:
+  1. `sudo -u claude-remote -H claude auth login` and paste the code.
+  2. In the workspace, run `sudo -u claude-remote -H env
+     HTTPS_PROXY=http://127.0.0.1:8888 claude remote-control --spawn session`
+     once to accept "Enable Remote Control?" and the trust prompt.
+  3. `systemctl start claude-remote`, then open the session from claude.ai/code.
+  The CLI warns 3 days before the login expires; repeat step 1 then.
+- **What the tests cover.** The flake checks `ec2-claude-egress-proxy`,
+  `ec2-nix-daemon-egress`, `ec2-claude-remote-uid` and `ec2-claude-remote-unit`
+  assert the rendered config. The VM test `claude-remote-sandbox`
+  (`nixos/tests/claude-remote.nix`) runs the real modules with a probe in place
+  of `claude`, and shows from inside the unit that the allowed host works
+  through the proxy, another host and IMDS are refused, direct connections
+  fail, an https push is aborted and the unit is inactive until the credentials
+  file exists. It does not cover `nix-shell -p`, whether fixed-output fetches
+  honour the daemon's proxy variables, the live Remote Control connection or
+  the prompts above; those are checked on the box (BACKLOG F1.7).
 
 ## Dashboard access
 
