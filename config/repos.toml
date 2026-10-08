@@ -96,7 +96,7 @@ remote = "git@github.com:orriborri/pasta.git"
 path = "code/pasta"
 
 # AWS cost-optimization MCP server (aws-samples). Cloned to the gateway only;
-# the cfm-tips-source-build service (kirocrew-services.nix) builds a pinned
+# the cfm-tips-source-build step (nixos/kirocrew-mcp-servers.nix) builds a pinned
 # venv from this checkout and the gateway spawns it as a stdio MCP server.
 # Pinned to an immutable SHA — this server reads the account's cost/resource
 # surface via read-only credentials passed in its MCP env block, so it must not

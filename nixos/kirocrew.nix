@@ -63,7 +63,7 @@
       ln -sf ${pkgs.kiro-cli.passthru.unwrapped}/bin/kiro-cli-term /var/lib/kirocrew/bin/kiro-cli-term
 
       # The kirocrew gateway itself is built from source by the
-      # kirocrew-gateway service (see kirocrew-services.nix), which runs the
+      # kirocrew-gateway service (see kirocrew-gateway.nix), which runs the
       # shared source builder as an ExecStartPre and starts the resulting venv
       # under the kirocrew user's ~/.local/share/kirocrew-source/current.
       # No curl|bash install path is used any more; both the workstation and
