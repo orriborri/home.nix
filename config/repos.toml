@@ -60,6 +60,11 @@ path = "code/readpeak/ramp"
 remote = "git@gitlab.com:readpeak/slackbots.git"
 path = "code/readpeak/slackbots"
 
+[[repos]]
+remote = "git@gitlab.com:readpeak/bidding-stream.git"
+path = "code/readpeak/bidding-stream"
+shallow = false
+
 # ─── ReadPeak (additional) ────────────────────────────────────────
 
 [[repos]]
