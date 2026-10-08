@@ -40,7 +40,7 @@ in
   # deleted .direnv roots and `nix build` results. EC2 has its own nix.gc.
   nix.gc = lib.mkIf (isLinux && config.kirocrew.role == "workstation") {
     automatic = true;
-    frequency = "weekly";
+    dates = "weekly";
     options = "--delete-older-than 14d";
   };
 
