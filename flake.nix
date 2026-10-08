@@ -1260,6 +1260,47 @@
                 touch $out
               '';
 
+          # F1: the claude-remote uid exists, owns only its own home, holds no
+          # credentials (not trusted by nix, owns no sops secret) and its git
+          # config rewrites every push URL to an invalid scheme.
+          ec2-claude-remote-uid =
+            let
+              cfg = ec2OnX86.config;
+              u = cfg.users.users.claude-remote or { };
+              secretOwners = lib.mapAttrsToList (_: v: v.owner or "root") cfg.sops.secrets;
+              gitconfig = cfg.environment.etc."claude-remote/gitconfig".source or "";
+              tmpfiles = lib.concatStringsSep "\n" cfg.systemd.tmpfiles.rules;
+            in
+            pkgs.runCommand "check-ec2-claude-remote-uid"
+              {
+                inherit gitconfig tmpfiles;
+                home = u.home or "";
+                isSystem = lib.boolToString (u.isSystemUser or false);
+                group = u.group or "";
+                trusted = toString cfg.nix.settings.trusted-users;
+                owners = toString secretOwners;
+                extraGroups = toString (u.extraGroups or [ ]);
+              }
+              ''
+                fail() { echo "claude-remote uid: $*" >&2; exit 1; }
+                [ "$home" = /var/lib/claude-remote ] || fail "home is '$home'"
+                [ "$isSystem" = true ] || fail "not a system user"
+                [ "$group" = claude-remote ] || fail "group is '$group'"
+                [ -z "$extraGroups" ] || fail "extraGroups: $extraGroups"
+                [ "$trusted" = root ] || fail "nix trusted-users is '$trusted', want root"
+                case " $owners " in *" claude-remote "*) fail "owns a sops secret" ;; esac
+                echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote 0700 claude-remote claude-remote -' \
+                  || fail "tmpfiles lacks the 0700 home"
+                echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote/workspace 0700 claude-remote claude-remote -' \
+                  || fail "tmpfiles lacks the workspace"
+                [ -f "$gitconfig" ] || fail "no git config"
+                for scheme in 'git@' 'ssh://' 'https://'; do
+                  grep -qF "pushInsteadOf = $scheme" "$gitconfig" || fail "gitconfig lacks pushInsteadOf for $scheme"
+                done
+                grep -qF 'url "invalid-push://"' "$gitconfig" || fail "gitconfig lacks the invalid-push:// target"
+                touch $out
+              '';
+
           # O8: the headless EC2 home has no gpg-agent with a GUI pinentry; the
           # workstation keeps it.
           gpg-agent-headless =
