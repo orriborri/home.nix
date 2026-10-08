@@ -35,6 +35,15 @@ in
     ];
   };
 
+  # Weekly user-profile GC on the laptop. Generations are cheap (199M for 17
+  # old ones on 2026-10-08); the timer mainly sweeps paths left behind by
+  # deleted .direnv roots and `nix build` results. EC2 has its own nix.gc.
+  nix.gc = lib.mkIf (isLinux && config.kirocrew.role == "workstation") {
+    automatic = true;
+    frequency = "weekly";
+    options = "--delete-older-than 14d";
+  };
+
   # Environment variables
   home.sessionVariables = {
     BROWSER = "firefox";
