@@ -1301,6 +1301,61 @@
                 touch $out
               '';
 
+          # F1: the claude-remote unit runs as its own uid, can reach only the
+          # loopback proxy, stays inactive until the human has logged in, and
+          # sets no variable that would disable Remote Control.
+          ec2-claude-remote-unit =
+            let
+              unit = ec2OnX86.config.systemd.services.claude-remote or { };
+              sc = unit.serviceConfig or { };
+              env = unit.environment or { };
+            in
+            pkgs.runCommand "check-ec2-claude-remote-unit"
+              {
+                user = sc.User or "";
+                group = sc.Group or "";
+                deny = toString (sc.IPAddressDeny or "");
+                allow = toString (sc.IPAddressAllow or "");
+                noNewPrivs = lib.boolToString (sc.NoNewPrivileges or false);
+                protectSystem = toString (sc.ProtectSystem or "");
+                rw = toString (sc.ReadWritePaths or "");
+                unset = toString (sc.UnsetEnvironment or "");
+                restart = sc.Restart or "";
+                execStart = sc.ExecStart or "";
+                cond = toString (unit.unitConfig.ConditionPathExists or "");
+                wantedBy = toString (unit.wantedBy or "");
+                after = toString (unit.after or "");
+                httpsProxy = env.HTTPS_PROXY or "";
+                httpProxy = env.HTTP_PROXY or "";
+                gitConfig = env.GIT_CONFIG_GLOBAL or "";
+                home = env.HOME or "";
+                envNames = toString (builtins.attrNames env);
+              }
+              ''
+                fail() { echo "claude-remote unit: $*" >&2; exit 1; }
+                [ "$user" = claude-remote ] || fail "User is '$user'"
+                [ "$group" = claude-remote ] || fail "Group is '$group'"
+                [ "$deny" = any ] || fail "IPAddressDeny is '$deny', want any"
+                [ "$allow" = localhost ] || fail "IPAddressAllow is '$allow', want localhost"
+                [ "$noNewPrivs" = true ] || fail "shared hardening is not applied"
+                [ "$protectSystem" = strict ] || fail "ProtectSystem is '$protectSystem'"
+                [ "$rw" = /var/lib/claude-remote ] || fail "ReadWritePaths is '$rw'"
+                case "$unset" in *ANTHROPIC_API_KEY*ANTHROPIC_AUTH_TOKEN*) ;; *) fail "UnsetEnvironment is '$unset'" ;; esac
+                [ "$restart" = always ] || fail "Restart is '$restart'"
+                case "$execStart" in */bin/claude\ remote-control\ --name\ kirocrew\ --spawn\ worktree) ;; *) fail "ExecStart is '$execStart'" ;; esac
+                [ "$cond" = /var/lib/claude-remote/.claude/.credentials.json ] || fail "ConditionPathExists is '$cond'"
+                [ "$wantedBy" = multi-user.target ] || fail "wantedBy is '$wantedBy'"
+                case " $after " in *" tinyproxy.service "*) ;; *) fail "not ordered after tinyproxy: '$after'" ;; esac
+                [ "$httpsProxy" = http://127.0.0.1:8888 ] || fail "HTTPS_PROXY is '$httpsProxy'"
+                [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "HTTP_PROXY is '$httpProxy'"
+                [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
+                [ "$home" = /var/lib/claude-remote ] || fail "HOME is '$home'"
+                case " $envNames " in
+                  *CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC* | *DISABLE_GROWTHBOOK*) fail "sets a variable that disables Remote Control: $envNames" ;;
+                esac
+                touch $out
+              '';
+
           # O8: the headless EC2 home has no gpg-agent with a GUI pinentry; the
           # workstation keeps it.
           gpg-agent-headless =
