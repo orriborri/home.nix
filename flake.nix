@@ -4,12 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
-    # Pinned rustc/cargo (1.91.1) for building pasta from source. nixos-24.11's
-    # cargo (1.82) predates edition2024 (needed by datafusion et al.); current
-    # nixos-unstable's rustc (1.98.1, built from a source tarball) mis-lowers
-    # the avx512vnni vpdpwssd intrinsic and fails to compile lance-linalg
-    # regardless of RUSTFLAGS. This revision is verified to build both.
-    nixpkgs-rust.url = "github:NixOS/nixpkgs/f665af0cdb70ed27e1bd8f9fdfecaf451260fc55";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -37,7 +31,6 @@
       self,
       nixpkgs,
       nixpkgs-stable,
-      nixpkgs-rust,
       home-manager,
       llm-agents,
       nixos-generators,
@@ -70,7 +63,6 @@
           inherit pkgs;
           extraSpecialArgs = {
             pkgs-stable = nixpkgs-stable.legacyPackages.${system};
-            pkgs-rust = nixpkgs-rust.legacyPackages.${system};
             inherit llm-agents;
           };
           modules = [

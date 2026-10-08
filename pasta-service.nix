@@ -3,10 +3,6 @@
   lib,
   pkgs,
   pkgs-stable,
-  # Only the workstation homeConfiguration (flake.nix mkHome) passes this;
-  # headless/EC2 profiles fall back to pkgs-stable, which is never forced
-  # since isPastaHost is false there.
-  pkgs-rust ? pkgs-stable,
   ...
 }:
 
@@ -34,12 +30,11 @@ let
       # vpdpwssd intrinsic (stdarch/LLVM signature mismatch) when
       # lance-linalg compiles its SIMD kernels, regardless of RUSTFLAGS --
       # the offending fn is #[target_feature(enable = "avx512vnni")], so
-      # it's always codegen'd on x86_64. nixos-24.11's cargo (1.82) avoids
-      # that bug but is too old for edition2024 (datafusion et al. need it,
-      # stable since rustc 1.85). pkgs-rust is a dedicated nixpkgs pin
-      # (flake input nixpkgs-rust, rustc 1.91.1) verified to build both.
-      pkgs-rust.cargo
-      pkgs-rust.rustc
+      # it's always codegen'd on x86_64. nixos-26.05's rustc 1.95.0 builds
+      # pasta-backend and kb-cli including lance-linalg (verified 2026-10-08),
+      # so the stable channel replaces the old dedicated rustc pin.
+      pkgs-stable.cargo
+      pkgs-stable.rustc
       pkgs.gcc
       pkgs.pkg-config
       pkgs.openssl
