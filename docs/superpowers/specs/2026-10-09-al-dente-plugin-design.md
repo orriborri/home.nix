@@ -89,9 +89,11 @@ truth. It does not restate the AWS gate (that lives in the global CLAUDE.md).
 
 ### Path fixes in moved skills
 
-Paths relative to the vault root become `~/Obsidian/Readpeak/…`, for example
-`llm-wiki/SKILL.md:44` (`.llm-wiki/generated/`) and `weekly-review/SKILL.md:32`.
-`daily-note`'s script path changes from `.claude/skills/daily-note/scripts/`
+Each vault skill gets one line under its H1:
+``Vault root: `~/Obsidian/Readpeak`. Paths below are relative to it.``
+(decided while planning: the skills hold dozens of vault-relative paths;
+one line has the same effect). Eval fixtures under `evals/` keep relative
+paths. `daily-note`'s script path changes from `.claude/skills/daily-note/scripts/`
 to `.agent-plugin/skills/daily-note/scripts/`.
 
 ## Install and update
