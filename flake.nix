@@ -663,8 +663,8 @@
                   || { echo "pasta-start does not set CARGO_TARGET_DIR=${dir}" >&2; exit 1; }
                 grep -qF 'exec ${dir}/release/pasta-backend' "$start" \
                   || { echo "pasta-start does not exec from ${dir}" >&2; exit 1; }
-                grep -qE '/bin/nice -n 19 cargo build ' "$start" \
-                  || { echo "pasta-start does not run cargo build under nice -n 19" >&2; exit 1; }
+                grep -qE '/bin/nice -n 19 cargo build .*-p kb-mcp' "$start" \
+                  || { echo "pasta-start does not build kb-mcp under nice -n 19" >&2; exit 1; }
                 case ":$sessionPath:" in
                   *":${dir}/release:"*) ;;
                   *) echo "sessionPath lacks ${dir}/release: $sessionPath" >&2; exit 1 ;;

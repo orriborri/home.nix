@@ -55,7 +55,7 @@ let
       export CARGO_TARGET_DIR=${lib.escapeShellArg pastaTarget}
       echo "Building pasta-backend..."
       # Lowest CPU priority: the build takes ~35 min and should not slow the desktop.
-      ${pkgs.coreutils}/bin/nice -n 19 cargo build --release -p pasta-backend -p kb-cli
+      ${pkgs.coreutils}/bin/nice -n 19 cargo build --release -p pasta-backend -p kb-cli -p kb-mcp
 
       # LD_LIBRARY_PATH is scoped to the built binary's exec only: setting it
       # for the whole unit (build included) puts unstable's glibc ahead of
