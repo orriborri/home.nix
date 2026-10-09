@@ -1718,6 +1718,19 @@
                 touch $out
               '';
 
+          # btop (disk/net/process I/O view) and atop (rewindable history) are
+          # installed alongside btm.
+          monitors-installed =
+            let
+              names = map (p: p.pname or "") self.homeConfigurations.orre.config.home.packages;
+            in
+            pkgs.runCommand "check-monitors-installed" { names = lib.concatStringsSep " " names; } ''
+              for want in btop atop; do
+                case " $names " in *" $want "*) ;; *) echo "$want not in home.packages" >&2; exit 1 ;; esac
+              done
+              touch $out
+            '';
+
           # C28: no zsh setting that a later part of .zshrc overrides (atuin owns
           # Ctrl-R, the tty eats Ctrl-S, starship sets the continuation prompt).
           zsh-no-dead-settings =
