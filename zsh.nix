@@ -80,6 +80,8 @@
         zellij_session_name="zed-$zellij_project_name"
       elif [[ "$TERM_PROGRAM" == "cosmic-term" ]]; then
         zellij_session_name="cosmic-$zellij_project_name"
+      elif [[ "$TERM_PROGRAM" == "claude-desktop" ]]; then
+        zellij_session_name="claude-$zellij_project_name"
       else
         zellij_session_name="terminal-$zellij_project_name"
       fi
