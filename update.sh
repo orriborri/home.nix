@@ -44,7 +44,11 @@ if [[ -n "$FLATPAK" ]]; then
 fi
 
 echo "🏠 Switching to configuration..."
-home-manager switch -b backup --flake .#orre
+if command -v home-manager >/dev/null 2>&1; then
+  home-manager switch -b backup --flake .#orre
+else
+  nix run --inputs-from . home-manager -- switch -b backup --flake .#orre
+fi
 
 echo "🧹 Garbage collecting old generations (>7d) and optimising Nix store..."
 nix-collect-garbage --delete-older-than 7d

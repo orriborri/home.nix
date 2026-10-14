@@ -44,7 +44,7 @@ let
     patches = (old.patches or [ ]) ++ [
       (pkgs.fetchpatch {
         url = "https://raw.githubusercontent.com/samm-git/aws-vpn-client/master/openvpn-v2.5.1-aws.patch";
-        hash = "sha256-IYNNbcxuHrx5Qm25dUp/Pxednqov8E8n9QQdih3CPBo=";
+        hash = "sha256-9ijhANqqWXVPa00RBCRACtMIsjiBqYVa91V62L4mNas=";
       })
     ];
   });
