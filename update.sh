@@ -16,7 +16,7 @@ cd "$(dirname "$0")"
 bump_stable_channel() {
     local flake current latest released
     flake=flake.nix
-    current=$(grep -oP 'nixpkgs-stable\.url = "github:NixOS/nixpkgs/nixos-\K[0-9]+\.[0-9]+' "$flake") || {
+    current=$(grep -m1 -oP 'nixpkgs-stable\.url = "github:NixOS/nixpkgs/nixos-\K[0-9]+\.[0-9]+' "$flake") || {
         echo "  ⚠️  nixpkgs-stable not pinned to a nixos-YY.MM branch; skipping"
         return 0
     }
