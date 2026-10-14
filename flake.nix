@@ -86,8 +86,9 @@
       # own leading extras. Order matters to module merging, so each profile
       # keeps its prefix in front of this list.
       workstationModules = [
-        ./kirocrew-service.nix
-        ./kirocrew-agents-workstation.nix
+        # The KiroCrew gateway (./kirocrew-service.nix and
+        # ./kirocrew-agents-workstation.nix) is off the workstations for now;
+        # re-add both here to bring it back. The checks still cover it.
         ./pasta-service.nix
         sops-nix.homeManagerModules.sops
         ./sops.nix
@@ -240,6 +241,16 @@
           ec2OnX86 = self.nixosConfigurations.kirocrew-ec2.extendModules {
             modules = [ { nixpkgs.hostPlatform = lib.mkForce "x86_64-linux"; } ];
           };
+
+          # The workstation profiles no longer import the KiroCrew gateway
+          # modules (see workstationModules), so the gateway checks run
+          # against orre with them added back.
+          orreWithGateway = self.homeConfigurations.orre.extendModules {
+            modules = [
+              ./kirocrew-service.nix
+              ./kirocrew-agents-workstation.nix
+            ];
+          };
         in
         lib.mapAttrs' (
           name: hm: lib.nameValuePair "home-${name}" (evalCheck name hm.activationPackage.drvPath)
@@ -318,7 +329,7 @@
           # dashboard must only listen on loopback.
           kirocrew-gateway-loopback =
             let
-              env = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service.Environment;
+              env = orreWithGateway.config.systemd.user.services.kirocrew.Service.Environment;
             in
             pkgs.runCommand "check-kirocrew-gateway-loopback"
               {
@@ -607,7 +618,7 @@
           # on the workstation role.
           kirocrew-gateway-gated =
             let
-              disabled = self.homeConfigurations.orre.extendModules {
+              disabled = orreWithGateway.extendModules {
                 modules = [ { kirocrew.enable = lib.mkForce false; } ];
               };
             in
@@ -627,7 +638,7 @@
           # start timeout (the 20 min override belongs to the source updater).
           kirocrew-gateway-default-timeout =
             let
-              service = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service;
+              service = orreWithGateway.config.systemd.user.services.kirocrew.Service;
             in
             pkgs.runCommand "check-kirocrew-gateway-default-timeout"
               {
@@ -877,7 +888,7 @@
           # enforce agent cgroup limits.
           kirocrew-gateway-path-has-systemd-run =
             let
-              env = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service.Environment;
+              env = orreWithGateway.config.systemd.user.services.kirocrew.Service.Environment;
             in
             pkgs.runCommand "check-kirocrew-gateway-path-has-systemd-run"
               {
@@ -939,7 +950,7 @@
           # C17: unit PATHs follow home.username instead of hardcoding orre.
           unit-path-follows-username =
             let
-              other = self.homeConfigurations.orre.extendModules {
+              other = orreWithGateway.extendModules {
                 modules = [ { home.username = lib.mkForce "someone"; } ];
               };
               svc = other.config.systemd.user.services;
@@ -1008,7 +1019,7 @@
           # S17: the workstation gateway has the same memory caps as the EC2 unit.
           kirocrew-gateway-memory-caps =
             let
-              service = self.homeConfigurations.orre.config.systemd.user.services.kirocrew.Service;
+              service = orreWithGateway.config.systemd.user.services.kirocrew.Service;
             in
             pkgs.runCommand "check-kirocrew-gateway-memory-caps"
               {
@@ -1028,7 +1039,7 @@
           no-pipx-tzdata-activation =
             pkgs.runCommand "check-no-pipx-tzdata-activation"
               {
-                present = lib.boolToString (self.homeConfigurations.orre.config.home.activation ? kirocrewTzdata);
+                present = lib.boolToString (orreWithGateway.config.home.activation ? kirocrewTzdata);
               }
               ''
                 [ "$present" = false ] || {
@@ -1591,7 +1602,7 @@
           # of the unit), not every 15 minutes.
           skill-sync-no-timer =
             let
-              hm = self.homeConfigurations.orre.config.systemd.user;
+              hm = orreWithGateway.config.systemd.user;
             in
             pkgs.runCommand "check-skill-sync-no-timer"
               {
@@ -1610,7 +1621,7 @@
           # skill only the headless hosts ship.
           workstation-agents-no-design-sage =
             let
-              script = self.homeConfigurations.orre.config.home.activation.kirocrewAgents.data;
+              script = orreWithGateway.config.home.activation.kirocrewAgents.data;
             in
             pkgs.runCommand "check-workstation-agents-no-design-sage"
               {
