@@ -147,6 +147,7 @@
             ./packages/kiro.nix
             ./packages/aws-vpn-client
             ./packages/claude-desktop.nix
+            ./nix-profile-add.nix
           ]
           ++ workstationModules;
         };
@@ -1618,6 +1619,26 @@
                 if grep -q 'Wanted\|Keep' "$LOG"; then
                   echo "a listed or kept app was uninstalled:" >&2; cat "$LOG" >&2; exit 1
                 fi
+                touch $out
+              '';
+
+          # Home Manager installs the profile with `nix profile add`, not the
+          # deprecated `install` alias Nix warns about (nix-profile-add.nix),
+          # and the step is still Home Manager's own script.
+          hm-nix-profile-add =
+            pkgs.runCommand "check-hm-nix-profile-add"
+              {
+                script = self.homeConfigurations.orre.config.home.activation.installPackages.data;
+                passAsFile = [ "script" ];
+              }
+              ''
+                grep -q 'profile add' "$scriptPath" \
+                  || { echo "installPackages does not run nix profile add:" >&2; cat "$scriptPath" >&2; exit 1; }
+                if grep -q 'profile install' "$scriptPath"; then
+                  echo "installPackages still runs nix profile install" >&2; exit 1
+                fi
+                grep -q "nixProfileRemove 'home-manager-path'" "$scriptPath" \
+                  || { echo "installPackages is no longer Home Manager's script:" >&2; cat "$scriptPath" >&2; exit 1; }
                 touch $out
               '';
 
