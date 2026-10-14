@@ -120,6 +120,8 @@ in
         ControlPersist = "10m";
       };
 
+    }
+    // lib.optionalAttrs config.readpeak.enable {
       "kirocrew-ec2" = {
         HostName = "i-05d4aaf8ee73fc07f";
         User = "root";

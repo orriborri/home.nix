@@ -132,6 +132,16 @@
 
       # Home Manager configurations (all generated from ./home.nix via mkHome)
       homeConfigurations = {
+        "orre-personal" = mkHome {
+          system = "x86_64-linux";
+          extraModules = [
+            ./packages/kiro.nix
+            { readpeak.enable = false; }
+          ];
+        };
+
+        "orre-work" = self.homeConfigurations.orre;
+
         # Fedora Silverblue daily driver (GNOME provided by the OS; home-manager is CLI-only)
         "orre" = mkHome {
           system = "x86_64-linux";

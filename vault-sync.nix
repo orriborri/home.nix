@@ -27,7 +27,7 @@ let
   };
 in
 {
-  systemd.user.services.vault-sync = lib.mkIf (!isHeadless) {
+  systemd.user.services.vault-sync = lib.mkIf (config.readpeak.enable && !isHeadless) {
     Unit = {
       Description = "Conflict-preserving Obsidian vault sync with S3";
       After = [ "network-online.target" ];
@@ -42,7 +42,7 @@ in
 
   # Workstation and KiroCrew timers are deliberately staggered to reduce the
   # chance of two independent bisync runs updating S3 simultaneously.
-  systemd.user.timers.vault-sync = lib.mkIf (!isHeadless) {
+  systemd.user.timers.vault-sync = lib.mkIf (config.readpeak.enable && !isHeadless) {
     Unit.Description = "Sync the Obsidian vault with S3 every 10 minutes";
     Timer = {
       OnCalendar = "*:0/10";

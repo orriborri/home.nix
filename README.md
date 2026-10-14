@@ -14,6 +14,37 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 
 ## Quick Start
 
+### Personal and Work Laptops
+
+Both profiles share the shell, editor, development tools, and Kiro IDE and keep
+the desktop supplied by the operating system.
+
+```bash
+./update.sh                   # Select using this machine's hostname
+./update.sh --profile work    # Explicit override
+./update.sh --profile work --update
+```
+
+`config/host-profiles` maps short hostnames (from `hostname -s`) to `personal`
+or `work`, one pair per line. This laptop (`orrTop`, also matched as `orrtop`
+or its previous name `fedora`) maps to `personal`. Add
+the work computer's hostname with `work` on its line. Unlisted hosts default
+to `personal`. `HOME_MANAGER_PROFILE` overrides the hostname mapping, and
+`--profile` overrides both.
+
+The `orre-personal` Home Manager profile disables ReadPeak repository cloning,
+legacy `~/ReadPeak` path migration, repository indexing, ReadPeak vault sync,
+AWS VPN tooling, and KiroCrew services and SSH host entries. Existing checkout
+directories and vault data are left on disk. It does not automatically clone
+any repositories from the work manifest, including its external repositories.
+
+The `orre-work` profile retains the existing work setup; `orre` remains its
+compatibility alias. To switch directly without the update script:
+
+```bash
+nix run --inputs-from . home-manager -- switch --flake .#orre-personal -b backup
+```
+
 ### One-Line Installation
 
 ```bash
