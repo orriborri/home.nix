@@ -68,7 +68,34 @@ if [[ -n "$FLATPAK" ]]; then
                 $FLATPAK install --user -y flathub "$app"
             fi
         done < "$MANIFEST"
+
+        # Ask about installed apps the manifest does not list: yes adds the
+        # app to the manifest, no uninstalls it. Only asks on a terminal.
+        if [[ -t 0 ]]; then
+            mapfile -t wanted < <(sed 's/#.*//; s/[[:space:]]//g; /^$/d' "$MANIFEST")
+            mapfile -t installed < <($FLATPAK list --app --columns=application,installation)
+            mapfile -t ids < <(printf '%s\n' "${installed[@]}" | cut -f1 | sort -u)
+            for app in "${ids[@]}"; do
+                [[ -z "$app" ]] && continue
+                [[ " ${wanted[*]} " == *" $app "* ]] && continue
+                read -r -p "  $app is not in $MANIFEST. Add it? [Y/n, n uninstalls] " answer || true
+                if [[ "$answer" == [Nn]* ]]; then
+                    for row in "${installed[@]}"; do
+                        [[ "${row%%$'\t'*}" == "$app" ]] || continue
+                        $FLATPAK uninstall -y --"${row#*$'\t'}" "$app"
+                    done
+                else
+                    grep -qx '# Added by update.sh' "$MANIFEST" || printf '\n# Added by update.sh\n' >> "$MANIFEST"
+                    echo "$app" >> "$MANIFEST"
+                fi
+            done
+        else
+            echo "  ⚠️  No terminal; not asking about apps missing from $MANIFEST"
+        fi
     fi
+
+    # Remove runtimes no installed app uses any more
+    $FLATPAK uninstall --unused -y || true
 
     # Update all installed flatpaks
     echo "  Updating installed flatpaks..."

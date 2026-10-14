@@ -1567,6 +1567,60 @@
                 touch $out
               '';
 
+          # update.sh asks about installed Flatpak apps that flatpak-packages.txt
+          # does not list: yes appends the app, no uninstalls it from every
+          # installation that has it. Without a terminal it asks and removes
+          # nothing. Runs the script against a stub flatpak in a scratch dir.
+          update-sh-flatpak-prune =
+            pkgs.runCommand "check-update-sh-flatpak-prune"
+              {
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.coreutils
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.util-linux
+                ];
+              }
+              ''
+                mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
+                cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                printf '# Apps\norg.example.Wanted\n' > "$TMPDIR/repo/flatpak-packages.txt"
+                cp "$TMPDIR/repo/flatpak-packages.txt" "$TMPDIR/before"
+                cat > "$TMPDIR/bin/flatpak" <<'EOS'
+                #!/bin/sh
+                case "$1" in
+                  list) printf 'org.example.Wanted\tuser\norg.example.Drop\tsystem\norg.example.Drop\tuser\norg.example.Keep\tuser\n' ;;
+                  uninstall) echo "$*" >> "$LOG" ;;
+                esac
+                EOS
+                for c in home-manager nix-collect-garbage nix; do
+                  printf '#!/bin/sh\n' > "$TMPDIR/bin/$c"
+                done
+                chmod +x "$TMPDIR"/bin/*
+                export LOG="$TMPDIR/uninstalls" PATH="$TMPDIR/bin:$PATH"
+                touch "$LOG"
+
+                bash "$TMPDIR/repo/update.sh" < /dev/null > "$TMPDIR/out" 2>&1 \
+                  || { echo "update.sh failed without a terminal:" >&2; cat "$TMPDIR/out" >&2; exit 1; }
+                if grep -q 'org.example' "$LOG" || ! cmp -s "$TMPDIR/before" "$TMPDIR/repo/flatpak-packages.txt"; then
+                  echo "update.sh changed apps without a terminal:" >&2; cat "$LOG" "$TMPDIR/out" >&2; exit 1
+                fi
+
+                # Apps are asked in sorted order: n for Drop, Enter for Keep.
+                printf 'n\n\n' | script -qec "bash $TMPDIR/repo/update.sh" /dev/null > "$TMPDIR/out" 2>&1 \
+                  || { echo "update.sh failed on a terminal:" >&2; cat "$TMPDIR/out" >&2; exit 1; }
+                grep -qx 'uninstall -y --system org.example.Drop' "$LOG" \
+                  && grep -qx 'uninstall -y --user org.example.Drop' "$LOG" \
+                  || { echo "Drop was not uninstalled from both installations:" >&2; cat "$LOG" "$TMPDIR/out" >&2; exit 1; }
+                grep -qx 'org.example.Keep' "$TMPDIR/repo/flatpak-packages.txt" \
+                  || { echo "Keep was not added to the manifest:" >&2; cat "$TMPDIR/repo/flatpak-packages.txt" "$TMPDIR/out" >&2; exit 1; }
+                if grep -q 'Wanted\|Keep' "$LOG"; then
+                  echo "a listed or kept app was uninstalled:" >&2; cat "$LOG" >&2; exit 1
+                fi
+                touch $out
+              '';
+
           # T13: no zsh alias points at a binary that is not installed or at
           # itself, and git's `visual` alias does not need gitk.
           no-dead-aliases =

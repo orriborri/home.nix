@@ -9,6 +9,7 @@ com.bitwarden.desktop
 
 # Communication
 com.slack.Slack
+im.nheko.Nheko
 
 # Browsers
 com.google.Chrome
@@ -16,3 +17,8 @@ org.chromium.Chromium
 
 # Media
 org.videolan.VLC
+org.gimp.GIMP
+
+# System
+org.gnome.Boxes
+org.gnome.NetworkDisplays
