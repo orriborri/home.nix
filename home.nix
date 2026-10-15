@@ -192,6 +192,7 @@ in
   imports = [
     # Module-style program configs
     ./neovim.nix
+    ./typescript-language-server-hash.nix
     ./zellij-layout.nix
     # Features
     ./development.nix

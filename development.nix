@@ -76,25 +76,27 @@ in
 
     activation = {
       # Install Python tools via uv (isolated venvs, managed by Home Manager activation)
-      uvTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        export PATH="${pkgs.uv}/bin:${pkgs.python3}/bin:$PATH"
-        crg="$HOME/.local/bin/code-review-graph"
-        installed=""
-        if [ -x "$crg" ]; then
-          installed="$("$crg" --version 2>/dev/null | tr -dc '0-9.' || true)"
-        fi
-        if [ "$installed" != ${lib.escapeShellArg crgVersion} ]; then
-          ${pkgs.uv}/bin/uv tool install --force "code-review-graph==${crgVersion}" \
-            || echo "warning: could not install code-review-graph==${crgVersion}" >&2
-        fi
-      '';
+      uvTools = lib.mkIf config.readpeak.enable (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          export PATH="${pkgs.uv}/bin:${pkgs.python3}/bin:$PATH"
+          crg="$HOME/.local/bin/code-review-graph"
+          installed=""
+          if [ -x "$crg" ]; then
+            installed="$("$crg" --version 2>/dev/null | tr -dc '0-9.' || true)"
+          fi
+          if [ "$installed" != ${lib.escapeShellArg crgVersion} ]; then
+            ${pkgs.uv}/bin/uv tool install --force "code-review-graph==${crgVersion}" \
+              || echo "warning: could not install code-review-graph==${crgVersion}" >&2
+          fi
+        ''
+      );
 
       # Clone repos declared in config/repos.toml (idempotent -- skips existing)
       # Reads from the XDG path placed by kirocrew-config.nix.
       # Filters by kirocrew.role ('targets' per repo) and honours 'shallow' for clone
       # depth. The role is passed in explicitly: activation does not source
       # hm-session-vars.sh, so KIROCREW_ROLE from sessionVariables is not set here.
-      cloneRepos = lib.mkIf config.kirocrew.enable (
+      cloneRepos = lib.mkIf (config.kirocrew.enable && config.readpeak.enable) (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
               MANIFEST="$HOME/.config/kirocrew/repos.toml"
               if [ -f "$MANIFEST" ]; then
@@ -131,7 +133,7 @@ in
       );
 
       # Auto-register git repos from the manifest with code-review-graph
-      crgRegisterRepos = lib.mkIf config.kirocrew.enable (
+      crgRegisterRepos = lib.mkIf (config.kirocrew.enable && config.readpeak.enable) (
         lib.hm.dag.entryAfter [ "cloneRepos" "uvTools" ] ''
               CRG="$HOME/.local/bin/code-review-graph"
               MANIFEST="$HOME/.config/kirocrew/repos.toml"
@@ -182,7 +184,7 @@ in
   };
 
   # code-review-graph daemon: auto-updates graphs for all registered repos
-  systemd.user.services.crg-daemon = {
+  systemd.user.services.crg-daemon = lib.mkIf config.readpeak.enable {
     Unit = {
       Description = "code-review-graph watch daemon";
       After = [ "default.target" ];

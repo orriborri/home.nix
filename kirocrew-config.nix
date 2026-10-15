@@ -12,6 +12,12 @@ let
   cfg = config.kirocrew;
 in
 {
+  options.readpeak.enable = lib.mkOption {
+    type = lib.types.bool;
+    default = true;
+    description = "Enable ReadPeak repository management and work integrations.";
+  };
+
   options.kirocrew = {
     enable = lib.mkEnableOption "KiroCrew declarative configuration";
     role = lib.mkOption {

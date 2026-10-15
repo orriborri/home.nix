@@ -14,6 +14,34 @@ Modern, secure, and well-structured Home Manager configuration for cross-platfor
 
 ## Quick Start
 
+### Personal and Work Laptops
+
+Both profiles share the shell, editor, development tools, and Kiro IDE and keep
+the desktop supplied by the operating system.
+
+```bash
+./update.sh                   # Select using this machine's hostname
+./update.sh --profile work    # Explicit override
+./update.sh --profile work --update
+```
+
+`config/host-profiles` maps short hostnames (from `hostname -s`) to `personal`
+or `work`, one pair per line. `workTop` maps to `work`; `orrTop` (also matched
+as `orrtop`) maps to `personal`. Unlisted hosts default to `personal`.
+`HOME_MANAGER_PROFILE` overrides the hostname mapping, and `--profile`
+overrides both.
+
+The `orre-personal` Home Manager profile disables ReadPeak repository cloning,
+repository indexing, and KiroCrew services. Existing checkout directories are
+left on disk.
+
+The `orre-work` profile retains the existing work setup; `orre` remains its
+compatibility alias. To switch directly without the update script:
+
+```bash
+nix run --inputs-from . home-manager -- switch --flake .#orre-personal -b backup
+```
+
 ### Using Flakes
 
 1. **Install Nix with flakes enabled**:
@@ -61,8 +89,7 @@ home-manager switch --flake .
 ├── packages/                # Custom package definitions
 │   ├── kiro.nix             # Kiro IDE Home Manager module
 │   ├── claude-desktop.nix   # Claude Desktop (from llm-agents)
-│   ├── aidlc.nix            # aidlc CLI package
-│   └── aws-vpn-client/      # AWS VPN client (patched openvpn)
+│   └── aidlc.nix            # aidlc CLI package
 ├── templates/               # Flake templates
 │   └── minimal/             # Minimal starter template
 └── nixos/                   # NixOS-specific configuration

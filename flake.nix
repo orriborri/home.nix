@@ -140,12 +140,21 @@
 
       # Home Manager configurations (all generated from ./home.nix via mkHome)
       homeConfigurations = {
+        "orre-personal" = mkHome {
+          system = "x86_64-linux";
+          extraModules = [
+            ./packages/kiro.nix
+            { readpeak.enable = false; }
+          ];
+        };
+
+        "orre-work" = self.homeConfigurations.orre;
+
         # Fedora Silverblue daily driver (GNOME provided by the OS; home-manager is CLI-only)
         "orre" = mkHome {
           system = "x86_64-linux";
           extraModules = [
             ./packages/kiro.nix
-            ./packages/aws-vpn-client
             ./packages/claude-desktop.nix
             ./nix-profile-add.nix
           ]
@@ -597,23 +606,6 @@
                 fi
                 touch $out
               '';
-
-          # S11: the OpenVPN AWS patch is vendored, not fetched from a moving
-          # branch URL, and tracks the 2.6 series nixpkgs ships.
-          aws-vpn-patch-vendored = pkgs.runCommand "check-aws-vpn-patch-vendored" { } ''
-            cd ${self}/packages/aws-vpn-client
-            [ -s openvpn-v2.6.12-aws.patch ] \
-              || { echo "openvpn-v2.6.12-aws.patch is not vendored" >&2; exit 1; }
-            if grep -n 'openvpn-2\.5\|2\.5\.1-aws' default.nix >&2; then
-              echo "default.nix still pins OpenVPN 2.5.1" >&2
-              exit 1
-            fi
-            if grep -n 'raw.githubusercontent.com\|fetchpatch' default.nix >&2; then
-              echo "default.nix still fetches the patch from a URL" >&2
-              exit 1
-            fi
-            touch $out
-          '';
 
           # C7: with kirocrew.enable = false no gateway unit is installed, even
           # on the workstation role.
@@ -1520,6 +1512,10 @@
               ''
                 mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
                 cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                mkdir -p "$TMPDIR/repo/config"
+                cp ${./config/host-profiles} "$TMPDIR/repo/config/host-profiles"
+                printf '#!/bin/sh\necho workTop\n' > "$TMPDIR/bin/hostname"
+                chmod +x "$TMPDIR/bin/hostname"
                 for c in home-manager nix-collect-garbage nix; do
                   printf '#!/bin/sh\necho "stub %s $*"\n' "$c" > "$TMPDIR/bin/$c"
                   chmod +x "$TMPDIR/bin/$c"
@@ -1548,6 +1544,10 @@
               ''
                 mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
                 cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                mkdir -p "$TMPDIR/repo/config"
+                cp ${./config/host-profiles} "$TMPDIR/repo/config/host-profiles"
+                printf '#!/bin/sh\necho workTop\n' > "$TMPDIR/bin/hostname"
+                chmod +x "$TMPDIR/bin/hostname"
                 printf 'x = { nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.11"; };\n' > "$TMPDIR/repo/flake.nix"
                 cat > "$TMPDIR/bin/git" <<'EOS'
                 #!/bin/sh
@@ -1586,6 +1586,10 @@
               ''
                 mkdir -p "$TMPDIR/repo" "$TMPDIR/bin"
                 cp ${./update.sh} "$TMPDIR/repo/update.sh"
+                mkdir -p "$TMPDIR/repo/config"
+                cp ${./config/host-profiles} "$TMPDIR/repo/config/host-profiles"
+                printf '#!/bin/sh\necho workTop\n' > "$TMPDIR/bin/hostname"
+                chmod +x "$TMPDIR/bin/hostname"
                 printf '# Apps\norg.example.Wanted\n' > "$TMPDIR/repo/flatpak-packages.txt"
                 cp "$TMPDIR/repo/flatpak-packages.txt" "$TMPDIR/before"
                 cat > "$TMPDIR/bin/flatpak" <<'EOS'

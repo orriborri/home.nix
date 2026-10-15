@@ -3,8 +3,58 @@
 
 set -e
 
-# Run from the repo so flake.nix, `nix flake update` and `--flake .` agree.
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+HOST_NAME="$(hostname -s)"
+PROFILE=personal
+while read -r CONFIGURED_HOST CONFIGURED_PROFILE; do
+  if [[ "$CONFIGURED_HOST" == "$HOST_NAME" ]]; then
+    PROFILE="$CONFIGURED_PROFILE"
+    break
+  fi
+done < "$SCRIPT_DIR/config/host-profiles"
+PROFILE="${HOME_MANAGER_PROFILE:-$PROFILE}"
+UPDATE_INPUTS=false
+UPGRADE_SYSTEM=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      if [[ $# -lt 2 ]]; then
+        echo "--profile requires personal or work" >&2
+        exit 1
+      fi
+      PROFILE="$2"
+      shift 2
+      ;;
+    -u)
+      UPDATE_INPUTS=true
+      UPGRADE_SYSTEM=true
+      shift
+      ;;
+    --update)
+      UPDATE_INPUTS=true
+      shift
+      ;;
+    --upgrade)
+      UPGRADE_SYSTEM=true
+      shift
+      ;;
+    *)
+      echo "Usage: $0 [--profile personal|work] [-u|--update|--upgrade]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "$PROFILE" in
+  personal) CONFIGURATION=orre-personal ;;
+  work) CONFIGURATION=orre-work ;;
+  *)
+    echo "Unknown profile: $PROFILE (expected personal or work)" >&2
+    exit 1
+    ;;
+esac
 
 # -u: update flake inputs + dnf upgrade
 # --update: only update flake inputs
@@ -37,14 +87,14 @@ bump_stable_channel() {
     fi
 }
 
-if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
+if [[ "$UPDATE_INPUTS" == true ]]; then
     echo "🔍 Checking nixpkgs-stable release branch..."
     bump_stable_channel
     echo "🔄 Updating flake inputs..."
     nix flake update
 fi
 
-if [[ "${1:-}" == "-u" || "${1:-}" == "--upgrade" ]]; then
+if [[ "$UPGRADE_SYSTEM" == true ]]; then
     echo "⬆️  Upgrading system packages..."
     sudo dnf upgrade --allowerasing -y
 fi
@@ -102,8 +152,13 @@ if [[ -n "$FLATPAK" ]]; then
     $FLATPAK update -y || true
 fi
 
-echo "🏠 Switching to configuration..."
-home-manager switch -b backup --flake .#orre
+echo "🏠 Switching to $PROFILE configuration for $HOST_NAME..."
+if command -v home-manager >/dev/null 2>&1; then
+  home-manager switch -b backup --flake ".#$CONFIGURATION"
+else
+  nix run --inputs-from . home-manager -- switch -b backup --flake ".#$CONFIGURATION"
+fi
+
 
 echo "🧹 Garbage collecting old generations (>7d) and optimising Nix store..."
 nix-collect-garbage --delete-older-than 7d

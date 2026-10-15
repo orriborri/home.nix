@@ -35,7 +35,6 @@
       # System utilities
       bottom # Better top
       btop # Top with disk, network and per-process I/O
-      atop # Top with recorded history (needs the root atop service to record)
       jless # JSON viewer
       navi # Interactive cheatsheet
       tealdeer # Better man pages
@@ -50,6 +49,8 @@
       slurp
     ]
     ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+      atop # Top with recorded history (needs the root atop service to record)
+
       # Network utilities (Linux only)
       bluetui
       bandwhich
