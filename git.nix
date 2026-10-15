@@ -1,5 +1,40 @@
 { pkgs, ... }:
 
+let
+  # post-checkout hook (configured below, so it runs alongside husky's
+  # hooksPath): on `git worktree add` (previous HEAD is the null sha), give the
+  # new worktree a copy-on-write (reflink) copy of the main checkout's
+  # node_modules. Workspace links inside node_modules are relative, so they
+  # resolve to the new worktree's own packages. Never fails the checkout.
+  nodeModulesCow = pkgs.writeShellApplication {
+    name = "git-node-modules-cow";
+    runtimeInputs = [
+      pkgs.git
+      pkgs.coreutils
+      pkgs.gawk
+    ];
+    text = ''
+      [ "''${1:-}" = 0000000000000000000000000000000000000000 ] || exit 0
+
+      new=$(git rev-parse --show-toplevel)
+      main=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
+      src="$main/node_modules"
+
+      if [ "$new" = "$main" ] || [ ! -d "$src" ] || [ -L "$src" ] || [ -e "$new/node_modules" ]; then
+        exit 0
+      fi
+
+      if cp -a --reflink=always "$src" "$new/node_modules" 2>/dev/null; then
+        pm=npm
+        [ -e "$new/pnpm-lock.yaml" ] && pm=pnpm
+        echo "node_modules: reflinked from $main. Next: $pm install"
+      else
+        rm -rf "$new/node_modules"
+        echo "node_modules: reflink not supported here, skipped" >&2
+      fi
+    '';
+  };
+in
 {
   enable = true;
 
@@ -121,6 +156,11 @@
     log = {
       date = "iso";
       decorate = "short";
+    };
+
+    hook.node-modules-cow = {
+      event = "post-checkout";
+      command = "${nodeModulesCow}/bin/git-node-modules-cow";
     };
 
     # Push over SSH, fetch public repos over HTTPS. Only the private readpeak
