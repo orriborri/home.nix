@@ -43,12 +43,13 @@ in
     systemd.user.services.vault-drive-export = {
       Unit = {
         Description = "Export opt-in vault notes to Google Drive";
-        After = [ "network-online.target" ];
-        Wants = [ "network-online.target" ];
       };
       Service = {
         Type = "oneshot";
         ExecStart = "${exportScript}/bin/vault-drive-export";
+        # A failed run (offline, Drive error) retries instead of waiting an hour.
+        Restart = "on-failure";
+        RestartSec = "5min";
       };
     };
 
@@ -57,6 +58,7 @@ in
       Timer = {
         OnCalendar = "hourly";
         Persistent = true;
+        RandomizedDelaySec = "5min";
       };
       Install.WantedBy = [ "timers.target" ];
     };

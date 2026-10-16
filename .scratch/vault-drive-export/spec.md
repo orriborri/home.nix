@@ -69,3 +69,4 @@ The work laptop exports a small, opt-in, plaintext subset of the vault to a Goog
 - If Workspace blocks rclone's default OAuth client, create a client in a GCP project with an Internal consent screen; an External app in Testing status gets refresh tokens that expire after 7 days.
 - Re-authorising with a different OAuth client ID likely hides the old `pasta-export` folder from rclone and creates a second one; delete the old folder by hand.
 - A draft module already exists (uncommitted) from the earlier handoff; it matches this spec except for the frontmatter-only selection, the `readpeak.enable` gate, the missing grep runtime input and `--max-delete`.
+- Known limitation: removing the marker from the last exported note leaves it on Drive, because an empty selection skips the sync (story 11 wins over story 8); delete it by hand.

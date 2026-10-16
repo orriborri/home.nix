@@ -642,8 +642,13 @@
                 personalService = lib.boolToString (personal.services ? vault-drive-export);
                 personalTimer = lib.boolToString (personal.timers ? vault-drive-export);
                 execStart = work.services.vault-drive-export.Service.ExecStart or "";
+                restart = work.services.vault-drive-export.Service.Restart or "";
               }
               ''
+                [ "$restart" = on-failure ] || {
+                  echo "vault-drive-export.service lacks Restart=on-failure (got '$restart')" >&2
+                  exit 1
+                }
                 [ "$workService/$workTimer" = true/true ] || {
                   echo "orre lacks the vault-drive-export service or timer" >&2
                   exit 1
@@ -652,7 +657,7 @@
                   echo "orre-personal installs vault-drive-export" >&2
                   exit 1
                 }
-                for flag in --files-from --delete-excluded --checksum '--max-delete 50'; do
+                for flag in --files-from-raw --delete-excluded --checksum '--max-delete 50'; do
                   grep -q -- "$flag" "$execStart" || {
                     echo "the export script lacks $flag" >&2
                     exit 1
@@ -667,7 +672,7 @@
 
           # Vault → Drive export selection: runs the built script in scratch
           # vaults against a stub rclone that records its arguments and the
-          # --files-from list. Only frontmatter markers select a note; a locked
+          # --files-from-raw list. Only frontmatter markers select a note; a locked
           # vault or an empty selection never reaches rclone.
           vault-drive-export-selection =
             let
@@ -676,7 +681,9 @@
               rclone = pkgs.writeShellScriptBin "rclone" ''
                 echo "$*" > "$RCLONE_LOG/args"
                 while [ $# -gt 0 ]; do
-                  [ "$1" = --files-from ] && sort "$2" > "$RCLONE_LOG/files"
+                  case "$1" in
+                    --files-from | --files-from-raw) sort "$2" > "$RCLONE_LOG/files" ;;
+                  esac
                   shift
                 done
               '';
@@ -691,7 +698,10 @@
                     ;
                   vault = ".";
                 };
-              withExtra = build [ "Tasks/_Tasks.md" ];
+              withExtra = build [
+                "Tasks/_Tasks.md"
+                "Missing.md"
+              ];
               withoutExtra = build [ ];
             in
             pkgs.runCommand "check-vault-drive-export-selection"
@@ -710,6 +720,22 @@
                   (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr" \
                     || { echo "export failed in $1:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; }
                 }
+                # Expect a non-zero exit and no rclone call.
+                run_fails() {
+                  export RCLONE_LOG="$TMPDIR/log-$1"
+                  mkdir -p "$RCLONE_LOG"
+                  if (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr"; then
+                    echo "export in $1 exited 0; expected a failure" >&2; exit 1
+                  fi
+                  [ ! -e "$RCLONE_LOG/args" ] || { echo "rclone ran in $1" >&2; exit 1; }
+                }
+
+                # Unreadable marked note: the selection fails, so the export fails.
+                note "$TMPDIR/unreadable/Home.md" '# Home\n'
+                note "$TMPDIR/unreadable/Ready.md" '---\nstatus: ready\n---\n'
+                note "$TMPDIR/unreadable/Secret.md" '---\ncloud: true\n---\n'
+                chmod 000 "$TMPDIR/unreadable/Secret.md"
+                run_fails unreadable ${withoutExtra}
 
                 # Locked vault: git-crypt header in Home.md, a marked note beside it.
                 note "$TMPDIR/locked/Home.md" '\0GITCRYPT\0ciphertext'
@@ -717,11 +743,22 @@
                 run locked ${withExtra}
                 [ ! -e "$TMPDIR/log-locked/args" ] || { echo "rclone ran on a locked vault" >&2; exit 1; }
 
+                # No Home.md: the lock state is unknown, so fail closed.
+                note "$TMPDIR/nohome/Ready.md" '---\nstatus: ready\n---\n'
+                run_fails nohome ${withoutExtra}
+
                 # Nothing selected: markers only in bodies, no extra paths.
                 note "$TMPDIR/empty/Home.md" '# Home\n'
                 note "$TMPDIR/empty/Body.md" '---\ntitle: x\n---\nstatus: ready\ncloud: true\n'
                 run empty ${withoutExtra}
                 [ ! -e "$TMPDIR/log-empty/args" ] || { echo "rclone ran with no notes selected" >&2; exit 1; }
+
+                # Extra paths alone do not count as a selection.
+                note "$TMPDIR/extraonly/Home.md" '# Home\n'
+                note "$TMPDIR/extraonly/Plain.md" 'no frontmatter\n'
+                note "$TMPDIR/extraonly/Tasks/_Tasks.md" '- [ ] task\n'
+                run extraonly ${withExtra}
+                [ ! -e "$TMPDIR/log-extraonly/args" ] || { echo "rclone ran with only extra paths selected" >&2; exit 1; }
 
                 # Mixed vault: only frontmatter markers and extra paths are listed.
                 v="$TMPDIR/mixed"
@@ -731,14 +768,19 @@
                 note "$v/Body only.md" '---\ntitle: x\n---\nstatus: ready\ncloud: true\n'
                 note "$v/No frontmatter.md" 'status: ready\ncloud: true\n'
                 note "$v/Late fence.md" 'intro\n---\ncloud: true\n---\n'
+                note "$v/Unclosed.md" '---\ntitle: x\nbody\ncloud: true\n'
+                note "$v/#ideas.md" '---\ncloud: true\n---\n'
                 note "$v/4. Archive/Old.md" '---\nstatus: ready\ncloud: true\n---\n'
                 note "$v/Tasks/_Tasks.md" '- [ ] task\n'
                 run mixed ${withExtra}
-                printf '%s\n' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md' > "$TMPDIR/expected"
+                printf '%s\n' '#ideas.md' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md' | sort > "$TMPDIR/expected"
                 diff -u "$TMPDIR/expected" "$TMPDIR/log-mixed/files" >&2 \
-                  || { echo "wrong --files-from list (expected vs actual above)" >&2; exit 1; }
-                grep -q -- '--files-from' "$TMPDIR/log-mixed/args" \
-                  || { echo "rclone was not called with --files-from" >&2; exit 1; }
+                  || { echo "wrong --files-from-raw list (expected vs actual above)" >&2; exit 1; }
+                grep -q -- '--files-from-raw ' "$TMPDIR/log-mixed/args" \
+                  || { echo "rclone was not called with --files-from-raw" >&2; exit 1; }
+                # A missing extra path is skipped (absent from the list above) with a warning.
+                grep -q 'Missing.md' "$TMPDIR/log-mixed/stderr" \
+                  || { echo "no warning for the missing extra path Missing.md" >&2; exit 1; }
                 touch $out
               '';
 
