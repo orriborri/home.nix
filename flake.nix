@@ -90,6 +90,7 @@
         # ./kirocrew-agents-workstation.nix) is off the workstations for now;
         # re-add both here to bring it back. The checks still cover it.
         ./pasta-service.nix
+        ./vault-drive-export.nix
         sops-nix.homeManagerModules.sops
         ./sops.nix
         {
@@ -622,6 +623,43 @@
               ''
                 [ "$installed" = false ] || {
                   echo "kirocrew.service is installed although kirocrew.enable = false" >&2
+                  exit 1
+                }
+                touch $out
+              '';
+
+          # Vault → Drive export: only the work profile gets the unit and timer,
+          # and the sync keeps its safety flags.
+          vault-drive-export-gated =
+            let
+              work = self.homeConfigurations.orre.config.systemd.user;
+              personal = self.homeConfigurations.orre-personal.config.systemd.user;
+            in
+            pkgs.runCommand "check-vault-drive-export-gated"
+              {
+                workService = lib.boolToString (work.services ? vault-drive-export);
+                workTimer = lib.boolToString (work.timers ? vault-drive-export);
+                personalService = lib.boolToString (personal.services ? vault-drive-export);
+                personalTimer = lib.boolToString (personal.timers ? vault-drive-export);
+                execStart = work.services.vault-drive-export.Service.ExecStart or "";
+              }
+              ''
+                [ "$workService/$workTimer" = true/true ] || {
+                  echo "orre lacks the vault-drive-export service or timer" >&2
+                  exit 1
+                }
+                [ "$personalService/$personalTimer" = false/false ] || {
+                  echo "orre-personal installs vault-drive-export" >&2
+                  exit 1
+                }
+                for flag in --files-from --delete-excluded --checksum '--max-delete 50'; do
+                  grep -q -- "$flag" "$execStart" || {
+                    echo "the export script lacks $flag" >&2
+                    exit 1
+                  }
+                done
+                grep -q 'gnugrep' "$execStart" || {
+                  echo "the export script does not put gnugrep on its PATH" >&2
                   exit 1
                 }
                 touch $out
