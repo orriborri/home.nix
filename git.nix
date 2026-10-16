@@ -3,35 +3,47 @@
 let
   # post-checkout hook (configured below, so it runs alongside husky's
   # hooksPath): on `git worktree add` (previous HEAD is the null sha), give the
-  # new worktree a copy-on-write (reflink) copy of the main checkout's
-  # node_modules. Workspace links inside node_modules are relative, so they
-  # resolve to the new worktree's own packages. Never fails the checkout.
+  # new worktree a copy-on-write (reflink) copy of every node_modules in the
+  # main checkout (**/node_modules, outermost only, skipping other worktrees
+  # nested inside it). Workspace links inside node_modules are relative, so
+  # they resolve to the new worktree's own packages. Never fails the checkout.
   nodeModulesCow = pkgs.writeShellApplication {
     name = "git-node-modules-cow";
     runtimeInputs = [
       pkgs.git
       pkgs.coreutils
       pkgs.gawk
+      pkgs.findutils
     ];
     text = ''
       [ "''${1:-}" = 0000000000000000000000000000000000000000 ] || exit 0
 
       new=$(git rev-parse --show-toplevel)
-      main=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
-      src="$main/node_modules"
+      mapfile -t trees < <(git worktree list --porcelain | awk '/^worktree /{print $2}')
+      main=''${trees[0]}
+      [ "$new" != "$main" ] || exit 0
 
-      if [ "$new" = "$main" ] || [ ! -d "$src" ] || [ -L "$src" ] || [ -e "$new/node_modules" ]; then
-        exit 0
-      fi
+      skip=(-name .git)
+      for t in "''${trees[@]:1}"; do skip+=(-o -path "$t"); done
 
-      if cp -a --reflink=always "$src" "$new/node_modules" 2>/dev/null; then
-        pm=npm
-        [ -e "$new/pnpm-lock.yaml" ] && pm=pnpm
-        echo "node_modules: reflinked from $main. Next: $pm install"
-      else
-        rm -rf "$new/node_modules"
-        echo "node_modules: reflink not supported here, skipped" >&2
-      fi
+      copied=0
+      while IFS= read -r -d "" src; do
+        rel=''${src#"$main"/}
+        dst="$new/$rel"
+        # Only where this branch has the package and no node_modules yet.
+        if [ ! -d "$(dirname "$dst")" ] || [ -e "$dst" ]; then continue; fi
+        if ! cp -a --reflink=always "$src" "$dst" 2>/dev/null; then
+          rm -rf "$dst"
+          echo "node_modules: reflink not supported here, skipped" >&2
+          exit 0
+        fi
+        copied=$((copied + 1))
+      done < <(find "$main" \( "''${skip[@]}" \) -prune -o -type d -name node_modules -prune -print0)
+
+      [ "$copied" -gt 0 ] || exit 0
+      pm=npm
+      [ -e "$new/pnpm-lock.yaml" ] && pm=pnpm
+      echo "node_modules: reflinked $copied dirs from $main. Next: $pm install"
     '';
   };
 in
