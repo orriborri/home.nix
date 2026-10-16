@@ -4,14 +4,14 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Locked vault (git-crypt header) → rclone is not called
-- [ ] No selected notes → rclone is not called
-- [ ] Frontmatter `status: ready` → note is in the list
-- [ ] Frontmatter `cloud: true` → note is in the list
-- [ ] Marker only in the body → note is not in the list
-- [ ] Marked note under `4. Archive/` → not in the list
-- [ ] `extraPaths` entries are in the list
-- [ ] The check follows the stub-command pattern of the existing `update-sh-*` checks
-- [ ] `nix flake check` passes
+- [x] Locked vault (git-crypt header) → rclone is not called
+- [x] No selected notes → rclone is not called
+- [x] Frontmatter `status: ready` → note is in the list
+- [x] Frontmatter `cloud: true` → note is in the list
+- [x] Marker only in the body → note is not in the list
+- [x] Marked note under `4. Archive/` → not in the list
+- [x] `extraPaths` entries are in the list
+- [x] The check follows the stub-command pattern of the existing `update-sh-*` checks
+- [x] `nix flake check` passes

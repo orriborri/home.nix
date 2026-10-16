@@ -665,6 +665,83 @@
                 touch $out
               '';
 
+          # Vault → Drive export selection: runs the built script in scratch
+          # vaults against a stub rclone that records its arguments and the
+          # --files-from list. Only frontmatter markers select a note; a locked
+          # vault or an empty selection never reaches rclone.
+          vault-drive-export-selection =
+            let
+              # writeShellApplication puts its runtimeInputs ahead of PATH, so
+              # the stub goes in as the script's rclone.
+              rclone = pkgs.writeShellScriptBin "rclone" ''
+                echo "$*" > "$RCLONE_LOG/args"
+                while [ $# -gt 0 ]; do
+                  [ "$1" = --files-from ] && sort "$2" > "$RCLONE_LOG/files"
+                  shift
+                done
+              '';
+              build =
+                extraPaths:
+                import ./vault-drive-export-script.nix {
+                  inherit
+                    pkgs
+                    lib
+                    rclone
+                    extraPaths
+                    ;
+                  vault = ".";
+                };
+              withExtra = build [ "Tasks/_Tasks.md" ];
+              withoutExtra = build [ ];
+            in
+            pkgs.runCommand "check-vault-drive-export-selection"
+              {
+                nativeBuildInputs = [
+                  pkgs.coreutils
+                  pkgs.diffutils
+                  pkgs.gnugrep
+                ];
+              }
+              ''
+                note() { mkdir -p "$(dirname "$1")"; printf -- "$2" > "$1"; }
+                run() {
+                  export RCLONE_LOG="$TMPDIR/log-$1"
+                  mkdir -p "$RCLONE_LOG"
+                  (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr" \
+                    || { echo "export failed in $1:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; }
+                }
+
+                # Locked vault: git-crypt header in Home.md, a marked note beside it.
+                note "$TMPDIR/locked/Home.md" '\0GITCRYPT\0ciphertext'
+                note "$TMPDIR/locked/Ready.md" '---\nstatus: ready\n---\n'
+                run locked ${withExtra}
+                [ ! -e "$TMPDIR/log-locked/args" ] || { echo "rclone ran on a locked vault" >&2; exit 1; }
+
+                # Nothing selected: markers only in bodies, no extra paths.
+                note "$TMPDIR/empty/Home.md" '# Home\n'
+                note "$TMPDIR/empty/Body.md" '---\ntitle: x\n---\nstatus: ready\ncloud: true\n'
+                run empty ${withoutExtra}
+                [ ! -e "$TMPDIR/log-empty/args" ] || { echo "rclone ran with no notes selected" >&2; exit 1; }
+
+                # Mixed vault: only frontmatter markers and extra paths are listed.
+                v="$TMPDIR/mixed"
+                note "$v/Home.md" '# Home\n'
+                note "$v/1. Projects/Ready.md" '---\nstatus: ready\n---\nbody\n'
+                note "$v/Cloud note.md" '---\ntitle: x\ncloud: true\n---\nbody\n'
+                note "$v/Body only.md" '---\ntitle: x\n---\nstatus: ready\ncloud: true\n'
+                note "$v/No frontmatter.md" 'status: ready\ncloud: true\n'
+                note "$v/Late fence.md" 'intro\n---\ncloud: true\n---\n'
+                note "$v/4. Archive/Old.md" '---\nstatus: ready\ncloud: true\n---\n'
+                note "$v/Tasks/_Tasks.md" '- [ ] task\n'
+                run mixed ${withExtra}
+                printf '%s\n' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md' > "$TMPDIR/expected"
+                diff -u "$TMPDIR/expected" "$TMPDIR/log-mixed/files" >&2 \
+                  || { echo "wrong --files-from list (expected vs actual above)" >&2; exit 1; }
+                grep -q -- '--files-from' "$TMPDIR/log-mixed/args" \
+                  || { echo "rclone was not called with --files-from" >&2; exit 1; }
+                touch $out
+              '';
+
           # D12: the gateway unit builds nothing, so it keeps systemd's default
           # start timeout (the 20 min override belongs to the source updater).
           kirocrew-gateway-default-timeout =
