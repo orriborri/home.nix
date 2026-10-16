@@ -663,6 +663,10 @@
                     exit 1
                   }
                 done
+                grep -qF 'state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/vault-drive-export"' "$execStart" || {
+                  echo "the export script does not keep its state under XDG_STATE_HOME" >&2
+                  exit 1
+                }
                 grep -q 'gnugrep' "$execStart" || {
                   echo "the export script does not put gnugrep on its PATH" >&2
                   exit 1
@@ -686,6 +690,8 @@
                   esac
                   shift
                 done
+                # RCLONE_FAIL=1: record the call, then fail like a Drive error.
+                [ -z "''${RCLONE_FAIL:-}" ]
               '';
               build =
                 extraPaths:
@@ -697,6 +703,8 @@
                     extraPaths
                     ;
                   vault = ".";
+                  # Relative to the scratch vault, so each case has its own state.
+                  stateDir = ".state";
                 };
               withExtra = build [
                 "Tasks/_Tasks.md"
@@ -714,8 +722,9 @@
               }
               ''
                 note() { mkdir -p "$(dirname "$1")"; printf -- "$2" > "$1"; }
+                # run <vault> <script> [log name]: expect exit 0.
                 run() {
-                  export RCLONE_LOG="$TMPDIR/log-$1"
+                  export RCLONE_LOG="$TMPDIR/log-''${3:-$1}"
                   mkdir -p "$RCLONE_LOG"
                   (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr" \
                     || { echo "export failed in $1:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; }
@@ -729,23 +738,108 @@
                   fi
                   [ ! -e "$RCLONE_LOG/args" ] || { echo "rclone ran in $1" >&2; exit 1; }
                 }
+                # Expect rclone to be called and fail, so the export fails.
+                run_rclone_fails() {
+                  export RCLONE_LOG="$TMPDIR/log-$1"
+                  mkdir -p "$RCLONE_LOG"
+                  if (cd "$TMPDIR/$1" && RCLONE_FAIL=1 "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr"; then
+                    echo "export in $1 exited 0 although rclone failed" >&2; exit 1
+                  fi
+                  [ -e "$RCLONE_LOG/args" ] || { echo "rclone did not run in $1" >&2; exit 1; }
+                }
+                # state <vault> <path>...: write the saved list of exported files.
+                state() {
+                  d="$TMPDIR/$1/.state"; shift
+                  mkdir -p "$d"; printf '%s\n' "$@" > "$d/exported"
+                }
+                # state_is <vault> [path...]: the saved list holds exactly these paths.
+                state_is() {
+                  f="$TMPDIR/$1/.state/exported"; shift
+                  : > "$TMPDIR/want"
+                  [ $# -eq 0 ] || printf '%s\n' "$@" | sort > "$TMPDIR/want"
+                  [ -e "$f" ] || { echo "no saved list at $f" >&2; exit 1; }
+                  sort "$f" | diff -u "$TMPDIR/want" - >&2 \
+                    || { echo "wrong saved list in $f (expected vs actual above)" >&2; exit 1; }
+                }
+                # files_are <log name> <path>...: rclone got exactly these paths.
+                files_are() {
+                  l="$TMPDIR/log-$1"; shift
+                  printf '%s\n' "$@" | sort > "$TMPDIR/want"
+                  diff -u "$TMPDIR/want" "$l/files" >&2 \
+                    || { echo "wrong --files-from-raw list in $l (expected vs actual above)" >&2; exit 1; }
+                }
+                no_rclone() {
+                  [ ! -e "$TMPDIR/log-$1/args" ] || { echo "rclone ran in $1: $2" >&2; exit 1; }
+                }
 
-                # Unreadable marked note: the selection fails, so the export fails.
+                # Unreadable marked note: the selection fails, so the export
+                # fails and the saved list is unchanged.
                 note "$TMPDIR/unreadable/Home.md" '# Home\n'
                 note "$TMPDIR/unreadable/Ready.md" '---\nstatus: ready\n---\n'
                 note "$TMPDIR/unreadable/Secret.md" '---\ncloud: true\n---\n'
                 chmod 000 "$TMPDIR/unreadable/Secret.md"
+                state unreadable 'Prev.md'
                 run_fails unreadable ${withoutExtra}
+                state_is unreadable 'Prev.md'
 
                 # Locked vault: git-crypt header in Home.md, a marked note beside it.
                 note "$TMPDIR/locked/Home.md" '\0GITCRYPT\0ciphertext'
                 note "$TMPDIR/locked/Ready.md" '---\nstatus: ready\n---\n'
+                state locked 'Prev.md'
                 run locked ${withExtra}
                 [ ! -e "$TMPDIR/log-locked/args" ] || { echo "rclone ran on a locked vault" >&2; exit 1; }
+                state_is locked 'Prev.md'
 
                 # No Home.md: the lock state is unknown, so fail closed.
                 note "$TMPDIR/nohome/Ready.md" '---\nstatus: ready\n---\n'
+                state nohome 'Prev.md'
                 run_fails nohome ${withoutExtra}
+                state_is nohome 'Prev.md'
+
+                # Un-sharing the last exported note: the first run syncs and
+                # saves the list; once the marker is gone, the next run deletes
+                # exactly the saved files (no sync) and empties the saved list.
+                v="$TMPDIR/unshare"
+                note "$v/Home.md" '# Home\n'
+                note "$v/#ideas.md" '---\ncloud: true\n---\n'
+                note "$v/Tasks/_Tasks.md" '- [ ] task\n'
+                run unshare ${withExtra} unshare-sync
+                grep -q '^sync \. gdrive:pasta-export ' "$TMPDIR/log-unshare-sync/args" \
+                  || { echo "first run did not sync . to gdrive:pasta-export: $(cat "$TMPDIR/log-unshare-sync/args")" >&2; exit 1; }
+                state_is unshare '#ideas.md' 'Tasks/_Tasks.md'
+                note "$v/#ideas.md" '---\ntitle: x\n---\n'
+                run unshare ${withExtra} unshare-delete
+                grep -q '^delete gdrive:pasta-export ' "$TMPDIR/log-unshare-delete/args" \
+                  || { echo "un-share did not run rclone delete: $(cat "$TMPDIR/log-unshare-delete/args")" >&2; exit 1; }
+                for flag in '--files-from-raw ' '--max-delete 50'; do
+                  grep -q -- "$flag" "$TMPDIR/log-unshare-delete/args" \
+                    || { echo "rclone delete lacks $flag" >&2; exit 1; }
+                done
+                files_are unshare-delete '#ideas.md' 'Tasks/_Tasks.md'
+                state_is unshare
+                # Nothing saved any more, so the next run does not call rclone.
+                run unshare ${withExtra} unshare-again
+                no_rclone unshare-again "with an empty saved list"
+
+                # A failed delete leaves the saved list unchanged.
+                note "$TMPDIR/delfail/Home.md" '# Home\n'
+                state delfail 'Prev.md'
+                run_rclone_fails delfail ${withoutExtra}
+                state_is delfail 'Prev.md'
+
+                # A failed sync leaves the saved list unchanged.
+                note "$TMPDIR/syncfail/Home.md" '# Home\n'
+                note "$TMPDIR/syncfail/Ready.md" '---\nstatus: ready\n---\n'
+                state syncfail 'Prev.md'
+                run_rclone_fails syncfail ${withoutExtra}
+                state_is syncfail 'Prev.md'
+
+                # Clean empty selection and an empty saved list: no rclone call.
+                note "$TMPDIR/emptystate/Home.md" '# Home\n'
+                mkdir -p "$TMPDIR/emptystate/.state"
+                : > "$TMPDIR/emptystate/.state/exported"
+                run emptystate ${withoutExtra}
+                no_rclone emptystate "with an empty saved list"
 
                 # Nothing selected: markers only in bodies, no extra paths.
                 note "$TMPDIR/empty/Home.md" '# Home\n'
@@ -781,6 +875,8 @@
                 # A missing extra path is skipped (absent from the list above) with a warning.
                 grep -q 'Missing.md' "$TMPDIR/log-mixed/stderr" \
                   || { echo "no warning for the missing extra path Missing.md" >&2; exit 1; }
+                # The saved list is what was exported.
+                state_is mixed '#ideas.md' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md'
                 touch $out
               '';
 

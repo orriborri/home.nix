@@ -5,6 +5,9 @@
   extraPaths,
   remote ? "gdrive:pasta-export",
   rclone ? pkgs.rclone,
+  # Where the list of last exported files is kept; relative paths resolve
+  # inside the vault. null: $XDG_STATE_HOME/vault-drive-export at run time.
+  stateDir ? null,
 }:
 
 # The export script, built from the vault path and the always-exported paths.
@@ -22,6 +25,14 @@ pkgs.writeShellApplication {
   ];
   text = ''
     cd ${lib.escapeShellArg vault}
+    ${
+      if stateDir == null then
+        ''state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/vault-drive-export"''
+      else
+        "state_dir=${lib.escapeShellArg stateDir}"
+    }
+    # The files the last successful run exported, one path per line.
+    saved="$state_dir/exported"
 
     # A locked git-crypt checkout holds ciphertext: the selector would match
     # nothing and --delete-excluded would empty the Drive mirror. Without
@@ -59,8 +70,18 @@ pkgs.writeShellApplication {
         fm && ($0 == "status: ready" || $0 == "cloud: true") { hit = 1 }
       ' <"$files" >"$list"
     # Extra paths alone never trigger a sync: test before appending them.
+    # An empty selection never syncs (that would wipe the mirror); it only
+    # deletes the files the last run exported, so un-sharing the last note
+    # still removes it.
     if [ ! -s "$list" ]; then
-      echo "no notes selected; leaving Drive mirror unchanged" >&2
+      if [ ! -s "$saved" ]; then
+        echo "no notes selected; leaving Drive mirror unchanged" >&2
+        exit 0
+      fi
+      echo "no notes selected; deleting the previously exported files" >&2
+      rclone delete ${lib.escapeShellArg remote} \
+        --files-from-raw "$saved" --max-delete 50
+      : >"$saved"
       exit 0
     fi
     extra=(${lib.escapeShellArgs extraPaths})
@@ -73,7 +94,12 @@ pkgs.writeShellApplication {
     done
 
     # --files-from-raw: a note named `#ideas.md` is a path, not a comment.
-    rclone sync .${lib.escapeShellArg remote} \
+    rclone sync . ${lib.escapeShellArg remote} \
       --files-from-raw "$list" --delete-excluded --checksum --max-delete 50
+
+    # Saved only after a successful sync (errexit stops a failed one above).
+    mkdir -p "$state_dir"
+    cp "$list" "$saved.tmp"
+    mv "$saved.tmp" "$saved"
   '';
 }
