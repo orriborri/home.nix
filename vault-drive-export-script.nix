@@ -20,6 +20,7 @@ pkgs.writeShellApplication {
     pkgs.ripgrep
     pkgs.gnugrep
     pkgs.gawk
+    pkgs.gnused
     pkgs.findutils
     pkgs.coreutils
   ];
@@ -48,7 +49,20 @@ pkgs.writeShellApplication {
 
     files=$(mktemp)
     list=$(mktemp)
-    trap 'rm -f "$files" "$list"' EXIT
+    del=$(mktemp)
+    keep=$(mktemp)
+    tmp=""
+    trap 'rm -f "$files" "$list" "$del" "$keep" "$tmp"' EXIT
+
+    # save <file>: replace the saved list with <file>, atomically (a temp
+    # file in the state dir renamed over it), so a crash never truncates it.
+    save() {
+      mkdir -p "$state_dir"
+      tmp=$(mktemp "$state_dir/exported.XXXXXX")
+      cat "$1" >"$tmp"
+      mv "$tmp" "$saved"
+      tmp=""
+    }
 
     # rg exits 1 when it finds no files; anything above that is an error, and
     # a failed selection must never reach rclone with a partial list.
@@ -78,10 +92,41 @@ pkgs.writeShellApplication {
         echo "no notes selected; leaving Drive mirror unchanged" >&2
         exit 0
       fi
-      echo "no notes selected; deleting the previously exported files" >&2
-      rclone delete ${lib.escapeShellArg remote} \
-        --files-from-raw "$saved" --max-delete 50
-      : >"$saved"
+      # A rebase, merge or cherry-pick (or a held index lock) can leave notes
+      # un-marked for a moment; never delete from such a transient state.
+      git_dir=.git
+      if [ -f .git ]; then
+        git_dir=$(sed -n 's/^gitdir: //p' .git)
+      fi
+      for op in index.lock rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+        if [ -e "$git_dir/$op" ]; then
+          echo "git operation in progress ($op); leaving Drive mirror unchanged" >&2
+          exit 0
+        fi
+      done
+      # Delete only saved files still in the vault, i.e. explicitly
+      # un-marked. A missing one stays on Drive and in the saved list, so a
+      # later run deletes it if it comes back un-marked.
+      while IFS= read -r p; do
+        if [ -e "$p" ]; then
+          printf '%s\n' "$p" >>"$del"
+        else
+          printf '%s\n' "$p" >>"$keep"
+        fi
+      done <"$saved"
+      # Over the cap, rclone would delete part of the set and fail; refuse
+      # up front so a mass un-marking needs a deliberate cleanup by hand.
+      n=$(wc -l <"$del")
+      if [ "$n" -gt 50 ]; then
+        echo "no notes selected; refusing to delete $n files, over the cap of 50" >&2
+        exit 1
+      fi
+      if [ -s "$del" ]; then
+        echo "no notes selected; deleting the previously exported files" >&2
+        rclone delete ${lib.escapeShellArg remote} \
+          --files-from-raw "$del" --max-delete 50 --rmdirs
+      fi
+      save "$keep"
       exit 0
     fi
     extra=(${lib.escapeShellArgs extraPaths})
@@ -93,13 +138,21 @@ pkgs.writeShellApplication {
       fi
     done
 
+    # A failed or interrupted sync may upload part of the list, so record
+    # the old and the new names first; an un-share can then delete either.
+    if [ -e "$saved" ]; then
+      sort -u "$saved" "$list" >"$files"
+    else
+      sort -u "$list" >"$files"
+    fi
+    save "$files"
+
     # --files-from-raw: a note named `#ideas.md` is a path, not a comment.
     rclone sync . ${lib.escapeShellArg remote} \
       --files-from-raw "$list" --delete-excluded --checksum --max-delete 50
 
-    # Saved only after a successful sync (errexit stops a failed one above).
-    mkdir -p "$state_dir"
-    cp "$list" "$saved.tmp"
-    mv "$saved.tmp" "$saved"
+    # After a successful sync the mirror is exactly the list (errexit stops
+    # a failed one above).
+    save "$list"
   '';
 }

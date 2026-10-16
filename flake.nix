@@ -722,30 +722,27 @@
               }
               ''
                 note() { mkdir -p "$(dirname "$1")"; printf -- "$2" > "$1"; }
-                # run <vault> <script> [log name]: expect exit 0.
+                # run <expect> <vault> <script> [log name]: run the export in a
+                # scratch vault, logging rclone to log-<log name> (default: vault).
+                #   ok           exit 0
+                #   fail         non-zero exit, rclone not called
+                #   rclone-fail  rclone called and failing (RCLONE_FAIL=1), non-zero exit
                 run() {
-                  export RCLONE_LOG="$TMPDIR/log-''${3:-$1}"
+                  expect=$1 vault=$2 script=$3
+                  export RCLONE_LOG="$TMPDIR/log-''${4:-$vault}"
                   mkdir -p "$RCLONE_LOG"
-                  (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr" \
-                    || { echo "export failed in $1:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; }
-                }
-                # Expect a non-zero exit and no rclone call.
-                run_fails() {
-                  export RCLONE_LOG="$TMPDIR/log-$1"
-                  mkdir -p "$RCLONE_LOG"
-                  if (cd "$TMPDIR/$1" && "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr"; then
-                    echo "export in $1 exited 0; expected a failure" >&2; exit 1
-                  fi
-                  [ ! -e "$RCLONE_LOG/args" ] || { echo "rclone ran in $1" >&2; exit 1; }
-                }
-                # Expect rclone to be called and fail, so the export fails.
-                run_rclone_fails() {
-                  export RCLONE_LOG="$TMPDIR/log-$1"
-                  mkdir -p "$RCLONE_LOG"
-                  if (cd "$TMPDIR/$1" && RCLONE_FAIL=1 "$2/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr"; then
-                    echo "export in $1 exited 0 although rclone failed" >&2; exit 1
-                  fi
-                  [ -e "$RCLONE_LOG/args" ] || { echo "rclone did not run in $1" >&2; exit 1; }
+                  rc=0
+                  (cd "$TMPDIR/$vault" && if [ "$expect" = rclone-fail ]; then export RCLONE_FAIL=1; fi \
+                    && "$script/bin/vault-drive-export") 2> "$RCLONE_LOG/stderr" || rc=$?
+                  case "$expect" in
+                    ok) [ "$rc" -eq 0 ] \
+                      || { echo "export failed in $vault:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; } ;;
+                    fail) [ "$rc" -ne 0 ] || { echo "export in $vault exited 0; expected a failure" >&2; exit 1; }
+                      [ ! -e "$RCLONE_LOG/args" ] || { echo "rclone ran in $vault" >&2; exit 1; } ;;
+                    rclone-fail) [ "$rc" -ne 0 ] || { echo "export in $vault exited 0 although rclone failed" >&2; exit 1; }
+                      [ -e "$RCLONE_LOG/args" ] || { echo "rclone did not run in $vault" >&2; exit 1; } ;;
+                    *) echo "run: unknown expectation $expect" >&2; exit 1 ;;
+                  esac
                 }
                 # state <vault> <path>...: write the saved list of exported files.
                 state() {
@@ -779,21 +776,21 @@
                 note "$TMPDIR/unreadable/Secret.md" '---\ncloud: true\n---\n'
                 chmod 000 "$TMPDIR/unreadable/Secret.md"
                 state unreadable 'Prev.md'
-                run_fails unreadable ${withoutExtra}
+                run fail unreadable ${withoutExtra}
                 state_is unreadable 'Prev.md'
 
                 # Locked vault: git-crypt header in Home.md, a marked note beside it.
                 note "$TMPDIR/locked/Home.md" '\0GITCRYPT\0ciphertext'
                 note "$TMPDIR/locked/Ready.md" '---\nstatus: ready\n---\n'
                 state locked 'Prev.md'
-                run locked ${withExtra}
-                [ ! -e "$TMPDIR/log-locked/args" ] || { echo "rclone ran on a locked vault" >&2; exit 1; }
+                run ok locked ${withExtra}
+                no_rclone locked "on a locked vault"
                 state_is locked 'Prev.md'
 
                 # No Home.md: the lock state is unknown, so fail closed.
                 note "$TMPDIR/nohome/Ready.md" '---\nstatus: ready\n---\n'
                 state nohome 'Prev.md'
-                run_fails nohome ${withoutExtra}
+                run fail nohome ${withoutExtra}
                 state_is nohome 'Prev.md'
 
                 # Un-sharing the last exported note: the first run syncs and
@@ -803,56 +800,104 @@
                 note "$v/Home.md" '# Home\n'
                 note "$v/#ideas.md" '---\ncloud: true\n---\n'
                 note "$v/Tasks/_Tasks.md" '- [ ] task\n'
-                run unshare ${withExtra} unshare-sync
+                run ok unshare ${withExtra} unshare-sync
                 grep -q '^sync \. gdrive:pasta-export ' "$TMPDIR/log-unshare-sync/args" \
                   || { echo "first run did not sync . to gdrive:pasta-export: $(cat "$TMPDIR/log-unshare-sync/args")" >&2; exit 1; }
                 state_is unshare '#ideas.md' 'Tasks/_Tasks.md'
                 note "$v/#ideas.md" '---\ntitle: x\n---\n'
-                run unshare ${withExtra} unshare-delete
+                run ok unshare ${withExtra} unshare-delete
                 grep -q '^delete gdrive:pasta-export ' "$TMPDIR/log-unshare-delete/args" \
                   || { echo "un-share did not run rclone delete: $(cat "$TMPDIR/log-unshare-delete/args")" >&2; exit 1; }
-                for flag in '--files-from-raw ' '--max-delete 50'; do
+                for flag in '--files-from-raw ' '--max-delete 50' '--rmdirs'; do
                   grep -q -- "$flag" "$TMPDIR/log-unshare-delete/args" \
                     || { echo "rclone delete lacks $flag" >&2; exit 1; }
                 done
                 files_are unshare-delete '#ideas.md' 'Tasks/_Tasks.md'
                 state_is unshare
                 # Nothing saved any more, so the next run does not call rclone.
-                run unshare ${withExtra} unshare-again
+                run ok unshare ${withExtra} unshare-again
                 no_rclone unshare-again "with an empty saved list"
+
+                # A git operation in progress (rebase, merge, cherry-pick, a held
+                # index lock) can leave notes un-marked for a moment: an empty
+                # selection then deletes nothing and keeps the saved list.
+                for op in index.lock rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+                  v="$TMPDIR/busy-$op"
+                  note "$v/Home.md" '# Home\n'
+                  note "$v/A.md" '---\ntitle: x\n---\n'
+                  case "$op" in
+                    rebase-*) mkdir -p "$v/.git/$op" ;;
+                    *) note "$v/.git/$op" "" ;;
+                  esac
+                  state "busy-$op" 'A.md'
+                  run ok "busy-$op" ${withoutExtra}
+                  no_rclone "busy-$op" "during a git operation ($op)"
+                  state_is "busy-$op" 'A.md'
+                done
+
+                # Only saved files still in the vault (explicitly un-marked) are
+                # deleted. A missing one (moved, or gone mid-checkout) stays on
+                # Drive and in the saved list, so a later run can still delete it
+                # if it comes back un-marked.
+                v="$TMPDIR/partial"
+                note "$v/Home.md" '# Home\n'
+                note "$v/A.md" '---\ntitle: x\n---\n'
+                state partial 'A.md' 'B.md'
+                run ok partial ${withoutExtra}
+                grep -q '^delete ' "$TMPDIR/log-partial/args" \
+                  || { echo "partial: rclone was not a delete: $(cat "$TMPDIR/log-partial/args")" >&2; exit 1; }
+                files_are partial 'A.md'
+                state_is partial 'B.md'
+
+                # More un-shared files than the 50-file cap: fail with the count
+                # and the cap, call no rclone, keep the saved list.
+                v="$TMPDIR/overcap"
+                note "$v/Home.md" '# Home\n'
+                for i in $(seq 1 51); do note "$v/N$i.md" 'un-marked\n'; done
+                state overcap $(seq -f 'N%g.md' 1 51)
+                run fail overcap ${withoutExtra}
+                grep -qE '(^|[^0-9])51([^0-9].*[^0-9]|[^0-9])50([^0-9]|$)' "$TMPDIR/log-overcap/stderr" \
+                  || { echo "overcap: stderr does not name 51 and the cap 50: $(cat "$TMPDIR/log-overcap/stderr")" >&2; exit 1; }
+                state_is overcap $(seq -f 'N%g.md' 1 51)
 
                 # A failed delete leaves the saved list unchanged.
                 note "$TMPDIR/delfail/Home.md" '# Home\n'
+                note "$TMPDIR/delfail/Prev.md" 'un-marked\n'
                 state delfail 'Prev.md'
-                run_rclone_fails delfail ${withoutExtra}
+                run rclone-fail delfail ${withoutExtra}
+                grep -q '^delete ' "$TMPDIR/log-delfail/args" \
+                  || { echo "delfail: rclone was not a delete: $(cat "$TMPDIR/log-delfail/args")" >&2; exit 1; }
                 state_is delfail 'Prev.md'
 
-                # A failed sync leaves the saved list unchanged.
+                # A failed sync may have uploaded some files: the saved list keeps
+                # the old names and adds the new ones, so an un-share can delete them.
                 note "$TMPDIR/syncfail/Home.md" '# Home\n'
                 note "$TMPDIR/syncfail/Ready.md" '---\nstatus: ready\n---\n'
                 state syncfail 'Prev.md'
-                run_rclone_fails syncfail ${withoutExtra}
-                state_is syncfail 'Prev.md'
+                run rclone-fail syncfail ${withoutExtra}
+                grep -q '^sync ' "$TMPDIR/log-syncfail/args" \
+                  || { echo "syncfail: rclone was not a sync: $(cat "$TMPDIR/log-syncfail/args")" >&2; exit 1; }
+                state_is syncfail 'Prev.md' 'Ready.md'
 
                 # Clean empty selection and an empty saved list: no rclone call.
                 note "$TMPDIR/emptystate/Home.md" '# Home\n'
                 mkdir -p "$TMPDIR/emptystate/.state"
                 : > "$TMPDIR/emptystate/.state/exported"
-                run emptystate ${withoutExtra}
+                run ok emptystate ${withoutExtra}
                 no_rclone emptystate "with an empty saved list"
 
                 # Nothing selected: markers only in bodies, no extra paths.
                 note "$TMPDIR/empty/Home.md" '# Home\n'
                 note "$TMPDIR/empty/Body.md" '---\ntitle: x\n---\nstatus: ready\ncloud: true\n'
-                run empty ${withoutExtra}
-                [ ! -e "$TMPDIR/log-empty/args" ] || { echo "rclone ran with no notes selected" >&2; exit 1; }
+                run ok empty ${withoutExtra}
+                no_rclone empty "with no notes selected"
 
                 # Extra paths alone do not count as a selection.
                 note "$TMPDIR/extraonly/Home.md" '# Home\n'
                 note "$TMPDIR/extraonly/Plain.md" 'no frontmatter\n'
                 note "$TMPDIR/extraonly/Tasks/_Tasks.md" '- [ ] task\n'
-                run extraonly ${withExtra}
-                [ ! -e "$TMPDIR/log-extraonly/args" ] || { echo "rclone ran with only extra paths selected" >&2; exit 1; }
+                run ok extraonly ${withExtra}
+                no_rclone extraonly "with only extra paths selected"
 
                 # Mixed vault: only frontmatter markers and extra paths are listed.
                 v="$TMPDIR/mixed"
@@ -866,7 +911,7 @@
                 note "$v/#ideas.md" '---\ncloud: true\n---\n'
                 note "$v/4. Archive/Old.md" '---\nstatus: ready\ncloud: true\n---\n'
                 note "$v/Tasks/_Tasks.md" '- [ ] task\n'
-                run mixed ${withExtra}
+                run ok mixed ${withExtra}
                 printf '%s\n' '#ideas.md' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md' | sort > "$TMPDIR/expected"
                 diff -u "$TMPDIR/expected" "$TMPDIR/log-mixed/files" >&2 \
                   || { echo "wrong --files-from-raw list (expected vs actual above)" >&2; exit 1; }
@@ -877,6 +922,11 @@
                   || { echo "no warning for the missing extra path Missing.md" >&2; exit 1; }
                 # The saved list is what was exported.
                 state_is mixed '#ideas.md' '1. Projects/Ready.md' 'Cloud note.md' 'Tasks/_Tasks.md'
+                # State writes go through a renamed temp file; none is left behind.
+                for d in mixed syncfail partial; do
+                  [ "$(ls -A "$TMPDIR/$d/.state")" = exported ] \
+                    || { echo "stray files in $d/.state: $(ls -A "$TMPDIR/$d/.state")" >&2; exit 1; }
+                done
                 touch $out
               '';
 
