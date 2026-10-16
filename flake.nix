@@ -677,7 +677,8 @@
           # Vault → Drive export selection: runs the built script in scratch
           # vaults against a stub rclone that records its arguments and the
           # --files-from-raw list. Only frontmatter markers select a note; a locked
-          # vault or an empty selection never reaches rclone.
+          # vault never reaches rclone, and an empty selection only deletes saved
+          # notes that still exist and were un-marked.
           vault-drive-export-selection =
             let
               # writeShellApplication puts its runtimeInputs ahead of PATH, so
