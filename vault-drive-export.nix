@@ -7,7 +7,7 @@
 
 # Home Manager module: one-way mirror of the whole vault (minus .git,
 # .obsidian, .trash and `4. Archive/`) to the Google Drive folder
-# "Readpeak Brain", so cloud scheduled tasks (Claude Cowork, Drive connector)
+# "readpeakVault", so cloud scheduled tasks (Claude Cowork, Drive connector)
 # can read it without the git-crypt key. Drive is a disposable mirror; git
 # stays the source of truth. The export refuses to upload while that folder
 # or anything in it is shared with anyone but the owner.
@@ -31,7 +31,7 @@ in
 
     systemd.user.services.vault-drive-export = {
       Unit = {
-        Description = "Mirror the vault to the Readpeak Brain Drive folder";
+        Description = "Mirror the vault to the readpeakVault Drive folder";
       };
       Service = {
         Type = "oneshot";

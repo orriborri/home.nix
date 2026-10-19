@@ -10,7 +10,7 @@
 # scratch vault and a stub rclone.
 let
   drive = "gdrive:";
-  folder = "Readpeak Brain";
+  folder = "readpeakVault";
   remote = drive + folder;
   # The opt-in export's folder; purged once the full mirror has synced.
   legacy = "pasta-export";

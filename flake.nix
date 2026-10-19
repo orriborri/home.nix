@@ -657,7 +657,7 @@
                   echo "orre-personal installs vault-drive-export" >&2
                   exit 1
                 }
-                for flag in "'gdrive:Readpeak Brain'" '--drive-metadata-permissions read' \
+                for flag in 'gdrive:readpeakVault' '--drive-metadata-permissions read' \
                   --delete-excluded --checksum '--max-delete "$cap"' "--exclude '/4. Archive/\*\*'"; do
                   grep -q -- "$flag" "$execStart" || {
                     echo "the export script lacks $flag" >&2
@@ -680,7 +680,7 @@
           # Vault → Drive export behaviour: runs the built script in scratch
           # vaults against a stub rclone that answers lsjson with canned Drive
           # permission listings and records every call. The whole vault is
-          # mirrored to "Readpeak Brain" only while nothing there is shared; a
+          # mirrored to "readpeakVault" only while nothing there is shared; a
           # locked vault or a git operation in progress never reaches rclone.
           vault-drive-export-behaviour =
             let
@@ -696,7 +696,7 @@
                     case "''${!#}" in
                       gdrive:)
                         if [ -e "$RCLONE_LOG/root.json" ]; then cat "$RCLONE_LOG/root.json"; else echo '[]'; fi ;;
-                      "gdrive:Readpeak Brain")
+                      "gdrive:readpeakVault")
                         [ -e "$RCLONE_LOG/tree.json" ] || { echo "directory not found" >&2; exit 3; }
                         cat "$RCLONE_LOG/tree.json" ;;
                       *) echo "stub rclone: unexpected lsjson of ''${!#}" >&2; exit 2 ;;
@@ -787,17 +787,17 @@
                   [ -z "$(ls -A "$TMPDIR/home-$c")" ] \
                     || { echo "export in $c wrote to HOME: $(find "$TMPDIR/home-$c")" >&2; exit 1; }
                 }
-                sync_re='^sync\|\.\|gdrive:Readpeak Brain\|'
+                sync_re='^sync\|\.\|gdrive:readpeakVault\|'
 
                 # Owner only: the folder and everything in it are private, so the
                 # whole vault is mirrored, minus .git, .obsidian, .trash and the archive.
                 vault private
-                { e 'Readpeak Brain' dir "$own"; e 'other' dir "$link"; } | listing private root
+                { e 'readpeakVault' dir "$own"; e 'other' dir "$link"; } | listing private root
                 { e 'Home.md' file "$own"; e '1. Projects' dir "$own"; e '1. Projects/Plan.md' file "$own"; } \
                   | listing private tree
                 run ok private
                 called private '^lsjson\|--dirs-only\|--metadata\|--drive-metadata-permissions\|read\|gdrive:\|$'
-                called private '^lsjson\|-R\|--metadata\|--drive-metadata-permissions\|read\|gdrive:Readpeak Brain\|$'
+                called private '^lsjson\|-R\|--metadata\|--drive-metadata-permissions\|read\|gdrive:readpeakVault\|$'
                 called private "$sync_re"
                 for flag in '--exclude|.git/**' '--exclude|.obsidian/**' '--exclude|.trash/**' \
                   '--exclude|/4. Archive/**' '--delete-excluded' '--checksum' '--max-delete|50'; do
@@ -815,7 +815,7 @@
                     vault "$c"
                     f=$own d=$own s=$own
                     case "$where" in folder) f=$perms ;; file) d=$perms ;; subdir) s=$perms ;; esac
-                    { e 'Readpeak Brain' dir "$f"; e 'pasta-export' dir "$own"; } | listing "$c" root
+                    { e 'readpeakVault' dir "$f"; e 'pasta-export' dir "$own"; } | listing "$c" root
                     { e 'Home.md' file "$d"; e '1. Projects' dir "$s"; e '1. Projects/Plan.md' file "$own"; } \
                       | listing "$c" tree
                     run refuse "$c"
@@ -825,11 +825,11 @@
 
                 # Permissions missing from the listing: unknown, so refuse.
                 vault noperms
-                e 'Readpeak Brain' dir "$own" | listing noperms root
+                e 'readpeakVault' dir "$own" | listing noperms root
                 { e 'Home.md' file "$own"; e '1. Projects/Plan.md' file; } | listing noperms tree
                 run refuse noperms
                 vault nofolderperms
-                e 'Readpeak Brain' dir | listing nofolderperms root
+                e 'readpeakVault' dir | listing nofolderperms root
                 e 'Home.md' file "$own" | listing nofolderperms tree
                 run refuse nofolderperms
 
@@ -843,7 +843,7 @@
                 # Migration: an old pasta-export folder is purged after a
                 # successful sync, never after a failed one.
                 vault migrate
-                { e 'Readpeak Brain' dir "$own"; e 'pasta-export' dir "$own"; } | listing migrate root
+                { e 'readpeakVault' dir "$own"; e 'pasta-export' dir "$own"; } | listing migrate root
                 e 'Home.md' file "$own" | listing migrate tree
                 run ok migrate
                 [ "$(grep -oE '^(sync|purge)' "$TMPDIR/log-migrate/calls" | tr '\n' ' ')" = 'sync purge ' ] \
@@ -865,7 +865,7 @@
                   for i in $(seq 1 100); do note "$TMPDIR/$c/4. Archive/A$i.md" 'a\n'; done
                   for i in $(seq 1 100); do note "$TMPDIR/$c/.obsidian/O$i.json" '{}\n'; done
                   for i in $(seq 1 100); do note "$TMPDIR/$c/.git/objects/G$i" 'g\n'; done
-                  e 'Readpeak Brain' dir "$own" | listing "$c" root
+                  e 'readpeakVault' dir "$own" | listing "$c" root
                   { e 'Home.md' file "$own"; for i in $(seq 1 "$gone"); do e "Old/G$i.md" file "$own"; done; } \
                     | listing "$c" tree
                 done
