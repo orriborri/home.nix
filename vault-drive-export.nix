@@ -5,13 +5,12 @@
   ...
 }:
 
-# Home Manager module: one-way export of selected vault notes to Google Drive,
-# so cloud scheduled tasks (Claude Cowork, Drive connector) can read them
-# without the git-crypt key. Drive is a disposable mirror; git stays the
-# source of truth.
-#
-# Selection is opt-in per note: frontmatter `status: ready` or `cloud: true`,
-# plus the paths in `extraPaths`. Everything else never leaves the machine.
+# Home Manager module: one-way mirror of the whole vault (minus .git,
+# .obsidian, .trash and `4. Archive/`) to the Google Drive folder
+# "Readpeak Brain", so cloud scheduled tasks (Claude Cowork, Drive connector)
+# can read it without the git-crypt key. Drive is a disposable mirror; git
+# stays the source of truth. The export refuses to upload while that folder
+# or anything in it is shared with anyone but the owner.
 #
 # One-time setup (interactive OAuth, token stays out of the repo):
 #   rclone config create gdrive drive scope=drive.file
@@ -21,19 +20,9 @@ let
   enabled = cfg.enable && cfg.role == "workstation" && config.readpeak.enable;
 
   vault = "${config.home.homeDirectory}/Obsidian/Readpeak";
-  remote = "gdrive:pasta-export";
-  extraPaths = [
-    # "Tasks/_Tasks.md"
-  ];
 
   exportScript = import ./vault-drive-export-script.nix {
-    inherit
-      pkgs
-      lib
-      vault
-      extraPaths
-      remote
-      ;
+    inherit pkgs lib vault;
   };
 in
 {

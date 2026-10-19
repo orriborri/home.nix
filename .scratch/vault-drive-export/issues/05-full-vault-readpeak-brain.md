@@ -4,15 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Remote destination is `gdrive:Readpeak Brain`; the vault is mirrored with `rclone sync`, excluding `.git/`, `.obsidian/`, `.trash/` and `4. Archive/`
-- [ ] Sharing guard: before syncing, the script reads Drive permissions for the folder and every file in it (`rclone lsjson --metadata --drive-metadata-permissions read`); any permission other than a single owner (user, group, domain or anyone/link) → exit non-zero with a clear stderr message, no upload, no delete
-- [ ] If the folder does not exist yet (first run), the guard passes and the sync creates it
-- [ ] The git-crypt lock check (fail closed) and the mid-git-operation skip are kept
-- [ ] Deletion cap scales with the mirror: `--max-delete` is 10% of the vault's file count (minimum 50); a run that would exceed it fails without deleting
-- [ ] The frontmatter selection, saved-list state and un-share delete path are removed, along with their check cases; the state file is no longer written
-- [ ] One-time migration: if `gdrive:pasta-export` exists, it is purged (to Drive trash) after a successful sync to `Readpeak Brain`
-- [ ] Checks: the stub rclone simulates permission listings (owner only / shared with a user / anyone-with-link / missing folder) and records sync arguments; the gated check asserts the new destination and flags
-- [ ] Spec updated: Solution, stories and decisions describe the full mirror and the sharing guard; opt-in stories marked superseded by this ticket
-- [ ] `nix flake check` passes
+- [x] Remote destination is `gdrive:Readpeak Brain`; the vault is mirrored with `rclone sync`, excluding `.git/`, `.obsidian/`, `.trash/` and `4. Archive/`
+- [x] Sharing guard: before syncing, the script reads Drive permissions for the folder and every file in it (`rclone lsjson --metadata --drive-metadata-permissions read`); any permission other than a single owner (user, group, domain or anyone/link) → exit non-zero with a clear stderr message, no upload, no delete
+- [x] If the folder does not exist yet (first run), the guard passes and the sync creates it
+- [x] The git-crypt lock check (fail closed) and the mid-git-operation skip are kept
+- [x] Deletion cap scales with the mirror: `--max-delete` is 10% of the vault's file count (minimum 50); a run that would exceed it fails without deleting
+- [x] The frontmatter selection, saved-list state and un-share delete path are removed, along with their check cases; the state file is no longer written
+- [x] One-time migration: if `gdrive:pasta-export` exists, it is purged (to Drive trash) after a successful sync to `Readpeak Brain`
+- [x] Checks: the stub rclone simulates permission listings (owner only / shared with a user / anyone-with-link / missing folder) and records sync arguments; the gated check asserts the new destination and flags
+- [x] Spec updated: Solution, stories and decisions describe the full mirror and the sharing guard; opt-in stories marked superseded by this ticket
+- [x] `nix flake check` passes
