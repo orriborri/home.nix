@@ -5,7 +5,7 @@
   ...
 }:
 
-# Home Manager module: one-way mirror of the whole vault (minus .git,
+# Home Manager module: one-way mirror of the vault's git-tracked files (minus
 # .obsidian, .trash and `4. Archive/`) to the Google Drive folder
 # "readpeakVault", so cloud scheduled tasks (Claude Cowork, Drive connector)
 # can read it without the git-crypt key. Drive is a disposable mirror; git
@@ -39,6 +39,9 @@ in
         # A failed run (offline, Drive error) retries instead of waiting an hour.
         Restart = "on-failure";
         RestartSec = "5min";
+        # Exit 3 is a refusal (sharing, deletion cap, ciphertext, duplicates)
+        # that only a human can clear; retrying would just repeat it.
+        RestartPreventExitStatus = 3;
       };
     };
 

@@ -14,15 +14,9 @@ let
   remote = drive + folder;
   # The opt-in export's folder; purged once the full mirror has synced.
   legacy = "pasta-export";
-  # Never mirrored. Unanchored dirs match at any depth; find below prunes
-  # the same set so the deletion count matches what rclone keeps.
-  excludes = [
-    ".git/**"
-    ".obsidian/**"
-    ".trash/**"
-    "/4. Archive/**"
-  ];
-  excludeFlags = lib.concatMapStringsSep " " (p: "--exclude ${lib.escapeShellArg p}") excludes;
+  # Never mirrored, though tracked: .obsidian and .trash at any depth, the
+  # archive at the vault root. An ERE over the vault-relative path.
+  skip = "(^|/)[.](obsidian|trash)/|^4[.] Archive/";
   # A listing's entries, as a JSON array on stdin → the paths of those whose
   # permissions are anything but a single owner user. Missing or unparsable
   # permissions count as shared (fail closed). rclone reports them as a JSON
@@ -37,10 +31,10 @@ pkgs.writeShellApplication {
   name = "vault-drive-export";
   runtimeInputs = [
     rclone
+    pkgs.git
     pkgs.jq
     pkgs.gnugrep
     pkgs.gnused
-    pkgs.findutils
     pkgs.coreutils
   ];
   text = ''
@@ -79,6 +73,29 @@ pkgs.writeShellApplication {
     there=$(mktemp)
     trap 'rm -f "$root" "$top" "$tree" "$shared" "$here" "$there"' EXIT
 
+    # Exit 3 marks a refusal: a retry cannot help, so the unit does not
+    # restart on it (RestartPreventExitStatus=3). Real failures exit 1.
+    refuse() {
+      echo "$1" >&2
+      exit 3
+    }
+
+    # The upload list, the one source of truth for what the mirror holds:
+    # the git-tracked files present in the tree, minus the never-mirrored
+    # dirs. Untracked and gitignored files (indexes, caches) stay local.
+    git ls-files -z | { grep -zvE ${lib.escapeShellArg skip} || [ "$?" -eq 1 ]; } \
+      | while IFS= read -r -d "" p; do
+        if [ -f "$p" ]; then printf '%s\n' "$p"; fi
+      done | LC_ALL=C sort -u >"$here"
+
+    # A tracked file still in git-crypt ciphertext (its smudge filter did not
+    # run) must never replace the plaintext copy on Drive.
+    while IFS= read -r p; do
+      if [ "$(head -c 9 "$p" | tail -c +2)" = GITCRYPT ]; then
+        refuse "\"$p\" is git-crypt ciphertext; refusing to sync"
+      fi
+    done <"$here"
+
     # Sharing guard: the folder and everything in it must be private to the
     # owner. A listing error stops the script here (errexit), before any
     # upload or delete.
@@ -86,6 +103,9 @@ pkgs.writeShellApplication {
       ${lib.escapeShellArg drive} >"$root"
     folder=${lib.escapeShellArg folder}
     jq --arg f "$folder" '[.[] | select(.IsDir and .Name == $f)]' "$root" >"$top"
+    if [ "$(jq length "$top")" -gt 1 ]; then
+      refuse "Drive has more than one \"$folder\" folder; delete the extra one in the Drive UI"
+    fi
     jq -r ${lib.escapeShellArg sharedJq} "$top" >"$shared"
     if [ "$(jq length "$top")" -gt 0 ]; then
       rclone lsjson -R --metadata --drive-metadata-permissions read \
@@ -97,18 +117,21 @@ pkgs.writeShellApplication {
     fi
 
     if [ -s "$shared" ]; then
-      {
+      refuse "$(
         echo "\"$folder\" or files in it are shared beyond the owner (or their permissions are unknown); refusing to sync:"
         head -n 10 "$shared"
-      } >&2
-      exit 1
+      )"
     fi
 
-    # Deletion cap: 10% of the vault's files, at least 50. Count the files
-    # on Drive that the sync would delete and refuse up front, since rclone
+    # Drive allows two files at one path; rclone cannot mirror onto that.
+    if [ -n "$(jq -r '.[].Path' "$tree" | LC_ALL=C sort | uniq -d)" ]; then
+      refuse "\"$folder\" holds duplicate paths; run: rclone dedupe ${remote}"
+    fi
+
+    # Deletion cap: 10% of the mirrored files, at least 50. Count the files
+    # on Drive missing from the upload list (the sync deletes them, those
+    # under never-mirrored dirs included) and refuse up front, since rclone
     # would delete part of them before hitting --max-delete.
-    find . \( -type d \( -name .git -o -name .obsidian -o -name .trash -o -path './4. Archive' \) \) -prune \
-      -o -type f -print | sed 's|^\./||' | LC_ALL=C sort -u >"$here"
     n=$(wc -l <"$here")
     cap=$((n / 10))
     if [ "$cap" -lt 50 ]; then
@@ -117,18 +140,20 @@ pkgs.writeShellApplication {
     jq -r '.[] | select(.IsDir | not) | .Path' "$tree" | LC_ALL=C sort -u >"$there"
     gone=$(LC_ALL=C comm -23 "$there" "$here" | wc -l)
     if [ "$gone" -gt "$cap" ]; then
-      echo "refusing to delete $gone files from \"$folder\", over the cap of $cap" >&2
-      exit 1
+      refuse "refusing to delete $gone files from \"$folder\", over the cap of $cap"
     fi
 
-    rclone sync . ${lib.escapeShellArg remote} ${excludeFlags} \
+    rclone sync . ${lib.escapeShellArg remote} --files-from-raw "$here" \
       --delete-excluded --checksum --max-delete "$cap"
 
     # One-time migration: the opt-in export's folder goes to the Drive trash
-    # once the full mirror has synced (errexit stops a failed sync above).
+    # once the full mirror has synced (errexit stops a failed sync above). A
+    # failed purge only warns; the next run retries it.
     if jq -e --arg f ${lib.escapeShellArg legacy} 'any(.[]; .IsDir and .Name == $f)' "$root" >/dev/null; then
       echo "purging the old ${legacy} folder" >&2
-      rclone purge ${lib.escapeShellArg (drive + legacy)}
+      if ! rclone purge ${lib.escapeShellArg (drive + legacy)}; then
+        echo "warning: could not purge the old ${legacy} folder; the next run retries" >&2
+      fi
     fi
   '';
 }

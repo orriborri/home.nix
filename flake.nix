@@ -643,10 +643,16 @@
                 personalTimer = lib.boolToString (personal.timers ? vault-drive-export);
                 execStart = work.services.vault-drive-export.Service.ExecStart or "";
                 restart = work.services.vault-drive-export.Service.Restart or "";
+                noRestart = toString (work.services.vault-drive-export.Service.RestartPreventExitStatus or "");
               }
               ''
                 [ "$restart" = on-failure ] || {
                   echo "vault-drive-export.service lacks Restart=on-failure (got '$restart')" >&2
+                  exit 1
+                }
+                # Exit 3 is a refusal (sharing, cap, ciphertext, duplicates): retrying cannot help.
+                [ "$noRestart" = 3 ] || {
+                  echo "vault-drive-export.service lacks RestartPreventExitStatus=3 (got '$noRestart')" >&2
                   exit 1
                 }
                 [ "$workService/$workTimer" = true/true ] || {
@@ -658,17 +664,17 @@
                   exit 1
                 }
                 for flag in 'gdrive:readpeakVault' '--drive-metadata-permissions read' \
-                  --delete-excluded --checksum '--max-delete "$cap"' "--exclude '/4. Archive/\*\*'"; do
+                  --delete-excluded --checksum '--max-delete "$cap"' '--files-from-raw' 'ls-files -z'; do
                   grep -q -- "$flag" "$execStart" || {
                     echo "the export script lacks $flag" >&2
                     exit 1
                   }
                 done
-                if grep -q -- '--files-from' "$execStart"; then
-                  echo "the export script still selects files (--files-from); it mirrors the whole vault" >&2
+                if grep -q -- '--exclude' "$execStart"; then
+                  echo "the export script passes --exclude; the git-tracked upload list is the only filter" >&2
                   exit 1
                 fi
-                for dep in gnugrep jq; do
+                for dep in git gnugrep jq; do
                   grep -q -- "-$dep-" "$execStart" || {
                     echo "the export script does not put $dep on its PATH" >&2
                     exit 1
@@ -679,7 +685,7 @@
 
           # Vault → Drive export behaviour: runs the built script in scratch
           # vaults against a stub rclone that answers lsjson with canned Drive
-          # permission listings and records every call. The whole vault is
+          # permission listings and records every call. The git-tracked vault is
           # mirrored to "readpeakVault" only while nothing there is shared; a
           # locked vault or a git operation in progress never reaches rclone.
           vault-drive-export-behaviour =
@@ -701,8 +707,17 @@
                         cat "$RCLONE_LOG/tree.json" ;;
                       *) echo "stub rclone: unexpected lsjson of ''${!#}" >&2; exit 2 ;;
                     esac ;;
+                  # The upload list is a temp file the export removes; keep a copy.
                   # RCLONE_FAIL=1: record the call, then fail like a Drive error.
-                  sync | purge) [ -z "''${RCLONE_FAIL:-}" ] ;;
+                  sync)
+                    prev=
+                    for a in "$@"; do
+                      [ "$prev" = --files-from-raw ] && cp "$a" "$RCLONE_LOG/files"
+                      prev=$a
+                    done
+                    [ -z "''${RCLONE_FAIL:-}" ] ;;
+                  # A purge-fails file in the log dir fails only the purge.
+                  purge) [ -z "''${RCLONE_FAIL:-}" ] && [ ! -e "$RCLONE_LOG/purge-fails" ] ;;
                   *) echo "stub rclone: unexpected command $1" >&2; exit 2 ;;
                 esac
               '';
@@ -716,17 +731,26 @@
                 nativeBuildInputs = [
                   pkgs.coreutils
                   pkgs.findutils
+                  pkgs.git
                   pkgs.gnugrep
                   pkgs.jq
                 ];
               }
               ''
+                export HOME="$TMPDIR"
                 note() { mkdir -p "$(dirname "$1")"; printf -- "$2" > "$1"; }
-                # vault <case>: a scratch unlocked vault with a few notes.
+                # track <case>: put every file in the scratch vault <case> in
+                # its git index (git init on first use).
+                track() {
+                  [ -e "$TMPDIR/$1/.git" ] || git init -q "$TMPDIR/$1"
+                  git -C "$TMPDIR/$1" add -A
+                }
+                # vault <case>: a scratch unlocked vault with a few tracked notes.
                 vault() {
                   note "$TMPDIR/$1/Home.md" '# Home\n'
                   note "$TMPDIR/$1/1. Projects/Plan.md" 'plan\n'
                   note "$TMPDIR/$1/#ideas.md" 'ideas\n'
+                  track "$1"
                 }
                 owner='{"emailAddress":"oscar.henriksson@readpeak.com","id":"o","role":"owner","type":"user"}'
                 own="[$owner]"
@@ -764,34 +788,58 @@
                 }
                 # run <expect> <case>: run the export in the scratch vault <case>.
                 #   ok           exit 0
-                #   refuse       non-zero exit, no sync, purge or delete
-                #   rclone-fail  sync failing (RCLONE_FAIL=1), non-zero exit
+                #   refuse       exit 3 (systemd does not retry), no sync, purge or delete
+                #   fail         non-zero exit other than 3, no sync, purge or delete
+                #   rclone-fail  sync failing (RCLONE_FAIL=1), non-zero exit other than 3
                 run() {
                   expect=$1 c=$2
                   export RCLONE_LOG="$TMPDIR/log-$c"
-                  mkdir -p "$RCLONE_LOG" "$TMPDIR/home-$c"
+                  mkdir -p "$RCLONE_LOG"
                   rc=0
                   (cd "$TMPDIR/$c" && if [ "$expect" = rclone-fail ]; then export RCLONE_FAIL=1; fi \
-                    && HOME="$TMPDIR/home-$c" XDG_STATE_HOME= "${script}/bin/vault-drive-export") \
+                    && "${script}/bin/vault-drive-export") \
                     2> "$RCLONE_LOG/stderr" || rc=$?
                   touch "$RCLONE_LOG/calls"
                   case "$expect" in
                     ok) [ "$rc" -eq 0 ] \
                       || { echo "export failed in $c:" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; } ;;
-                    refuse) [ "$rc" -ne 0 ] || { echo "export in $c exited 0; expected a refusal" >&2; exit 1; }
+                    refuse) [ "$rc" -eq 3 ] \
+                      || { echo "export in $c exited $rc; expected a refusal (3):" >&2; cat "$RCLONE_LOG/stderr" >&2; exit 1; }
                       not_called "$c" '^(sync|purge|delete)\|' "when refusing" ;;
-                    rclone-fail) [ "$rc" -ne 0 ] || { echo "export in $c exited 0 although rclone failed" >&2; exit 1; } ;;
+                    fail) [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ] \
+                      || { echo "export in $c exited $rc; expected a failure other than 3" >&2; exit 1; }
+                      not_called "$c" '^(sync|purge|delete)\|' "when failing" ;;
+                    rclone-fail) [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ] \
+                      || { echo "export in $c exited $rc although rclone failed; expected a failure other than 3" >&2; exit 1; } ;;
                     *) echo "run: unknown expectation $expect" >&2; exit 1 ;;
                   esac
-                  # The export keeps no state of its own.
-                  [ -z "$(ls -A "$TMPDIR/home-$c")" ] \
-                    || { echo "export in $c wrote to HOME: $(find "$TMPDIR/home-$c")" >&2; exit 1; }
+                }
+                # uploads <case> <path>...: the sync's upload list is exactly these paths.
+                uploads() {
+                  c=$1
+                  shift
+                  [ -e "$TMPDIR/log-$c/files" ] || { echo "$c: sync got no --files-from-raw list" >&2; calls "$c"; exit 1; }
+                  want=$(printf '%s\n' "$@" | LC_ALL=C sort)
+                  got=$(LC_ALL=C sort "$TMPDIR/log-$c/files")
+                  [ "$got" = "$want" ] \
+                    || { printf '%s: upload list is\n%s\nwant\n%s\n' "$c" "$got" "$want" >&2; exit 1; }
                 }
                 sync_re='^sync\|\.\|gdrive:readpeakVault\|'
 
-                # Owner only: the folder and everything in it are private, so the
-                # whole vault is mirrored, minus .git, .obsidian, .trash and the archive.
+                # Owner only: the folder and everything in it are private, so every
+                # git-tracked file is mirrored, minus .obsidian, .trash and the
+                # archive. Untracked and gitignored files stay local.
                 vault private
+                note "$TMPDIR/private/.gitignore" 'ignored.md\n'
+                note "$TMPDIR/private/.obsidian/app.json" '{}\n'
+                note "$TMPDIR/private/1. Projects/.obsidian/x.json" '{}\n'
+                note "$TMPDIR/private/.trash/Old.md" 'old\n'
+                note "$TMPDIR/private/4. Archive/Done.md" 'done\n'
+                note "$TMPDIR/private/Deleted.md" 'deleted\n'
+                track private
+                rm "$TMPDIR/private/Deleted.md"
+                note "$TMPDIR/private/.lancedb/x" 'index\n'
+                note "$TMPDIR/private/ignored.md" 'ignored\n'
                 { e 'readpeakVault' dir "$own"; e 'other' dir "$link"; } | listing private root
                 { e 'Home.md' file "$own"; e '1. Projects' dir "$own"; e '1. Projects/Plan.md' file "$own"; } \
                   | listing private tree
@@ -799,13 +847,50 @@
                 called private '^lsjson\|--dirs-only\|--metadata\|--drive-metadata-permissions\|read\|gdrive:\|$'
                 called private '^lsjson\|-R\|--metadata\|--drive-metadata-permissions\|read\|gdrive:readpeakVault\|$'
                 called private "$sync_re"
-                for flag in '--exclude|.git/**' '--exclude|.obsidian/**' '--exclude|.trash/**' \
-                  '--exclude|/4. Archive/**' '--delete-excluded' '--checksum' '--max-delete|50'; do
+                for flag in '--files-from-raw' '--delete-excluded' '--checksum' '--max-delete|50'; do
                   grep "^sync|" "$TMPDIR/log-private/calls" | grep -qF -- "|$flag|" \
                     || { echo "private: sync lacks $flag; calls:" >&2; calls private; exit 1; }
                 done
-                not_called private '--files-from' "(the whole vault is mirrored)"
+                not_called private '--exclude\|' "(the upload list is the only filter)"
                 not_called private '^purge\|' "without a pasta-export folder"
+                uploads private 'Home.md' '1. Projects/Plan.md' '#ideas.md' '.gitignore'
+
+                # The vault as a git worktree: .git is a file naming the git dir.
+                git init -q --separate-git-dir "$TMPDIR/gitdir-gitfile" "$TMPDIR/gitfile"
+                vault gitfile
+                e 'readpeakVault' dir "$own" | listing gitfile root
+                e 'Home.md' file "$own" | listing gitfile tree
+                run ok gitfile
+                uploads gitfile 'Home.md' '1. Projects/Plan.md' '#ideas.md'
+                git init -q --separate-git-dir "$TMPDIR/gitdir-busy-gitfile" "$TMPDIR/busy-gitfile"
+                vault busy-gitfile
+                note "$TMPDIR/gitdir-busy-gitfile/MERGE_HEAD" ""
+                run ok busy-gitfile
+                not_called busy-gitfile . "during a git operation in the gitfile's git dir"
+
+                # A tracked file still in git-crypt ciphertext (smudge filter not
+                # run): refuse before any rclone call.
+                vault cipher
+                note "$TMPDIR/cipher/1. Projects/Secret.md" '\0GITCRYPT\0ciphertext'
+                track cipher
+                run refuse cipher
+                not_called cipher . "with a ciphertext file in the vault"
+                says cipher 'GITCRYPT|ciphertext|encrypted'
+                says cipher 'Secret\.md'
+
+                # Two readpeakVault folders on Drive: refuse and say which to delete.
+                vault twofolders
+                { e 'readpeakVault' dir "$own"; e 'readpeakVault' dir "$own"; } | listing twofolders root
+                e 'Home.md' file "$own" | listing twofolders tree
+                run refuse twofolders
+                says twofolders 'delete'
+
+                # Duplicate paths inside the folder: refuse and point at rclone dedupe.
+                vault duppaths
+                e 'readpeakVault' dir "$own" | listing duppaths root
+                { e 'Home.md' file "$own"; e 'Home.md' file "$own"; } | listing duppaths tree
+                run refuse duppaths
+                says duppaths 'rclone dedupe gdrive:readpeakVault'
 
                 # Shared beyond the owner, on the folder or anything in it: refuse.
                 for kind in user link group domain; do
@@ -854,28 +939,43 @@
                 run rclone-fail migratefail
                 called migratefail "$sync_re"
                 not_called migratefail '^purge\|' "after a failed sync"
+                # A failed purge only warns; the sync succeeded, so the run does too.
+                vault purgefail
+                e 'pasta-export' dir "$own" | listing purgefail root
+                touch "$TMPDIR/log-purgefail/purge-fails"
+                run ok purgefail
+                called purgefail '^purge\|gdrive:pasta-export\|$'
+                says purgefail 'pasta-export'
 
-                # Deletion cap: 10% of the vault's files (minimum 50). 600 files
-                # outside the excluded dirs give a cap of 60; 60 files on Drive that
-                # are gone from the vault sync, 61 fail without any deletion.
-                for gone in 60 61; do
-                  c="cap-$gone"
+                # Deletion cap: 10% of the mirrored files (minimum 50). 600 tracked
+                # files outside the excluded dirs give a cap of 60; 60 files on
+                # Drive missing from the upload list sync, 61 fail without any
+                # deletion. Files under excluded dirs that are already on Drive
+                # count as deletions too (--delete-excluded removes them).
+                for c in cap-60 cap-61 cap-excluded; do
                   note "$TMPDIR/$c/Home.md" '# Home\n'
                   for i in $(seq 1 599); do note "$TMPDIR/$c/Notes/N$i.md" 'n\n'; done
                   for i in $(seq 1 100); do note "$TMPDIR/$c/4. Archive/A$i.md" 'a\n'; done
                   for i in $(seq 1 100); do note "$TMPDIR/$c/.obsidian/O$i.json" '{}\n'; done
-                  for i in $(seq 1 100); do note "$TMPDIR/$c/.git/objects/G$i" 'g\n'; done
+                  track "$c"
+                  for i in $(seq 1 100); do note "$TMPDIR/$c/Untracked/U$i.md" 'u\n'; done
                   e 'readpeakVault' dir "$own" | listing "$c" root
-                  { e 'Home.md' file "$own"; for i in $(seq 1 "$gone"); do e "Old/G$i.md" file "$own"; done; } \
-                    | listing "$c" tree
                 done
+                for gone in 60 61; do
+                  { e 'Home.md' file "$own"; for i in $(seq 1 "$gone"); do e "Old/G$i.md" file "$own"; done; } \
+                    | listing "cap-$gone" tree
+                done
+                { e 'Home.md' file "$own"; for i in $(seq 1 31); do e "4. Archive/A$i.md" file "$own"; done
+                  for i in $(seq 1 30); do e ".obsidian/O$i.json" file "$own"; done; } | listing cap-excluded tree
                 run ok cap-60
                 called cap-60 "$sync_re"
                 grep '^sync|' "$TMPDIR/log-cap-60/calls" | grep -qF -- '|--max-delete|60|' \
                   || { echo "cap-60: sync lacks --max-delete 60; calls:" >&2; calls cap-60; exit 1; }
-                run refuse cap-61
-                grep -qE '(^|[^0-9])61([^0-9].*[^0-9]|[^0-9])60([^0-9]|$)' "$TMPDIR/log-cap-61/stderr" \
-                  || { echo "cap-61: stderr does not name 61 and the cap 60: $(cat "$TMPDIR/log-cap-61/stderr")" >&2; exit 1; }
+                for c in cap-61 cap-excluded; do
+                  run refuse "$c"
+                  grep -qE '(^|[^0-9])61([^0-9].*[^0-9]|[^0-9])60([^0-9]|$)' "$TMPDIR/log-$c/stderr" \
+                    || { echo "$c: stderr does not name 61 and the cap 60: $(cat "$TMPDIR/log-$c/stderr")" >&2; exit 1; }
+                done
 
                 # Locked vault: git-crypt header in Home.md, no rclone call at all.
                 note "$TMPDIR/locked/Home.md" '\0GITCRYPT\0ciphertext'
@@ -884,7 +984,7 @@
 
                 # No Home.md: the lock state is unknown, so fail closed.
                 note "$TMPDIR/nohome/Plan.md" 'plan\n'
-                run refuse nohome
+                run fail nohome
                 not_called nohome . "without Home.md"
 
                 # A git operation in progress (rebase, merge, cherry-pick, a held
