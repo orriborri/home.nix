@@ -126,6 +126,9 @@
       *) export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH" ;;
     esac
 
+    # Claude Code's Bash tool: pass unmatched globs through literally, as bash does
+    [[ -n "$CLAUDECODE" ]] && setopt NO_NOMATCH
+
     # Development paths (every shell, not just login -- most terminal
     # emulators spawn non-login shells, so profileExtra/.zprofile alone
     # would leave these unset)
