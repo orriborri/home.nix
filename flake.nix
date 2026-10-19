@@ -664,14 +664,16 @@
                   exit 1
                 }
                 for flag in 'gdrive:readpeakVault' '--drive-metadata-permissions read' \
-                  --delete-excluded --checksum '--max-delete "$cap"' '--files-from-raw' 'ls-files -z'; do
+                  --delete-excluded --checksum '--max-delete "$cap"' '--files-from-raw' \
+                  'ls-files -z --cached --others --exclude-standard'; do
                   grep -q -- "$flag" "$execStart" || {
                     echo "the export script lacks $flag" >&2
                     exit 1
                   }
                 done
-                if grep -q -- '--exclude' "$execStart"; then
-                  echo "the export script passes --exclude; the git-tracked upload list is the only filter" >&2
+                # git's --exclude-standard picks the list; no rclone --exclude* flag.
+                if grep -oE -- '--exclude[-a-z]*' "$execStart" | grep -qvx -- '--exclude-standard'; then
+                  echo "the export script passes --exclude; the upload list is the only filter" >&2
                   exit 1
                 fi
                 for dep in git gnugrep jq; do
@@ -685,8 +687,9 @@
 
           # Vault → Drive export behaviour: runs the built script in scratch
           # vaults against a stub rclone that answers lsjson with canned Drive
-          # permission listings and records every call. The git-tracked vault is
-          # mirrored to "readpeakVault" only while nothing there is shared; a
+          # permission listings and records every call. The vault's files that
+          # git does not ignore, minus .claude/, are mirrored to "readpeakVault"
+          # only while nothing there is shared; a
           # locked vault or a git operation in progress never reaches rclone.
           vault-drive-export-behaviour =
             let
@@ -827,19 +830,26 @@
                 sync_re='^sync\|\.\|gdrive:readpeakVault\|'
 
                 # Owner only: the folder and everything in it are private, so every
-                # git-tracked file is mirrored, minus .obsidian, .trash and the
-                # archive. Untracked and gitignored files stay local.
+                # file git does not ignore (tracked or untracked, the archive and
+                # .llm-wiki included) is mirrored, minus .claude/ at any depth,
+                # even where tracked. Gitignored files and tracked files missing
+                # from the tree stay off Drive.
                 vault private
-                note "$TMPDIR/private/.gitignore" 'ignored.md\n'
+                note "$TMPDIR/private/.gitignore" '/.lancedb/\n/.obsidian/\n/.trash/\n/.history/\nignored.md\n'
                 note "$TMPDIR/private/.obsidian/app.json" '{}\n'
-                note "$TMPDIR/private/1. Projects/.obsidian/x.json" '{}\n'
                 note "$TMPDIR/private/.trash/Old.md" 'old\n'
+                note "$TMPDIR/private/.history/Home.md" 'old home\n'
                 note "$TMPDIR/private/4. Archive/Done.md" 'done\n'
+                note "$TMPDIR/private/.claude/settings.local.json" '{"token":"secret"}\n'
+                note "$TMPDIR/private/1. Projects/.claude/notes.md" 'agent\n'
                 note "$TMPDIR/private/Deleted.md" 'deleted\n'
                 track private
                 rm "$TMPDIR/private/Deleted.md"
                 note "$TMPDIR/private/.lancedb/x" 'index\n'
                 note "$TMPDIR/private/ignored.md" 'ignored\n'
+                note "$TMPDIR/private/0. Inbox/Daily/x.md" 'daily\n'
+                note "$TMPDIR/private/.llm-wiki/generated/y.md" 'wiki\n'
+                note "$TMPDIR/private/.claude/untracked.md" 'agent\n'
                 { e 'readpeakVault' dir "$own"; e 'other' dir "$link"; } | listing private root
                 { e 'Home.md' file "$own"; e '1. Projects' dir "$own"; e '1. Projects/Plan.md' file "$own"; } \
                   | listing private tree
@@ -853,7 +863,8 @@
                 done
                 not_called private '--exclude\|' "(the upload list is the only filter)"
                 not_called private '^purge\|' "without a pasta-export folder"
-                uploads private 'Home.md' '1. Projects/Plan.md' '#ideas.md' '.gitignore'
+                uploads private 'Home.md' '1. Projects/Plan.md' '#ideas.md' '.gitignore' \
+                  '4. Archive/Done.md' '0. Inbox/Daily/x.md' '.llm-wiki/generated/y.md'
 
                 # The vault as a git worktree: .git is a file naming the git dir.
                 git init -q --separate-git-dir "$TMPDIR/gitdir-gitfile" "$TMPDIR/gitfile"
@@ -947,26 +958,28 @@
                 called purgefail '^purge\|gdrive:pasta-export\|$'
                 says purgefail 'pasta-export'
 
-                # Deletion cap: 10% of the mirrored files (minimum 50). 600 tracked
-                # files outside the excluded dirs give a cap of 60; 60 files on
-                # Drive missing from the upload list sync, 61 fail without any
-                # deletion. Files under excluded dirs that are already on Drive
+                # Deletion cap: 10% of the mirrored files (minimum 50). 600 files
+                # in the upload list (.gitignore, Home.md, 299 tracked and 299
+                # untracked notes) give a cap of 60; 60 files on Drive missing
+                # from the upload list sync, 61 fail without any deletion. Files
+                # under .claude/ or gitignored paths that are already on Drive
                 # count as deletions too (--delete-excluded removes them).
                 for c in cap-60 cap-61 cap-excluded; do
+                  note "$TMPDIR/$c/.gitignore" '/.lancedb/\n'
                   note "$TMPDIR/$c/Home.md" '# Home\n'
-                  for i in $(seq 1 599); do note "$TMPDIR/$c/Notes/N$i.md" 'n\n'; done
-                  for i in $(seq 1 100); do note "$TMPDIR/$c/4. Archive/A$i.md" 'a\n'; done
-                  for i in $(seq 1 100); do note "$TMPDIR/$c/.obsidian/O$i.json" '{}\n'; done
+                  for i in $(seq 1 299); do note "$TMPDIR/$c/Notes/N$i.md" 'n\n'; done
+                  for i in $(seq 1 100); do note "$TMPDIR/$c/.claude/C$i.md" 'c\n'; done
+                  for i in $(seq 1 100); do note "$TMPDIR/$c/.lancedb/L$i" 'l\n'; done
                   track "$c"
-                  for i in $(seq 1 100); do note "$TMPDIR/$c/Untracked/U$i.md" 'u\n'; done
+                  for i in $(seq 1 299); do note "$TMPDIR/$c/Untracked/U$i.md" 'u\n'; done
                   e 'readpeakVault' dir "$own" | listing "$c" root
                 done
                 for gone in 60 61; do
                   { e 'Home.md' file "$own"; for i in $(seq 1 "$gone"); do e "Old/G$i.md" file "$own"; done; } \
                     | listing "cap-$gone" tree
                 done
-                { e 'Home.md' file "$own"; for i in $(seq 1 31); do e "4. Archive/A$i.md" file "$own"; done
-                  for i in $(seq 1 30); do e ".obsidian/O$i.json" file "$own"; done; } | listing cap-excluded tree
+                { e 'Home.md' file "$own"; for i in $(seq 1 31); do e ".claude/C$i.md" file "$own"; done
+                  for i in $(seq 1 30); do e ".lancedb/L$i" file "$own"; done; } | listing cap-excluded tree
                 run ok cap-60
                 called cap-60 "$sync_re"
                 grep '^sync|' "$TMPDIR/log-cap-60/calls" | grep -qF -- '|--max-delete|60|' \

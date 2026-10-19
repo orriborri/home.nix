@@ -14,9 +14,10 @@ let
   remote = drive + folder;
   # The opt-in export's folder; purged once the full mirror has synced.
   legacy = "pasta-export";
-  # Never mirrored, though tracked: .obsidian and .trash at any depth, the
-  # archive at the vault root. An ERE over the vault-relative path.
-  skip = "(^|/)[.](obsidian|trash)/|^4[.] Archive/";
+  # Never mirrored, even where tracked or not gitignored: .claude at any
+  # depth (settings.local.json may hold tokens). An ERE over the
+  # vault-relative path.
+  skip = "(^|/)[.]claude/";
   # A listing's entries, as a JSON array on stdin → the paths of those whose
   # permissions are anything but a single owner user. Missing or unparsable
   # permissions count as shared (fail closed). rclone reports them as a JSON
@@ -81,9 +82,10 @@ pkgs.writeShellApplication {
     }
 
     # The upload list, the one source of truth for what the mirror holds:
-    # the git-tracked files present in the tree, minus the never-mirrored
-    # dirs. Untracked and gitignored files (indexes, caches) stay local.
-    git ls-files -z | { grep -zvE ${lib.escapeShellArg skip} || [ "$?" -eq 1 ]; } \
+    # the files git does not ignore (tracked, and untracked but not
+    # gitignored) present in the tree, minus .claude. Gitignored files
+    # (.lancedb, .history, .obsidian and other indexes or caches) stay local.
+    git ls-files -z --cached --others --exclude-standard | { grep -zvE ${lib.escapeShellArg skip} || [ "$?" -eq 1 ]; } \
       | while IFS= read -r -d "" p; do
         if [ -f "$p" ]; then printf '%s\n' "$p"; fi
       done | LC_ALL=C sort -u >"$here"
@@ -130,7 +132,7 @@ pkgs.writeShellApplication {
 
     # Deletion cap: 10% of the mirrored files, at least 50. Count the files
     # on Drive missing from the upload list (the sync deletes them, those
-    # under never-mirrored dirs included) and refuse up front, since rclone
+    # under .claude or gitignored paths included) and refuse up front, since rclone
     # would delete part of them before hitting --max-delete.
     n=$(wc -l <"$here")
     cap=$((n / 10))
