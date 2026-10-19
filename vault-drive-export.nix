@@ -31,7 +31,7 @@ in
 
     systemd.user.services.vault-drive-export = {
       Unit = {
-        Description = "Export opt-in vault notes to Google Drive";
+        Description = "Mirror the vault to the Readpeak Brain Drive folder";
       };
       Service = {
         Type = "oneshot";
