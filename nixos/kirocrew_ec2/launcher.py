@@ -554,15 +554,36 @@ class Launcher:
                     f"{CLAUDE_REMOTE_CREDENTIALS}"
                 )
 
+        # One-time prompts the unit cannot answer without a terminal. Each is
+        # answered once, interactively, as the claude-remote uid in the
+        # workspace; claude records the answer, so the unit then starts.
+        prompts = {
+            "untrusted": (
+                (
+                    "The workspace is not trusted yet. Claude opens there now:\n"
+                    "  accept the trust prompt, then type /exit."
+                ),
+                claude,
+            ),
+            "enable": (
+                (
+                    "Remote Control asks to be enabled once. It starts here now:\n"
+                    "  answer y, wait until it says it is ready, then press Ctrl+C."
+                ),
+                f"{claude} remote-control --name kirocrew",
+            ),
+        }
         status, detail = self._restart_claude_remote(remote)
-        if status == "untrusted":
-            # remote-control refuses an untrusted working directory, and only
-            # the interactive trust dialog records trust.
-            print("\n» The workspace is not trusted yet. Claude opens there now:")
-            print("  accept the trust prompt, then type /exit.")
+        answered: set[str] = set()
+        while status in prompts and status not in answered:
+            answered.add(status)
+            message, command = prompts[status]
+            print(f"\n» {message}")
+            # Stop the unit so its restarts do not race the interactive run.
+            remote.run("root", "systemctl stop claude-remote")
             remote.interactive(
                 "root",
-                f"cd {shlex.quote(CLAUDE_REMOTE_WORKSPACE)} && {as_claude}{claude}",
+                f"cd {shlex.quote(CLAUDE_REMOTE_WORKSPACE)} && {as_claude}{command}",
             )
             status, detail = self._restart_claude_remote(remote)
         if status != "running":
@@ -604,7 +625,8 @@ class Launcher:
         log (or ""), "untrusted" when the workspace trust check failed, or
         "failed" with the unit's recent log lines. The unit restarts itself
         after a crash, so `is-active` alone right after start proves nothing;
-        the log since the restart decides.
+        the log since the restart decides. "enable" means it stopped at the
+        one-time "Enable Remote Control? (y/n)" prompt.
         """
         print("\n» Starting Claude Remote Control...")
         script = f"""since=$(date +%s)
@@ -613,6 +635,8 @@ sleep {CLAUDE_REMOTE_SETTLE_SECS}
 log=$(journalctl -u claude-remote --since "@$since" -o cat)
 if printf '%s\\n' "$log" | grep -q 'Workspace not trusted'; then
   echo untrusted
+elif printf '%s\\n' "$log" | grep -q 'Enable Remote Control?'; then
+  echo enable
 elif systemctl is-active --quiet claude-remote && ! printf '%s\\n' "$log" | grep -q 'Main process exited'; then
   echo running
   printf '%s\\n' "$log" | grep -o 'https://claude\\.ai/[^ ]*' | tail -n 1

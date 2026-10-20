@@ -346,12 +346,14 @@ class FakeClaudeRemote:
         trusted: bool = True,
         login_creates: bool = True,
         trust_accepts: bool = True,
+        enabled: bool = True,
         crashes: bool = False,
     ) -> None:
         self.logged_in = logged_in
         self.trusted = trusted
         self.login_creates = login_creates
         self.trust_accepts = trust_accepts
+        self.enabled = enabled
         self.crashes = crashes
         self.commands: list[str] = []
         self.interactive_calls: list[tuple[str, str]] = []
@@ -368,6 +370,8 @@ class FakeClaudeRemote:
         if "systemctl restart claude-remote" in command:
             if not self.trusted:
                 out = "untrusted\n"
+            elif not self.enabled:
+                out = "enable\n"
             elif self.crashes:
                 out = "failed\nMain process exited, code=exited, status=1/FAILURE\n"
             else:
@@ -380,6 +384,8 @@ class FakeClaudeRemote:
         if "auth login" in command:
             if self.login_creates:
                 self.logged_in = True
+        elif "remote-control" in command:
+            self.enabled = True
         elif self.trust_accepts:
             self.trusted = True
 
@@ -441,6 +447,18 @@ class ClaudeRemoteFlowTests(unittest.TestCase):
         self.assertIn("cd /var/lib/claude-remote/workspace", command)
         self.assertNotIn("auth login", command)
         self.assertEqual(remote.restarts, 2)
+
+    def test_trust_then_enable_prompts_are_each_answered_once(self):
+        remote = FakeClaudeRemote(logged_in=True, trusted=False, enabled=False)
+        self._run(remote)
+        commands = [c for _, c in remote.interactive_calls]
+        self.assertEqual(len(commands), 2)
+        self.assertNotIn("remote-control", commands[0])
+        self.assertIn("remote-control --name kirocrew", commands[1])
+        self.assertIn("cd /var/lib/claude-remote/workspace", commands[1])
+        self.assertEqual(remote.restarts, 3)
+        stops = [c for c in remote.commands if c == "systemctl stop claude-remote"]
+        self.assertEqual(len(stops), 2)
 
     def test_declined_trust_raises(self):
         remote = FakeClaudeRemote(logged_in=True, trusted=False, trust_accepts=False)
