@@ -115,8 +115,7 @@ in
       "tinyproxy.service"
     ];
     wants = [ "tinyproxy.service" ];
-    # git for --spawn worktree and pushes, nix for `nix-shell -p` through the
-    # daemon.
+    # git for clones and pushes, nix for `nix-shell -p` through the daemon.
     path = [
       pkgs.git
       pkgs.nix
@@ -132,7 +131,9 @@ in
       User = "claude-remote";
       Group = "claude-remote";
       WorkingDirectory = "${home}/workspace";
-      ExecStart = "${pkgs.claude-code}/bin/claude remote-control --name kirocrew --spawn worktree";
+      # same-dir: sessions share the workspace and clone the repos they need
+      # into it. worktree mode needs the workspace itself to be one git repo.
+      ExecStart = "${pkgs.claude-code}/bin/claude remote-control --name kirocrew --spawn same-dir";
       # GITLAB_TOKEN=..., rendered by sops (kirocrew-sops.nix). Optional, so
       # the unit still starts on a box without the secret.
       EnvironmentFile = "-${home}/secrets/gitlab.env";

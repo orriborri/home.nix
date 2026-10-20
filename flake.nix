@@ -1790,7 +1790,7 @@
                 [ "$rw" = /var/lib/claude-remote ] || fail "ReadWritePaths is '$rw'"
                 case "$unset" in *ANTHROPIC_API_KEY*ANTHROPIC_AUTH_TOKEN*) ;; *) fail "UnsetEnvironment is '$unset'" ;; esac
                 [ "$restart" = always ] || fail "Restart is '$restart'"
-                case "$execStart" in */bin/claude\ remote-control\ --name\ kirocrew\ --spawn\ worktree) ;; *) fail "ExecStart is '$execStart'" ;; esac
+                case "$execStart" in */bin/claude\ remote-control\ --name\ kirocrew\ --spawn\ same-dir) ;; *) fail "ExecStart is '$execStart'" ;; esac
                 [ "$cond" = /var/lib/claude-remote/.claude/.credentials.json ] || fail "ConditionPathExists is '$cond'"
                 [ "$wantedBy" = multi-user.target ] || fail "wantedBy is '$wantedBy'"
                 case " $after " in *" tinyproxy.service "*) ;; *) fail "not ordered after tinyproxy: '$after'" ;; esac
