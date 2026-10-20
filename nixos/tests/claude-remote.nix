@@ -7,7 +7,8 @@
 # hardening, IPAddressDeny/Allow, proxy variables and git config.
 #
 # Not covered (no internet, no claude.ai login in a VM): `nix-shell -p`, the
-# live Remote Control connection through the proxy, the enable/trust prompts.
+# live Remote Control connection through the proxy, the enable/trust prompts,
+# and a real GitLab fetch or push over altssh with the pinned host key.
 # Those are checked on the box (F1.7).
 { pkgs }:
 let
@@ -50,18 +51,26 @@ let
     # curl ignores uppercase HTTP_PROXY for plain http, so pass it explicitly.
     say imds_via_proxy "$(${curl} --proxy "$HTTP_PROXY" --output /dev/null --write-out '%{http_code}' http://169.254.169.254/latest/meta-data/ 2>&1)"
 
-    # git: a plain local push works (git itself is fine), an https push is
-    # rewritten to invalid-push:// and aborted.
+    # code tree: readable through code-writers (clone works), read-only
+    # inside the unit (ProtectSystem=strict).
     cd ${home}/workspace
-    ${pkgs.git}/bin/git init -q --bare local.git
-    ${pkgs.git}/bin/git init -q work
-    cd work
-    ${pkgs.git}/bin/git -c user.email=t@t -c user.name=t commit -q --allow-empty -m probe
-    ${pkgs.git}/bin/git push -q ${home}/workspace/local.git HEAD:refs/heads/probe 2>&1
-    say push_local_exit "$?"
-    ${pkgs.git}/bin/git push https://allowed.test/repo.git HEAD:refs/heads/probe > ${home}/workspace/push.err 2>&1
-    say push_https_exit "$?"
-    say push_https_msg "$(tr '\n' ' ' < ${home}/workspace/push.err)"
+    ${pkgs.git}/bin/git clone -q /var/lib/code/demo demo 2>&1
+    say clone_code_exit "$?"
+    ${pkgs.coreutils}/bin/touch /var/lib/code/demo/probe-write 2>/dev/null
+    say write_code_exit "$?"
+
+    # 1Password agent relay: ssh-add exits 1 for an agent with no keys and 2
+    # when it cannot reach an agent at all.
+    say agent_sock "$SSH_AUTH_SOCK"
+    ${pkgs.openssh}/bin/ssh-add -l > /dev/null 2>&1
+    say agent_exit "$?"
+
+    # GitLab SSH is rewritten to altssh.gitlab.com:443 through the proxy. This
+    # test's proxy does not list that host, so CONNECT is refused; the error
+    # shows the route git took.
+    PATH=${pkgs.openssh}/bin:$PATH ${pkgs.git}/bin/git ls-remote git@gitlab.com:readpeak/demo.git > ${home}/workspace/route.err 2>&1
+    say gitlab_route_exit "$?"
+    say gitlab_route_msg "$(tr '\n' ' ' < ${home}/workspace/route.err)"
   '';
 in
 pkgs.testers.runNixOSTest {
@@ -139,6 +148,18 @@ pkgs.testers.runNixOSTest {
         box.fail("test -e ${home}/workspace/probe.out")
 
     with subtest("after login the probe runs inside the unit"):
+        # A repo in the shared code tree, and a stand-in for the operator's
+        # forwarded 1Password agent.
+        box.succeed(
+            "install -d -m 2775 -g code-writers /var/lib/code",
+            "${pkgs.git}/bin/git init -q /var/lib/code/demo",
+            "${pkgs.git}/bin/git -C /var/lib/code/demo -c user.email=t@t -c user.name=t commit -q --allow-empty -m demo",
+            "chgrp -R code-writers /var/lib/code/demo",
+            "chmod -R g+rX,o-rwx /var/lib/code/demo",
+            "install -d -m 0755 /run/kirocrew-agent",
+            "${pkgs.openssh}/bin/ssh-agent -a /run/kirocrew-agent/orre-1p.sock",
+        )
+        box.wait_for_file("/run/claude-remote/1p-agent.sock")
         box.succeed(
             "install -d -m 0700 -o claude-remote -g claude-remote ${home}/.claude",
             "install -m 0600 -o claude-remote -g claude-remote /dev/null ${home}/.claude/.credentials.json",
@@ -163,9 +184,21 @@ pkgs.testers.runNixOSTest {
         assert r["imds_direct_exit"] != "0", r
         assert r["imds_via_proxy"] == "403", r
 
-    with subtest("git cannot push to a remote URL"):
-        assert r["push_local_exit"] == "0", r
-        assert r["push_https_exit"] != "0", r
-        assert "invalid-push" in r["push_https_msg"], r
+    with subtest("code tree is readable, not writable"):
+        assert r["clone_code_exit"] == "0", r
+        assert r["write_code_exit"] != "0", r
+
+    with subtest("the forwarded agent is reachable"):
+        assert r["agent_sock"] == "/run/claude-remote/1p-agent.sock", r
+        assert r["agent_exit"] == "1", r
+
+    with subtest("GitLab SSH goes to altssh.gitlab.com:443 through the proxy"):
+        assert r["gitlab_route_exit"] != "0", r
+        assert "altssh.gitlab.com" in r["gitlab_route_msg"], r
+
+    with subtest("the relay and its socket go away with the forward"):
+        box.succeed("pkill -f 'ssh-agent -a /run/kirocrew-agent/orre-1p.sock'")
+        box.succeed("rm -f /run/kirocrew-agent/orre-1p.sock")
+        box.wait_until_fails("test -e /run/claude-remote/1p-agent.sock")
   '';
 }

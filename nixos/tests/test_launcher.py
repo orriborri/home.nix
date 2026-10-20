@@ -385,11 +385,30 @@ class FakeClaudeRemote:
 
 
 class ClaudeRemoteFlowTests(unittest.TestCase):
-    def _run(self, remote: FakeClaudeRemote) -> None:
+    def _run(self, remote: FakeClaudeRemote, agent=None) -> None:
         launcher = object.__new__(Launcher)
         launcher._remote = lambda state: remote  # type: ignore[assignment]
+        launcher._start_agent_forward = lambda r: agent  # type: ignore[assignment]
         with mock.patch("builtins.print"):
             launcher._open_claude(object())
+
+    def test_holds_agent_forward_until_interrupted_then_closes_it(self):
+        agent = FakeAgentForward()
+        sleeps = []
+
+        def sleep(seconds):
+            sleeps.append(seconds)
+            raise KeyboardInterrupt
+
+        with mock.patch.object(launcher_module.time, "sleep", sleep):
+            self._run(FakeClaudeRemote(logged_in=True), agent)
+        self.assertEqual(sleeps, [1])
+        self.assertTrue(agent.terminated)
+
+    def test_returns_when_agent_forward_ends(self):
+        agent = FakeAgentForward(alive=False)
+        self._run(FakeClaudeRemote(logged_in=True), agent)
+        self.assertFalse(agent.terminated)
 
     def test_logs_in_then_starts_service_when_credentials_missing(self):
         remote = FakeClaudeRemote(logged_in=False)

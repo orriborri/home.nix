@@ -23,6 +23,9 @@ let
     "github.com"
     "codeload.github.com"
     "objects.githubusercontent.com"
+    # GitLab SSH on port 443 (claude-remote fetches and pushes; push needs the
+    # operator's forwarded 1Password agent, see kirocrew-claude-remote.nix)
+    "altssh.gitlab.com"
     # standard NixOS hosts, so nix-shell -p and substitution work
     "cache.nixos.org"
     "channels.nixos.org"
