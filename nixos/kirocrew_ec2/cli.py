@@ -22,6 +22,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         "--connect": "connect",
         "--token": "token",
         "--codex": "codex",
+        "--claude": "claude",
     }
     normalized = [aliases.get(argument, argument) for argument in argv]
     selected_commands = [argument for argument in normalized if argument in COMMANDS]
@@ -88,6 +89,7 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  ssh                open interactive shell with X11 forwarding\n"
             "  token              print a KiroCrew dashboard access URL (with auth token)\n"
             "  codex              forward the remote Codex app-server on localhost:4500\n"
+            "  claude             log in and start Claude Remote Control (env: kirocrew)\n"
             "  stop               stop the saved instance\n"
             "  destroy            permanently terminate the saved instance\n"
             "  rebuild            rebuild the saved instance\n"

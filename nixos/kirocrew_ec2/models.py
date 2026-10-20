@@ -70,6 +70,11 @@ AUTH_SERVER_URLS = {
 # portal session is alive.
 LOCAL_1P_AGENT_SOCKET = "~/.1password/agent.sock"
 REMOTE_AGENT_SOCKET = "/run/kirocrew-agent/orre-1p.sock"
+# Claude Remote Control on the instance (see kirocrew-claude-remote.nix). The
+# claude-remote unit stays inactive until this credentials file exists, and the
+# uid reaches the internet only through the loopback egress proxy.
+CLAUDE_REMOTE_CREDENTIALS = "/var/lib/claude-remote/.claude/.credentials.json"
+CLAUDE_REMOTE_PROXY = "http://127.0.0.1:8888"
 # Where `start` places the sops age key, as (path, owner, group, mode): orre's
 # home-manager sops (sops.nix) and system sops-nix (kirocrew-sops.nix). The
 # system copy is root-only so processes running as kirocrew cannot read it.
@@ -101,6 +106,7 @@ COMMANDS = (
     "auth",
     "token",
     "codex",
+    "claude",
 )
 AUTH_TARGETS = ("linear", "metabase")
 # Freshness floor for a cached OAuth token, re-exported from the probe module so

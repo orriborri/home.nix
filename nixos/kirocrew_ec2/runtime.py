@@ -406,6 +406,24 @@ class RemoteHost:
             ),
         )
 
+    def interactive(self, user: str, remote_command: str) -> None:
+        """Run a remote command on a terminal, for prompts such as a login.
+
+        Blocks until the command exits. Its exit status is not checked; the
+        caller verifies the outcome on the instance.
+        """
+        command = [
+            "ssh",
+            "-t",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", f"ProxyCommand={self.proxy_command()}",
+            "-i", str(self.key_file),
+            "-o", "IdentitiesOnly=yes",
+            f"{user}@{self.instance_id}",
+            remote_command,
+        ]
+        subprocess.run(command, check=False)
+
     def x11_ssh(self, user: str) -> None:
         """Open an interactive SSH session with X11 forwarding.
 

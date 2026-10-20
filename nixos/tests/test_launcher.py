@@ -329,3 +329,74 @@ class SyncStateTests(unittest.TestCase):
             [cmd for cmd, _ in remote.writes if "skills" in cmd],
             "sync-state still talks to the remote skills directory",
         )
+
+
+class FakeClaudeRemote:
+    """Answers the credentials probe; records commands and interactive logins.
+
+    `login_creates` controls whether the interactive login leaves credentials
+    behind, so a failed or cancelled login can be simulated.
+    """
+
+    def __init__(self, *, logged_in: bool, login_creates: bool = True) -> None:
+        self.logged_in = logged_in
+        self.login_creates = login_creates
+        self.commands: list[str] = []
+        self.interactive_calls: list[tuple[str, str]] = []
+
+    def run(self, user, command, capture=False, check=True, input_text=None):
+        self.commands.append(command)
+        if command.startswith("test -e "):
+            code = 0 if self.logged_in else 1
+            return launcher_module.subprocess.CompletedProcess(command, code, "", "")
+        return launcher_module.subprocess.CompletedProcess(command, 0, "active\n", "")
+
+    def interactive(self, user, command):
+        self.interactive_calls.append((user, command))
+        if self.login_creates:
+            self.logged_in = True
+
+
+class ClaudeRemoteFlowTests(unittest.TestCase):
+    def _run(self, remote: FakeClaudeRemote) -> None:
+        launcher = object.__new__(Launcher)
+        launcher._remote = lambda state: remote  # type: ignore[assignment]
+        with mock.patch("builtins.print"):
+            launcher._open_claude(object())
+
+    def test_logs_in_then_starts_service_when_credentials_missing(self):
+        remote = FakeClaudeRemote(logged_in=False)
+        self._run(remote)
+        self.assertEqual(len(remote.interactive_calls), 1)
+        user, command = remote.interactive_calls[0]
+        self.assertEqual(user, "root")
+        self.assertIn("sudo -u claude-remote -H", command)
+        self.assertIn("HTTPS_PROXY=http://127.0.0.1:8888", command)
+        self.assertIn("claude auth login", command)
+        self.assertTrue(
+            any("systemctl start claude-remote" in c for c in remote.commands)
+        )
+
+    def test_skips_login_when_already_logged_in(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        self._run(remote)
+        self.assertEqual(remote.interactive_calls, [])
+        self.assertTrue(
+            any("systemctl start claude-remote" in c for c in remote.commands)
+        )
+
+    def test_failed_login_raises_and_does_not_start_service(self):
+        remote = FakeClaudeRemote(logged_in=False, login_creates=False)
+        with self.assertRaises(LauncherError):
+            self._run(remote)
+        self.assertFalse(
+            any("systemctl start claude-remote" in c for c in remote.commands)
+        )
+
+
+class ClaudeCommandParseTests(unittest.TestCase):
+    def test_claude_is_a_command(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        self.assertEqual(parse_arguments(["claude"]).command, "claude")
+        self.assertEqual(parse_arguments(["--claude"]).command, "claude")

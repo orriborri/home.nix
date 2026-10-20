@@ -22,6 +22,8 @@ from .models import (
     AUTH_SERVER_URLS,
     AUTH_TARGETS,
     AUTH_MIN_REMAINING_SECS,
+    CLAUDE_REMOTE_CREDENTIALS,
+    CLAUDE_REMOTE_PROXY,
     KEY_NAME,
     LEGACY_CODE_DIRS,
     LOCAL_1P_AGENT_SOCKET,
@@ -140,6 +142,9 @@ class Launcher:
             return
         if self.arguments.command == "ssh":
             self._open_ssh(state)
+            return
+        if self.arguments.command == "claude":
+            self._open_claude(state)
             return
         if self.arguments.command == "migrate-kirocrew":
             self._migrate(state)
@@ -517,6 +522,43 @@ class Launcher:
             "(Ctrl-C to close)..."
         )
         remote.portal("4500", "4500")
+
+    def _open_claude(self, state: InstanceState) -> None:
+        """Log in the sandboxed claude-remote uid once, then start its unit.
+
+        The unit runs `claude remote-control --name kirocrew`; sessions are
+        then opened from claude.ai/code or the Claude app. The login runs on a
+        terminal because it prints a URL and waits for the pasted code. It goes
+        through the egress proxy, the uid's only route out.
+        """
+        remote = self._remote(state)
+        probe = f"test -e {shlex.quote(CLAUDE_REMOTE_CREDENTIALS)}"
+
+        def logged_in() -> bool:
+            return remote.run("root", probe, capture=True, check=False).returncode == 0
+
+        if not logged_in():
+            print("\n» Logging in Claude for the claude-remote user...")
+            print("  Open the printed URL on this machine and paste the code back.")
+            remote.interactive(
+                "root",
+                "sudo -u claude-remote -H env "
+                f"HTTPS_PROXY={CLAUDE_REMOTE_PROXY} HTTP_PROXY={CLAUDE_REMOTE_PROXY} "
+                "/run/current-system/sw/bin/claude auth login",
+            )
+            if not logged_in():
+                raise LauncherError(
+                    "Claude login did not complete; no credentials at "
+                    f"{CLAUDE_REMOTE_CREDENTIALS}"
+                )
+        print("\n» Starting Claude Remote Control...")
+        remote.run(
+            "root",
+            "systemctl start claude-remote && systemctl is-active claude-remote",
+        )
+        print("✓ Claude Remote Control is running as 'kirocrew'.")
+        print("  Open claude.ai/code or the Claude app and pick the 'kirocrew' environment.")
+        print("  The box cannot push: take results off as a patch or git bundle.")
 
     def _open_ssm_session(self, state: InstanceState) -> None:
         if not state.instance_id:
