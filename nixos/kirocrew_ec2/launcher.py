@@ -526,7 +526,7 @@ class Launcher:
         remote.portal("4500", "4500")
 
     def _open_claude(self, state: InstanceState) -> None:
-        """Log in the claude-remote uid once, start its unit, hold git push open.
+        """Log in the claude-remote uid once, then start its unit.
 
         The unit runs `claude remote-control --name kirocrew`; sessions are
         then opened from claude.ai/code or the Claude app. The login runs on a
@@ -594,29 +594,7 @@ class Launcher:
         if detail:
             print(f"  Open: {detail}")
         print("  Or open claude.ai/code or the Claude app and pick 'kirocrew'.")
-
-        # Git push goes through the forwarded 1Password agent, relayed to the
-        # claude-remote uid only while this forward (or a portal's) is open.
-        agent_forward = self._start_agent_forward(remote)
-        if agent_forward is None:
-            print("  Git push is unavailable until a 1Password agent forward is open.")
-            return
-        print("  Git push enabled while this runs (1Password prompts for each use).")
-        print("  Press Ctrl+C to end push access; Remote Control keeps running.")
-        try:
-            while agent_forward.poll() is None:
-                time.sleep(1)
-            print("  ⚠ The agent forward ended; git push is unavailable.")
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if agent_forward.poll() is None:
-                agent_forward.terminate()
-                try:
-                    agent_forward.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    agent_forward.kill()
-            print("  Git push forward closed.")
+        print("  Push and merge requests use the GitLab token on the box (GITLAB_TOKEN).")
 
     def _restart_claude_remote(self, remote: RemoteHost) -> tuple[str, str]:
         """Restart claude-remote and report whether it stayed up.

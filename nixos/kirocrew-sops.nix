@@ -181,6 +181,25 @@
     };
   };
 
+  # GitLab fine-grained personal access token for the Claude Remote Control
+  # uid (kirocrew-claude-remote.nix): Code: Push and Merge Request: Create on
+  # the readpeak group, nothing else. Rendered as GITLAB_TOKEN=... for the
+  # unit's EnvironmentFile.
+  sops.secrets.claude-remote-gitlab-token = {
+    owner = config.users.users.claude-remote.name;
+    inherit (config.users.users.claude-remote) group;
+    mode = "0400";
+    key = "claude-remote-gitlab-token";
+  };
+  sops.templates."claude-remote-gitlab.env" = {
+    owner = config.users.users.claude-remote.name;
+    inherit (config.users.users.claude-remote) group;
+    mode = "0400";
+    path = "/var/lib/claude-remote/secrets/gitlab.env";
+    content = ''
+      GITLAB_TOKEN=${config.sops.placeholder.claude-remote-gitlab-token}
+    '';
+  };
   sops.templates."pasta-fetchers.env" = {
     owner = config.users.users.pasta.name;
     inherit (config.users.users.pasta) group;

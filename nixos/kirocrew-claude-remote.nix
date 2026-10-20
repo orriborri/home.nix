@@ -1,19 +1,17 @@
 # Sandboxed uid for Claude Remote Control (BACKLOG F1). The uid owns only its
-# own home: it is not a nix trusted user, owns no sops secret, and holds no ssh
-# key or forge token.
+# own home: it is not a nix trusted user, holds no ssh key, and owns exactly one
+# sops secret, the GitLab token below.
 #
-# Git access matches the KiroCrew gateway's (decided 2026-10-20, replacing the
-# original no-push rule):
+# Git access (decided 2026-10-20; the operator uses this as their coding agent):
 #   * Read: member of code-writers, so the repos under /var/lib/code and their
 #     mirrors are readable. ProtectSystem=strict keeps them read-only inside
 #     the unit; sessions clone them into the workspace.
-#   * Push: through the operator's 1Password agent, relayed to
-#     /run/claude-remote/1p-agent.sock only while `launch-ec2 portal` or
-#     `launch-ec2 claude` holds the forward open. 1Password asks the operator
-#     to approve each use of the key.
-#   * Route: the unit can reach only the loopback proxy, which allows CONNECT
-#     to port 443 alone, so GitLab SSH goes to altssh.gitlab.com:443 through
-#     it, with gitlab.com's pinned host key.
+#   * Push and merge requests: a GitLab fine-grained personal access token
+#     limited to Code: Push and Merge Request: Create on the readpeak group
+#     (sops `claude-remote-gitlab-token`, kirocrew-sops.nix), passed to the
+#     unit as GITLAB_TOKEN. git uses it over HTTPS through a credential helper.
+#   * Route: the unit can reach only the loopback proxy, which allows
+#     gitlab.com on 443, so git@gitlab.com: URLs are rewritten to HTTPS.
 #
 # The uid logs in once by hand (`launch-ec2 claude` runs it). Until
 # ~/.claude/.credentials.json exists the unit stays inactive, so there is no
@@ -23,8 +21,14 @@ let
   home = "/var/lib/claude-remote";
   proxy = "http://127.0.0.1:8888";
   hardening = import ./kirocrew-hardening.nix;
-  agentUpstream = "/run/kirocrew-agent/orre-1p.sock";
-  agentSocket = "/run/claude-remote/1p-agent.sock";
+
+  # git credential helper: answers `get` for gitlab.com with the token from the
+  # unit's environment, and stores nothing.
+  gitlabCredential = pkgs.writeShellScript "claude-remote-gitlab-credential" ''
+    [ "$1" = get ] && [ -n "''${GITLAB_TOKEN:-}" ] || exit 0
+    echo username=oauth2
+    echo "password=$GITLAB_TOKEN"
+  '';
 in
 {
   users.users.claude-remote = {
@@ -43,7 +47,9 @@ in
   systemd.tmpfiles.rules = [
     "d ${home} 0700 claude-remote claude-remote -"
     "d ${home}/workspace 0700 claude-remote claude-remote -"
-    "d /run/claude-remote 0700 claude-remote claude-remote -"
+    "d ${home}/.claude 0700 claude-remote claude-remote -"
+    # User-level instructions every session loads; read-only (store symlink).
+    "L+ ${home}/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md"
   ];
 
   # /etc entries are symlinks into the store, so the uid cannot edit these.
@@ -52,26 +58,47 @@ in
       [user]
         name = Claude (kirocrew)
         email = kirocrew@readpeak
-      [core]
-        sshCommand = ssh -F /etc/claude-remote/ssh_config
-      [url "ssh://git@altssh.gitlab.com:443/"]
+      [url "https://gitlab.com/"]
         insteadOf = git@gitlab.com:
         insteadOf = ssh://git@gitlab.com/
+      [credential "https://gitlab.com"]
+        helper = ${gitlabCredential}
       [safe]
         directory = *
     '';
-    "claude-remote/ssh_config".text = ''
-      Host altssh.gitlab.com
-        User git
-        Port 443
-        HostKeyAlias gitlab.com
-        UserKnownHostsFile /etc/claude-remote/known_hosts
-        StrictHostKeyChecking yes
-        ProxyCommand ${pkgs.socat}/bin/socat - PROXY:127.0.0.1:%h:%p,proxyport=8888
-    '';
-    # Same key as known_hosts_kirocrew (kirocrew-config.nix); altssh serves it.
-    "claude-remote/known_hosts".text = ''
-      gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf
+    "claude-remote/CLAUDE.md".text = ''
+      # This machine: kirocrew (Claude Remote Control)
+
+      ## Repositories
+      - Readpeak repos are at `/var/lib/code/readpeak/<repo>`. They are
+        read-only here. Work in a clone in the current directory:
+        `git clone /var/lib/code/readpeak/<repo>`, then
+        `git remote set-url origin git@gitlab.com:readpeak/<repo>.git`.
+      - The local copies are synced from GitLab by the KiroCrew host. The
+        GitLab token cannot read, so `git fetch`/`git pull` from GitLab may be
+        refused; base work on the local copy.
+
+      ## Push and merge requests
+      - git reaches GitLab over HTTPS with `$GITLAB_TOKEN`; `git@gitlab.com:`
+        URLs are rewritten automatically. Do not ask for SSH keys.
+      - The token can only push code and create merge requests. It cannot read
+        projects through the API, comment, approve or merge.
+      - Push to a new branch, never to `main`. Then create the merge request:
+
+        ```
+        curl --fail-with-body -sS -X POST \
+          -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+          --data-urlencode source_branch=<branch> \
+          --data-urlencode target_branch=main \
+          --data-urlencode title="<title>" \
+          --data-urlencode description="<description>" \
+          https://gitlab.com/api/v4/projects/readpeak%2F<repo>/merge_requests
+        ```
+
+      ## Network
+      - All traffic goes through a proxy that allows only Anthropic, GitHub,
+        gitlab.com, the npm/PyPI/crates registries and the NixOS caches. Other
+        hosts are refused by design; do not try to work around it.
     '';
   };
 
@@ -88,19 +115,17 @@ in
       "tinyproxy.service"
     ];
     wants = [ "tinyproxy.service" ];
-    # git for --spawn worktree and pushes, openssh for git's ssh transport,
-    # nix for `nix-shell -p` through the daemon.
+    # git for --spawn worktree and pushes, nix for `nix-shell -p` through the
+    # daemon.
     path = [
       pkgs.git
       pkgs.nix
-      pkgs.openssh
     ];
     environment = {
       HOME = home;
       HTTPS_PROXY = proxy;
       HTTP_PROXY = proxy;
       GIT_CONFIG_GLOBAL = "/etc/claude-remote/gitconfig";
-      SSH_AUTH_SOCK = agentSocket;
     };
     unitConfig.ConditionPathExists = "${home}/.claude/.credentials.json";
     serviceConfig = hardening // {
@@ -108,6 +133,9 @@ in
       Group = "claude-remote";
       WorkingDirectory = "${home}/workspace";
       ExecStart = "${pkgs.claude-code}/bin/claude remote-control --name kirocrew --spawn worktree";
+      # GITLAB_TOKEN=..., rendered by sops (kirocrew-sops.nix). Optional, so
+      # the unit still starts on a box without the secret.
+      EnvironmentFile = "-${home}/secrets/gitlab.env";
       IPAddressDeny = "any";
       IPAddressAllow = "localhost";
       ReadWritePaths = [ home ];
@@ -117,43 +145,6 @@ in
       ];
       Restart = "always";
       RestartSec = 30;
-    };
-  };
-
-  # Relay the forwarded 1Password agent to the claude-remote uid, the same way
-  # kirocrew-1p-relay.nix does for the gateway: started when the forward
-  # appears, stopped (and the socket removed) when it disappears, so push
-  # access never outlives the operator's session.
-  systemd.paths.claude-remote-1p-agent-relay = {
-    description = "Watch for the operator's forwarded 1Password socket (claude-remote)";
-    wantedBy = [ "multi-user.target" ];
-    pathConfig = {
-      PathExists = agentUpstream;
-      Unit = "claude-remote-1p-agent-relay.service";
-    };
-  };
-
-  systemd.services.claude-remote-1p-agent-relay = {
-    description = "Relay the operator's 1Password agent socket to claude-remote";
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = pkgs.writeShellScript "claude-remote-1p-agent-relay" ''
-        set -eu
-        upstream=${agentUpstream}
-        listen=${agentSocket}
-        ${pkgs.socat}/bin/socat \
-          "UNIX-LISTEN:$listen,fork,mode=0600,user=claude-remote,group=claude-remote" \
-          "UNIX-CONNECT:$upstream" &
-        socat_pid=$!
-        cleanup() { kill "$socat_pid" 2>/dev/null || true; }
-        trap cleanup EXIT INT TERM
-        while [ -S "$upstream" ] && kill -0 "$socat_pid" 2>/dev/null; do
-          sleep 1
-        done
-      '';
-      Restart = "on-failure";
-      RestartSec = 2;
-      ExecStopPost = "${pkgs.coreutils}/bin/rm -f ${agentSocket}";
     };
   };
 }

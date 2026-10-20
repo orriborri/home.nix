@@ -1669,7 +1669,7 @@
                   registry.npmjs.org pypi.org files.pythonhosted.org crates.io \
                   index.crates.io static.crates.io github.com codeload.github.com \
                   objects.githubusercontent.com cache.nixos.org channels.nixos.org \
-                  releases.nixos.org tarballs.nixos.org altssh.gitlab.com; do
+                  releases.nixos.org tarballs.nixos.org gitlab.com; do
                   want="^$(printf '%s' "$h" | sed 's/\./\\./g')\$"
                   grep -qxF "$want" "$filter" || fail "filter lacks $want"
                 done
@@ -1700,27 +1700,29 @@
                 touch $out
               '';
 
-          # F1: the claude-remote uid exists, owns only its own home, holds no
-          # credentials (not trusted by nix, owns no sops secret), reads the
-          # code tree through code-writers, and its git config sends GitLab SSH
-          # to altssh.gitlab.com:443 through the proxy with a pinned host key.
+          # F1: the claude-remote uid exists, owns only its own home, is not
+          # trusted by nix, owns only its GitLab token among the sops secrets,
+          # reads the code tree through code-writers, and its git config sends
+          # GitLab URLs over HTTPS with that token.
           ec2-claude-remote-uid =
             let
               cfg = ec2OnX86.config;
               u = cfg.users.users.claude-remote or { };
-              secretOwners = lib.mapAttrsToList (_: v: v.owner or "root") cfg.sops.secrets;
+              ownedSecrets = lib.attrNames (
+                lib.filterAttrs (_: v: (v.owner or "root") == "claude-remote") cfg.sops.secrets
+              );
               gitconfig = cfg.environment.etc."claude-remote/gitconfig".source or "";
-              sshConfig = cfg.environment.etc."claude-remote/ssh_config".source or "";
+              instructions = cfg.environment.etc."claude-remote/CLAUDE.md".source or "";
               tmpfiles = lib.concatStringsSep "\n" cfg.systemd.tmpfiles.rules;
             in
             pkgs.runCommand "check-ec2-claude-remote-uid"
               {
-                inherit gitconfig sshConfig tmpfiles;
+                inherit gitconfig instructions tmpfiles;
                 home = u.home or "";
                 isSystem = lib.boolToString (u.isSystemUser or false);
                 group = u.group or "";
                 trusted = toString cfg.nix.settings.trusted-users;
-                owners = toString secretOwners;
+                owned = toString ownedSecrets;
                 extraGroups = toString (u.extraGroups or [ ]);
               }
               ''
@@ -1730,19 +1732,19 @@
                 [ "$group" = claude-remote ] || fail "group is '$group'"
                 [ "$extraGroups" = code-writers ] || fail "extraGroups is '$extraGroups', want code-writers"
                 [ "$trusted" = root ] || fail "nix trusted-users is '$trusted', want root"
-                case " $owners " in *" claude-remote "*) fail "owns a sops secret" ;; esac
+                [ "$owned" = claude-remote-gitlab-token ] || fail "owns sops secrets '$owned', want only claude-remote-gitlab-token"
                 echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote 0700 claude-remote claude-remote -' \
                   || fail "tmpfiles lacks the 0700 home"
                 echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote/workspace 0700 claude-remote claude-remote -' \
                   || fail "tmpfiles lacks the workspace"
                 [ -f "$gitconfig" ] || fail "no git config"
-                grep -qF 'url "ssh://git@altssh.gitlab.com:443/"' "$gitconfig" || fail "gitconfig lacks the altssh rewrite"
+                grep -qF 'url "https://gitlab.com/"' "$gitconfig" || fail "gitconfig lacks the https rewrite"
                 grep -qF 'insteadOf = git@gitlab.com:' "$gitconfig" || fail "gitconfig does not rewrite git@gitlab.com:"
-                grep -qF 'sshCommand = ssh -F /etc/claude-remote/ssh_config' "$gitconfig" || fail "gitconfig lacks the ssh config"
-                [ -f "$sshConfig" ] || fail "no ssh config"
-                grep -qF 'HostKeyAlias gitlab.com' "$sshConfig" || fail "ssh config does not pin gitlab.com's key"
-                grep -qF 'StrictHostKeyChecking yes' "$sshConfig" || fail "ssh config does not check host keys"
-                grep -qF 'PROXY:127.0.0.1:%h:%p,proxyport=8888' "$sshConfig" || fail "ssh does not go through the proxy"
+                grep -qF 'credential "https://gitlab.com"' "$gitconfig" || fail "gitconfig lacks the gitlab.com credential helper"
+                ! grep -q 'pushInsteadOf\|sshCommand' "$gitconfig" || fail "gitconfig still has a push block or ssh command"
+                [ -f "$instructions" ] || fail "no CLAUDE.md for the uid"
+                echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md' \
+                  || fail "CLAUDE.md is not linked into the uid's ~/.claude"
                 touch $out
               '';
 
@@ -1773,7 +1775,7 @@
                 httpsProxy = env.HTTPS_PROXY or "";
                 httpProxy = env.HTTP_PROXY or "";
                 gitConfig = env.GIT_CONFIG_GLOBAL or "";
-                agentSock = env.SSH_AUTH_SOCK or "";
+                envFile = toString (sc.EnvironmentFile or "");
                 home = env.HOME or "";
                 envNames = toString (builtins.attrNames env);
               }
@@ -1795,7 +1797,7 @@
                 [ "$httpsProxy" = http://127.0.0.1:8888 ] || fail "HTTPS_PROXY is '$httpsProxy'"
                 [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "HTTP_PROXY is '$httpProxy'"
                 [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
-                [ "$agentSock" = /run/claude-remote/1p-agent.sock ] || fail "SSH_AUTH_SOCK is '$agentSock'"
+                [ "$envFile" = -/var/lib/claude-remote/secrets/gitlab.env ] || fail "EnvironmentFile is '$envFile'"
                 [ "$home" = /var/lib/claude-remote ] || fail "HOME is '$home'"
                 case " $envNames " in
                   *CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC* | *DISABLE_GROWTHBOOK*) fail "sets a variable that disables Remote Control: $envNames" ;;
