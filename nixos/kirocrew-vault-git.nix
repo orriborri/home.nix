@@ -104,6 +104,14 @@ let
       git -C "${vaultDir}" branch --set-upstream-to=origin/${repoBranch} ${repoBranch} \
         2>/dev/null || true
 
+      # Already unlocked (git-crypt keeps the key in .git): skip, because
+      # git-crypt unlock refuses a dirty tree and the vault is edited between
+      # syncs.
+      if [[ -e "${vaultDir}/.git/git-crypt/keys/default" ]]; then
+        echo "Vault already unlocked at ${vaultDir}."
+        exit 0
+      fi
+
       # Unlock git-crypt content. The sops secret holds base64 of the raw key.
       raw="$(mktemp)"
       if base64 -d "${cryptKey}" > "$raw" 2>/dev/null && [[ -s "$raw" ]]; then
