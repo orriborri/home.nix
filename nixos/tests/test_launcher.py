@@ -332,29 +332,56 @@ class SyncStateTests(unittest.TestCase):
 
 
 class FakeClaudeRemote:
-    """Answers the credentials probe; records commands and interactive logins.
+    """Simulates the instance side of `launch-ec2 claude`.
 
-    `login_creates` controls whether the interactive login leaves credentials
-    behind, so a failed or cancelled login can be simulated.
+    `logged_in` / `trusted` are the instance state; the interactive login and
+    trust sessions set them unless `login_creates` / `trust_accepts` is False.
+    The restart script answers "untrusted" until trusted, then "running".
     """
 
-    def __init__(self, *, logged_in: bool, login_creates: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        logged_in: bool,
+        trusted: bool = True,
+        login_creates: bool = True,
+        trust_accepts: bool = True,
+        crashes: bool = False,
+    ) -> None:
         self.logged_in = logged_in
+        self.trusted = trusted
         self.login_creates = login_creates
+        self.trust_accepts = trust_accepts
+        self.crashes = crashes
         self.commands: list[str] = []
         self.interactive_calls: list[tuple[str, str]] = []
+
+    @property
+    def restarts(self) -> int:
+        return sum("systemctl restart claude-remote" in c for c in self.commands)
 
     def run(self, user, command, capture=False, check=True, input_text=None):
         self.commands.append(command)
         if command.startswith("test -e "):
             code = 0 if self.logged_in else 1
             return launcher_module.subprocess.CompletedProcess(command, code, "", "")
-        return launcher_module.subprocess.CompletedProcess(command, 0, "active\n", "")
+        if "systemctl restart claude-remote" in command:
+            if not self.trusted:
+                out = "untrusted\n"
+            elif self.crashes:
+                out = "failed\nMain process exited, code=exited, status=1/FAILURE\n"
+            else:
+                out = "running\nhttps://claude.ai/code/session_x\n"
+            return launcher_module.subprocess.CompletedProcess(command, 0, out, "")
+        return launcher_module.subprocess.CompletedProcess(command, 0, "", "")
 
     def interactive(self, user, command):
         self.interactive_calls.append((user, command))
-        if self.login_creates:
-            self.logged_in = True
+        if "auth login" in command:
+            if self.login_creates:
+                self.logged_in = True
+        elif self.trust_accepts:
+            self.trusted = True
 
 
 class ClaudeRemoteFlowTests(unittest.TestCase):
@@ -373,25 +400,39 @@ class ClaudeRemoteFlowTests(unittest.TestCase):
         self.assertIn("sudo -u claude-remote -H", command)
         self.assertIn("HTTPS_PROXY=http://127.0.0.1:8888", command)
         self.assertIn("claude auth login", command)
-        self.assertTrue(
-            any("systemctl start claude-remote" in c for c in remote.commands)
-        )
+        self.assertEqual(remote.restarts, 1)
 
     def test_skips_login_when_already_logged_in(self):
         remote = FakeClaudeRemote(logged_in=True)
         self._run(remote)
         self.assertEqual(remote.interactive_calls, [])
-        self.assertTrue(
-            any("systemctl start claude-remote" in c for c in remote.commands)
-        )
+        self.assertEqual(remote.restarts, 1)
 
     def test_failed_login_raises_and_does_not_start_service(self):
         remote = FakeClaudeRemote(logged_in=False, login_creates=False)
         with self.assertRaises(LauncherError):
             self._run(remote)
-        self.assertFalse(
-            any("systemctl start claude-remote" in c for c in remote.commands)
-        )
+        self.assertEqual(remote.restarts, 0)
+
+    def test_untrusted_workspace_opens_claude_there_then_restarts(self):
+        remote = FakeClaudeRemote(logged_in=True, trusted=False)
+        self._run(remote)
+        self.assertEqual(len(remote.interactive_calls), 1)
+        _, command = remote.interactive_calls[0]
+        self.assertIn("cd /var/lib/claude-remote/workspace", command)
+        self.assertNotIn("auth login", command)
+        self.assertEqual(remote.restarts, 2)
+
+    def test_declined_trust_raises(self):
+        remote = FakeClaudeRemote(logged_in=True, trusted=False, trust_accepts=False)
+        with self.assertRaises(LauncherError):
+            self._run(remote)
+
+    def test_crash_loop_is_reported_not_called_running(self):
+        remote = FakeClaudeRemote(logged_in=True, crashes=True)
+        with self.assertRaises(LauncherError) as caught:
+            self._run(remote)
+        self.assertIn("Main process exited", str(caught.exception))
 
 
 class ClaudeCommandParseTests(unittest.TestCase):

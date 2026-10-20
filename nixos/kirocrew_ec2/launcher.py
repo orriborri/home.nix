@@ -24,6 +24,8 @@ from .models import (
     AUTH_MIN_REMAINING_SECS,
     CLAUDE_REMOTE_CREDENTIALS,
     CLAUDE_REMOTE_PROXY,
+    CLAUDE_REMOTE_SETTLE_SECS,
+    CLAUDE_REMOTE_WORKSPACE,
     KEY_NAME,
     LEGACY_CODE_DIRS,
     LOCAL_1P_AGENT_SOCKET,
@@ -533,6 +535,11 @@ class Launcher:
         """
         remote = self._remote(state)
         probe = f"test -e {shlex.quote(CLAUDE_REMOTE_CREDENTIALS)}"
+        as_claude = (
+            "sudo -u claude-remote -H env "
+            f"HTTPS_PROXY={CLAUDE_REMOTE_PROXY} HTTP_PROXY={CLAUDE_REMOTE_PROXY} "
+        )
+        claude = "/run/current-system/sw/bin/claude"
 
         def logged_in() -> bool:
             return remote.run("root", probe, capture=True, check=False).returncode == 0
@@ -540,25 +547,61 @@ class Launcher:
         if not logged_in():
             print("\n» Logging in Claude for the claude-remote user...")
             print("  Open the printed URL on this machine and paste the code back.")
-            remote.interactive(
-                "root",
-                "sudo -u claude-remote -H env "
-                f"HTTPS_PROXY={CLAUDE_REMOTE_PROXY} HTTP_PROXY={CLAUDE_REMOTE_PROXY} "
-                "/run/current-system/sw/bin/claude auth login",
-            )
+            remote.interactive("root", f"{as_claude}{claude} auth login")
             if not logged_in():
                 raise LauncherError(
                     "Claude login did not complete; no credentials at "
                     f"{CLAUDE_REMOTE_CREDENTIALS}"
                 )
-        print("\n» Starting Claude Remote Control...")
-        remote.run(
-            "root",
-            "systemctl start claude-remote && systemctl is-active claude-remote",
-        )
+
+        status, detail = self._restart_claude_remote(remote)
+        if status == "untrusted":
+            # remote-control refuses an untrusted working directory, and only
+            # the interactive trust dialog records trust.
+            print("\n» The workspace is not trusted yet. Claude opens there now:")
+            print("  accept the trust prompt, then type /exit.")
+            remote.interactive(
+                "root",
+                f"cd {shlex.quote(CLAUDE_REMOTE_WORKSPACE)} && {as_claude}{claude}",
+            )
+            status, detail = self._restart_claude_remote(remote)
+        if status != "running":
+            raise LauncherError(
+                f"claude-remote did not stay running ({status}). Last log lines:\n{detail}"
+            )
         print("✓ Claude Remote Control is running as 'kirocrew'.")
-        print("  Open claude.ai/code or the Claude app and pick the 'kirocrew' environment.")
+        if detail:
+            print(f"  Open: {detail}")
+        print("  Or open claude.ai/code or the Claude app and pick 'kirocrew'.")
         print("  The box cannot push: take results off as a patch or git bundle.")
+
+    def _restart_claude_remote(self, remote: RemoteHost) -> tuple[str, str]:
+        """Restart claude-remote and report whether it stayed up.
+
+        Returns (status, detail): "running" with the session link from the
+        log (or ""), "untrusted" when the workspace trust check failed, or
+        "failed" with the unit's recent log lines. The unit restarts itself
+        after a crash, so `is-active` alone right after start proves nothing;
+        the log since the restart decides.
+        """
+        print("\n» Starting Claude Remote Control...")
+        script = f"""since=$(date +%s)
+systemctl restart claude-remote
+sleep {CLAUDE_REMOTE_SETTLE_SECS}
+log=$(journalctl -u claude-remote --since "@$since" -o cat)
+if printf '%s\\n' "$log" | grep -q 'Workspace not trusted'; then
+  echo untrusted
+elif systemctl is-active --quiet claude-remote && ! printf '%s\\n' "$log" | grep -q 'Main process exited'; then
+  echo running
+  printf '%s\\n' "$log" | grep -o 'https://claude\\.ai/[^ ]*' | tail -n 1
+else
+  echo failed
+  printf '%s\\n' "$log" | tail -n 10
+fi
+"""
+        result = remote.run("root", script, capture=True)
+        status, _, detail = (result.stdout or "").partition("\n")
+        return status.strip(), detail.strip()
 
     def _open_ssm_session(self, state: InstanceState) -> None:
         if not state.instance_id:

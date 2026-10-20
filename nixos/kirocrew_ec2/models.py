@@ -75,6 +75,11 @@ REMOTE_AGENT_SOCKET = "/run/kirocrew-agent/orre-1p.sock"
 # uid reaches the internet only through the loopback egress proxy.
 CLAUDE_REMOTE_CREDENTIALS = "/var/lib/claude-remote/.claude/.credentials.json"
 CLAUDE_REMOTE_PROXY = "http://127.0.0.1:8888"
+# The unit's WorkingDirectory; remote-control requires it to be trusted.
+CLAUDE_REMOTE_WORKSPACE = "/var/lib/claude-remote/workspace"
+# Seconds to wait after a restart before judging the unit (it exits in about
+# 1 s when it fails, and the unit restarts it after 30 s).
+CLAUDE_REMOTE_SETTLE_SECS = 8
 # Where `start` places the sops age key, as (path, owner, group, mode): orre's
 # home-manager sops (sops.nix) and system sops-nix (kirocrew-sops.nix). The
 # system copy is root-only so processes running as kirocrew cannot read it.
