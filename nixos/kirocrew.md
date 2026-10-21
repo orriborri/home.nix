@@ -161,6 +161,9 @@ can work on the box without being able to publish anything.
   → `claude-remote-sandbox`, a transient unit with the same settings as
   `claude-remote.service` (one `sandbox` attrset in the module). Needs the
   first login above. The session ends when the SSM connection drops.
+  `./nixos/launch-ec2 implement RP-123` does the same with
+  `/implement-ticket`; it refuses until `workspace/RP-123/analysis.md`
+  exists, and re-running it resumes from the ticket's `todo.md`.
 - **What the tests cover.** The flake checks `ec2-claude-egress-proxy`,
   `ec2-nix-daemon-egress`, `ec2-claude-remote-uid` and `ec2-claude-remote-unit`
   assert the rendered config. The VM test `claude-remote-sandbox`

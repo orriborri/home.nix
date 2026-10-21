@@ -118,7 +118,10 @@ COMMANDS = (
     "codex",
     "claude",
     "analyze",
+    "implement",
 )
+# Commands that take a ticket ID as their first bare positional.
+TICKET_COMMANDS = ("analyze", "implement")
 AUTH_TARGETS = ("linear", "metabase")
 # Freshness floor for a cached OAuth token, re-exported from the probe module so
 # there is exactly one definition. See token_probe for why it is capped by each

@@ -152,6 +152,9 @@ class Launcher:
         if self.arguments.command == "analyze":
             self._open_ticket_session(state, "analyze-ticket")
             return
+        if self.arguments.command == "implement":
+            self._open_implement(state)
+            return
         if self.arguments.command == "migrate-kirocrew":
             self._migrate(state)
             return
@@ -545,7 +548,7 @@ class Launcher:
         claude = "/run/current-system/sw/bin/claude"
 
         def logged_in() -> bool:
-            return self._claude_remote_logged_in(remote)
+            return self._remote_exists(remote, CLAUDE_REMOTE_CREDENTIALS)
 
         if not logged_in():
             print("\n» Logging in Claude for the claude-remote user...")
@@ -608,7 +611,7 @@ class Launcher:
         It reuses the uid's login, so `launch-ec2 claude` must have run once.
         """
         remote = self._remote(state)
-        if not self._claude_remote_logged_in(remote):
+        if not self._remote_exists(remote, CLAUDE_REMOTE_CREDENTIALS):
             raise LauncherError(
                 "claude-remote is not logged in; run 'launch-ec2 claude' first"
             )
@@ -619,9 +622,23 @@ class Launcher:
             f"{CLAUDE_REMOTE_SESSION} {shlex.quote(ticket)} {shlex.quote(skill)}",
         )
 
+    def _open_implement(self, state: InstanceState) -> None:
+        """Run /implement-ticket once the ticket has been analyzed.
+
+        The skill builds on workspace/<ticket>/analysis.md and resumes from
+        the todo.md it keeps there, so re-running continues the same ticket.
+        """
+        ticket = self.arguments.ticket
+        analysis = f"{CLAUDE_REMOTE_WORKSPACE}/{ticket}/analysis.md"
+        if not self._remote_exists(self._remote(state), analysis):
+            raise LauncherError(
+                f"{ticket} has no analysis yet; run 'launch-ec2 analyze {ticket}' first"
+            )
+        self._open_ticket_session(state, "implement-ticket")
+
     @staticmethod
-    def _claude_remote_logged_in(remote: RemoteHost) -> bool:
-        probe = f"test -e {shlex.quote(CLAUDE_REMOTE_CREDENTIALS)}"
+    def _remote_exists(remote: RemoteHost, path: str) -> bool:
+        probe = f"test -e {shlex.quote(path)}"
         return remote.run("root", probe, capture=True, check=False).returncode == 0
 
     def _restart_claude_remote(self, remote: RemoteHost) -> tuple[str, str]:

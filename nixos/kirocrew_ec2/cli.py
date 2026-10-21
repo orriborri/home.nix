@@ -5,7 +5,14 @@ import argparse
 import re
 from typing import Sequence
 
-from .models import AUTH_TARGETS, COMMANDS, TICKET_PATTERN, Arguments, LauncherError
+from .models import (
+    AUTH_TARGETS,
+    COMMANDS,
+    TICKET_COMMANDS,
+    TICKET_PATTERN,
+    Arguments,
+    LauncherError,
+)
 
 
 def parse_arguments(argv: Sequence[str]) -> Arguments:
@@ -76,10 +83,10 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
                 normalized.pop(index)
                 break
 
-    # `analyze` takes the ticket ID as its first bare positional, so it does
-    # not land in the legacy profile slot. Validated after parsing.
+    # Ticket commands take the ticket ID as their first bare positional, so it
+    # does not land in the legacy profile slot. Validated after parsing.
     ticket: str | None = None
-    if command == "analyze":
+    if command in TICKET_COMMANDS:
         for index, argument in enumerate(normalized):
             preceded_by_opt = index > 0 and normalized[index - 1] in {
                 "--instance-type",
@@ -108,6 +115,8 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  claude             log in and start Claude Remote Control (env: kirocrew)\n"
             "  analyze TICKET     run /analyze-ticket TICKET in a sandboxed Claude session\n"
             "                     on this terminal (e.g. analyze RP-123)\n"
+            "  implement TICKET   run /implement-ticket TICKET the same way; needs\n"
+            "                     analyze first, resumes from the ticket's todo.md\n"
             "  stop               stop the saved instance\n"
             "  destroy            permanently terminate the saved instance\n"
             "  rebuild            rebuild the saved instance\n"
@@ -144,9 +153,11 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         parser.error("--yes is only valid with migrate-kirocrew")
     if parsed.force and command != "auth":
         parser.error("--force is only valid with auth")
-    if command == "analyze":
+    if command in TICKET_COMMANDS:
         if not ticket:
-            parser.error("analyze requires a ticket ID, e.g. 'launch-ec2 analyze RP-123'")
+            parser.error(
+                f"{command} requires a ticket ID, e.g. 'launch-ec2 {command} RP-123'"
+            )
         if not re.fullmatch(TICKET_PATTERN, ticket):
             parser.error(f"'{ticket}' is not a ticket ID like RP-123")
     resolved_instance_type = (

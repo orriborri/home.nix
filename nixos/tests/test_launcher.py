@@ -364,6 +364,9 @@ class FakeClaudeRemote:
 
     def run(self, user, command, capture=False, check=True, input_text=None):
         self.commands.append(command)
+        if command.startswith("test -e ") and command.endswith("/analysis.md"):
+            code = 0 if getattr(self, "analysis", False) else 1
+            return launcher_module.subprocess.CompletedProcess(command, code, "", "")
         if command.startswith("test -e "):
             code = 0 if self.logged_in else 1
             return launcher_module.subprocess.CompletedProcess(command, code, "", "")
@@ -510,3 +513,40 @@ class TicketSessionFlowTests(unittest.TestCase):
             self._run(remote)
         self.assertIn("launch-ec2 claude", str(caught.exception))
         self.assertEqual(remote.interactive_calls, [])
+
+
+class ImplementCommandTests(unittest.TestCase):
+    def test_implement_takes_a_ticket_id(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        arguments = parse_arguments(["implement", "RP-123"])
+        self.assertEqual((arguments.command, arguments.ticket), ("implement", "RP-123"))
+        with self.assertRaises(SystemExit), mock.patch("sys.stderr"):
+            parse_arguments(["implement", "rp-123"])
+
+    def _run(self, remote: FakeClaudeRemote) -> None:
+        launcher = object.__new__(Launcher)
+        launcher._remote = lambda state: remote  # type: ignore[assignment]
+        launcher.arguments = mock.Mock(command="implement", ticket="RP-123")
+        with mock.patch("builtins.print"):
+            launcher._open_implement(object())
+
+    def test_refuses_without_analysis(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        remote.analysis = False
+        with self.assertRaises(LauncherError) as caught:
+            self._run(remote)
+        self.assertIn("launch-ec2 analyze RP-123", str(caught.exception))
+        self.assertEqual(remote.interactive_calls, [])
+
+    def test_runs_implement_ticket_when_analysis_exists(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        remote.analysis = True
+        self._run(remote)
+        self.assertIn(
+            "test -e /var/lib/claude-remote/workspace/RP-123/analysis.md", remote.commands
+        )
+        self.assertEqual(
+            remote.interactive_calls,
+            [("root", "/run/current-system/sw/bin/claude-remote-session RP-123 implement-ticket")],
+        )
