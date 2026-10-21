@@ -32,16 +32,10 @@ let
   # Same layout as destinationFor in kirocrew-code.nix.
   mattpocockSkill =
     name: "/var/lib/code/${lib.removePrefix "code/" mattpocock.path}/skills/engineering/${name}";
+  # Our own skills ship from ./claude-remote-skills in the store.
+  ownSkill = name: ./claude-remote-skills + "/${name}";
   skills = pkgs.linkFarm "claude-remote-skills" (
-    map
-      (name: {
-        inherit name;
-        path = mattpocockSkill name;
-      })
-      [
-        "tdd"
-        "code-review"
-      ]
+    lib.genAttrs [ "tdd" "code-review" ] mattpocockSkill // lib.genAttrs [ "implement-ticket" ] ownSkill
   );
 
   # git credential helper: answers `get` for gitlab.com with the token from the

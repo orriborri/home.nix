@@ -1760,6 +1760,14 @@
                   [ "$(readlink "$skills/$s")" = "/var/lib/code/mattpocock-skills/skills/engineering/$s" ] \
                     || fail "skill $s links to '$(readlink "$skills/$s")'"
                 done
+                # Our own skills ship from the store (agent-pipeline issue 08 on).
+                it="$skills/implement-ticket/SKILL.md"
+                [ -f "$it" ] || fail "no implement-ticket skill"
+                grep -qx 'name: implement-ticket' "$it" || fail "implement-ticket: frontmatter name"
+                grep -qx 'disable-model-invocation: true' "$it" || fail "implement-ticket: should be user-invoked"
+                for w in '### Red' '### Green' '### Refactor' '### Review' 'simplest'; do
+                  grep -qF "$w" "$it" || fail "implement-ticket lacks '$w'"
+                done
                 [ -f "$mcpConfig" ] || fail "no /etc/claude-remote/mcp.json"
                 [ "$(${pkgs.jq}/bin/jq -r '.mcpServers."code-review-graph".url' "$mcpConfig")" = http://127.0.0.1:5555/mcp ] \
                   || fail "mcp.json does not point code-review-graph at http://127.0.0.1:5555/mcp"
