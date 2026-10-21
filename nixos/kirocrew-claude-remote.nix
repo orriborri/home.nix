@@ -95,11 +95,26 @@ in
           https://gitlab.com/api/v4/projects/readpeak%2F<repo>/merge_requests
         ```
 
+      ## Code graph
+      - A read-only code-review-graph MCP server for all repos runs at
+        `http://127.0.0.1:5555/mcp` (`/etc/claude-remote/mcp.json`). Pass
+        `repo_root=/var/lib/code/readpeak/<repo>` to per-repo tools; use
+        `cross_repo_search_tool` to search every repo at once.
+
       ## Network
       - All traffic goes through a proxy that allows only Anthropic, GitHub,
         gitlab.com, the npm/PyPI/crates registries and the NixOS caches. Other
         hosts are refused by design; do not try to work around it.
     '';
+    # Loaded with `claude --mcp-config /etc/claude-remote/mcp.json`. The
+    # server is code-review-graph-mcp (kirocrew-code.nix), reached directly
+    # over loopback (NO_PROXY below).
+    "claude-remote/mcp.json".text = builtins.toJSON {
+      mcpServers.code-review-graph = {
+        type = "http";
+        url = "http://127.0.0.1:5555/mcp";
+      };
+    };
   };
 
   # Network: IPAddressDeny=any plus IPAddressAllow=localhost covers the unit
@@ -124,6 +139,8 @@ in
       HOME = home;
       HTTPS_PROXY = proxy;
       HTTP_PROXY = proxy;
+      # The crg MCP server is on loopback; the proxy filter would refuse it.
+      NO_PROXY = "127.0.0.1,localhost";
       GIT_CONFIG_GLOBAL = "/etc/claude-remote/gitconfig";
     };
     unitConfig.ConditionPathExists = "${home}/.claude/.credentials.json";

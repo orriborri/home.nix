@@ -1713,11 +1713,17 @@
               );
               gitconfig = cfg.environment.etc."claude-remote/gitconfig".source or "";
               instructions = cfg.environment.etc."claude-remote/CLAUDE.md".source or "";
+              mcpConfig = cfg.environment.etc."claude-remote/mcp.json".source or "";
               tmpfiles = lib.concatStringsSep "\n" cfg.systemd.tmpfiles.rules;
             in
             pkgs.runCommand "check-ec2-claude-remote-uid"
               {
-                inherit gitconfig instructions tmpfiles;
+                inherit
+                  gitconfig
+                  instructions
+                  mcpConfig
+                  tmpfiles
+                  ;
                 home = u.home or "";
                 isSystem = lib.boolToString (u.isSystemUser or false);
                 group = u.group or "";
@@ -1745,6 +1751,9 @@
                 [ -f "$instructions" ] || fail "no CLAUDE.md for the uid"
                 echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md' \
                   || fail "CLAUDE.md is not linked into the uid's ~/.claude"
+                [ -f "$mcpConfig" ] || fail "no /etc/claude-remote/mcp.json"
+                [ "$(${pkgs.jq}/bin/jq -r '.mcpServers."code-review-graph".url' "$mcpConfig")" = http://127.0.0.1:5555/mcp ] \
+                  || fail "mcp.json does not point code-review-graph at http://127.0.0.1:5555/mcp"
                 touch $out
               '';
 
@@ -1774,6 +1783,7 @@
                 after = toString (unit.after or "");
                 httpsProxy = env.HTTPS_PROXY or "";
                 httpProxy = env.HTTP_PROXY or "";
+                noProxy = env.NO_PROXY or "";
                 gitConfig = env.GIT_CONFIG_GLOBAL or "";
                 envFile = toString (sc.EnvironmentFile or "");
                 home = env.HOME or "";
@@ -1796,12 +1806,44 @@
                 case " $after " in *" tinyproxy.service "*) ;; *) fail "not ordered after tinyproxy: '$after'" ;; esac
                 [ "$httpsProxy" = http://127.0.0.1:8888 ] || fail "HTTPS_PROXY is '$httpsProxy'"
                 [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "HTTP_PROXY is '$httpProxy'"
+                [ "$noProxy" = 127.0.0.1,localhost ] || fail "NO_PROXY is '$noProxy', want 127.0.0.1,localhost (the crg MCP server)"
                 [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
                 [ "$envFile" = -/var/lib/claude-remote/secrets/gitlab.env ] || fail "EnvironmentFile is '$envFile'"
                 [ "$home" = /var/lib/claude-remote ] || fail "HOME is '$home'"
                 case " $envNames " in
                   *CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC* | *DISABLE_GROWTHBOOK*) fail "sets a variable that disables Remote Control: $envNames" ;;
                 esac
+                touch $out
+              '';
+
+          # agent-pipeline 02: the crg MCP server for claude-remote listens on
+          # loopback only, runs as kirocrew, and exposes no tool that writes a
+          # graph, a wiki or source files.
+          ec2-crg-mcp-readonly =
+            let
+              unit = ec2OnX86.config.systemd.services.code-review-graph-mcp or { };
+              sc = unit.serviceConfig or { };
+            in
+            pkgs.runCommand "check-ec2-crg-mcp-readonly"
+              {
+                user = sc.User or "";
+                execStart = sc.ExecStart or "";
+                requires = toString (unit.requires or [ ]);
+                wantedBy = toString (unit.wantedBy or [ ]);
+              }
+              ''
+                fail() { echo "code-review-graph-mcp: $*" >&2; exit 1; }
+                [ "$user" = kirocrew ] || fail "User is '$user'"
+                case "$execStart" in *"/code-review-graph serve --http --host 127.0.0.1 --port 5555 --tools "*) ;; *) fail "ExecStart is '$execStart'" ;; esac
+                tools=''${execStart##* --tools }
+                for t in cross_repo_search_tool get_impact_radius_tool query_graph_tool semantic_search_nodes_tool; do
+                  case ",$tools," in *",$t,"*) ;; *) fail "tool $t missing from '$tools'" ;; esac
+                done
+                for t in build_or_update_graph_tool run_postprocess_tool embed_graph_tool apply_refactor_tool refactor_tool generate_wiki_tool; do
+                  case ",$tools," in *",$t,"*) fail "writing tool $t is exposed" ;; esac
+                done
+                case " $requires " in *" code-review-graph-install.service "*) ;; *) fail "does not require the install unit: '$requires'" ;; esac
+                [ "$wantedBy" = multi-user.target ] || fail "wantedBy is '$wantedBy'"
                 touch $out
               '';
 

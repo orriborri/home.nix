@@ -65,6 +65,11 @@ let
     say cred_gitlab "$(printf 'protocol=https\nhost=gitlab.com\n\n' | ${pkgs.git}/bin/git credential fill 2>/dev/null | grep '^password=' | tr '\n' ' ')"
     say cred_other "$(printf 'protocol=https\nhost=allowed.test\n\n' | GIT_TERMINAL_PROMPT=0 ${pkgs.git}/bin/git credential fill 2>/dev/null | grep '^password=' | tr '\n' ' ')"
 
+    # crg MCP server on loopback (a stand-in here): NO_PROXY sends the request
+    # direct; without it the proxy filter refuses 127.0.0.1.
+    say crg_loopback "$(http_proxy="$HTTP_PROXY" ${curl} http://127.0.0.1:5555/ 2>&1)"
+    say crg_loopback_no_noproxy "$(NO_PROXY= no_proxy= http_proxy="$HTTP_PROXY" ${curl} --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5555/ 2>&1)"
+
     # Session instructions are linked into the uid's ~/.claude.
     say instructions "$(head -n 1 ${home}/.claude/CLAUDE.md)"
 
@@ -125,6 +130,15 @@ pkgs.testers.runNixOSTest {
           ''
         );
 
+        # Stand-in for code-review-graph-mcp (kirocrew-code.nix): loopback only.
+        systemd.services.crg-mcp-standin = {
+          wantedBy = [ "multi-user.target" ];
+          script = ''
+            mkdir -p /run/crg-standin && echo crg-ok > /run/crg-standin/index.html
+            exec ${pkgs.python3}/bin/python3 -m http.server 5555 --bind 127.0.0.1 --directory /run/crg-standin
+          '';
+        };
+
         # Probe instead of `claude remote-control`; run once, no restart loop.
         systemd.services.claude-remote.serviceConfig = {
           ExecStart = lib.mkForce probe;
@@ -140,6 +154,7 @@ pkgs.testers.runNixOSTest {
     web.wait_for_open_port(443)
     box.wait_for_unit("tinyproxy.service")
     box.wait_for_open_port(8888)
+    box.wait_for_open_port(5555)
 
     with subtest("unit stays inactive while the credentials file is absent"):
         box.fail("test -e ${home}/.claude/.credentials.json")
@@ -194,6 +209,10 @@ pkgs.testers.runNixOSTest {
         assert r["token_env"] == "test-token", r
         assert r["cred_gitlab"].strip() == "password=test-token", r
         assert r["cred_other"].strip() == "", r
+
+    with subtest("the loopback crg MCP port is reached directly, not via the proxy"):
+        assert r["crg_loopback"] == "crg-ok", r
+        assert r["crg_loopback_no_noproxy"] == "403", r
 
     with subtest("session instructions are in place"):
         assert r["instructions"] == "# This machine: kirocrew (Claude Remote Control)", r

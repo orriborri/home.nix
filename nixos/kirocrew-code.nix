@@ -18,6 +18,43 @@ let
   crgVersion = import ../crg-version.nix;
   crgExcludeNewer = "2026-10-06";
   crgBin = "/var/lib/kirocrew/.local/bin/code-review-graph";
+  # What the crg units (sync, daemon, MCP server) may write: graphs live in
+  # each checkout, plus the revision stamps and crg's per-user state.
+  crgWritablePaths = [
+    codeDir
+    graphStateDir
+    "/var/lib/kirocrew/.code-review-graph"
+  ];
+  # Tools the loopback MCP server exposes to claude-remote: queries only.
+  # Left out because they write graphs, wikis or source files:
+  # build_or_update_graph, run_postprocess, embed_graph, generate_wiki,
+  # refactor (stages edits) and apply_refactor.
+  crgReadOnlyTools = [
+    "get_minimal_context_tool"
+    "get_impact_radius_tool"
+    "query_graph_tool"
+    "get_review_context_tool"
+    "semantic_search_nodes_tool"
+    "list_graph_stats_tool"
+    "get_docs_section_tool"
+    "find_large_functions_tool"
+    "list_flows_tool"
+    "get_flow_tool"
+    "get_affected_flows_tool"
+    "list_communities_tool"
+    "get_community_tool"
+    "get_architecture_overview_tool"
+    "detect_changes_tool"
+    "get_wiki_page_tool"
+    "get_hub_nodes_tool"
+    "get_bridge_nodes_tool"
+    "get_knowledge_gaps_tool"
+    "get_surprising_connections_tool"
+    "get_suggested_questions_tool"
+    "traverse_graph_tool"
+    "list_repos_tool"
+    "cross_repo_search_tool"
+  ];
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
   skillsTools = import ./kirocrew-skills-package.nix { inherit pkgs; };
   skillsRepo = lib.findFirst (repo: repo.path == "code/mattpocock-skills") null manifest.repos;
@@ -539,11 +576,7 @@ in
           UMask = "0002";
           ExecStart = "${graphSync}/bin/kirocrew-code-review-graph-sync";
           Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
-          ReadWritePaths = [
-            codeDir
-            graphStateDir
-            "/var/lib/kirocrew/.code-review-graph"
-          ];
+          ReadWritePaths = crgWritablePaths;
         };
       };
 
@@ -566,11 +599,32 @@ in
           Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
           Restart = "on-failure";
           RestartSec = 5;
-          ReadWritePaths = [
-            codeDir
-            graphStateDir
-            "/var/lib/kirocrew/.code-review-graph"
-          ];
+          ReadWritePaths = crgWritablePaths;
+        };
+      };
+
+      # Read-only MCP over the same graphs for claude-remote, which cannot run
+      # crgBin or open graph.db read/write itself. Loopback only; the daemon's
+      # registry (all graphed repos) backs cross_repo_search.
+      code-review-graph-mcp = {
+        description = "Code Review Graph MCP server (read-only tools, loopback)";
+        after = [
+          "code-review-graph-sync.service"
+          "code-review-graph-install.service"
+        ];
+        requires = [ "code-review-graph-install.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = hardening // {
+          Type = "simple";
+          User = "kirocrew";
+          Group = "code-writers";
+          UMask = "0002";
+          ExecStart = "${crgBin} serve --http --host 127.0.0.1 --port 5555 --tools ${lib.concatStringsSep "," crgReadOnlyTools}";
+          Environment = "GIT_CONFIG_GLOBAL=${safeGitConfig}";
+          Restart = "on-failure";
+          RestartSec = 5;
+          # SQLite opens graph.db read/write (WAL -shm), even for queries.
+          ReadWritePaths = crgWritablePaths;
         };
       };
 
