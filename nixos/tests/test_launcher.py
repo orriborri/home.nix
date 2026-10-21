@@ -459,3 +459,54 @@ class ClaudeCommandParseTests(unittest.TestCase):
 
         self.assertEqual(parse_arguments(["claude"]).command, "claude")
         self.assertEqual(parse_arguments(["--claude"]).command, "claude")
+
+
+class TicketCommandParseTests(unittest.TestCase):
+    def test_analyze_takes_a_ticket_id(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        arguments = parse_arguments(["analyze", "RP-123"])
+        self.assertEqual(arguments.command, "analyze")
+        self.assertEqual(arguments.ticket, "RP-123")
+
+    def test_analyze_without_a_ticket_fails_before_connecting(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        with self.assertRaises(SystemExit), mock.patch("sys.stderr"):
+            parse_arguments(["analyze"])
+
+    def test_malformed_ticket_is_refused(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        for bad in ("rp-123", "RP123", "RP-", "RP-1;reboot"):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit), mock.patch("sys.stderr"):
+                parse_arguments(["analyze", bad])
+
+    def test_other_commands_take_no_ticket(self):
+        from kirocrew_ec2.cli import parse_arguments
+
+        self.assertIsNone(parse_arguments(["claude"]).ticket)
+
+
+class TicketSessionFlowTests(unittest.TestCase):
+    def _run(self, remote: FakeClaudeRemote) -> None:
+        launcher = object.__new__(Launcher)
+        launcher._remote = lambda state: remote  # type: ignore[assignment]
+        launcher.arguments = mock.Mock(command="analyze", ticket="RP-123")
+        with mock.patch("builtins.print"):
+            launcher._open_ticket_session(object(), "analyze-ticket")
+
+    def test_runs_the_skill_in_the_sandboxed_session(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        self._run(remote)
+        self.assertEqual(
+            remote.interactive_calls,
+            [("root", "/run/current-system/sw/bin/claude-remote-session RP-123 analyze-ticket")],
+        )
+
+    def test_refuses_before_login(self):
+        remote = FakeClaudeRemote(logged_in=False)
+        with self.assertRaises(LauncherError) as caught:
+            self._run(remote)
+        self.assertIn("launch-ec2 claude", str(caught.exception))
+        self.assertEqual(remote.interactive_calls, [])

@@ -80,6 +80,11 @@ CLAUDE_REMOTE_WORKSPACE = "/var/lib/claude-remote/workspace"
 # Seconds to wait after a restart before judging the unit (it exits in about
 # 1 s when it fails, and the unit restarts it after 30 s).
 CLAUDE_REMOTE_SETTLE_SECS = 8
+# Runs `claude /<skill> <ticket>` as claude-remote inside the unit's sandbox
+# (kirocrew-claude-remote.nix), on the caller's terminal.
+CLAUDE_REMOTE_SESSION = "/run/current-system/sw/bin/claude-remote-session"
+# A Linear ticket ID such as RP-123: team key, dash, number.
+TICKET_PATTERN = r"[A-Z][A-Z0-9]*-[0-9]+"
 # Where `start` places the sops age key, as (path, owner, group, mode): orre's
 # home-manager sops (sops.nix) and system sops-nix (kirocrew-sops.nix). The
 # system copy is root-only so processes running as kirocrew cannot read it.
@@ -112,6 +117,7 @@ COMMANDS = (
     "token",
     "codex",
     "claude",
+    "analyze",
 )
 AUTH_TARGETS = ("linear", "metabase")
 # Freshness floor for a cached OAuth token, re-exported from the probe module so
@@ -140,6 +146,7 @@ class Arguments:
     assume_yes: bool
     auth_target: str | None = None
     force: bool = False
+    ticket: str | None = None
 
 
 @dataclass(frozen=True)

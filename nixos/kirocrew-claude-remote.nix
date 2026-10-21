@@ -39,6 +39,89 @@ let
     // lib.genAttrs [ "analyze-ticket" "implement-ticket" ] ownSkill
   );
 
+  # The sandbox every claude-remote process runs in: the unit below, and
+  # one-off sessions started by claude-remote-sandbox (launch-ec2 analyze).
+  # git for clones and pushes, nix for `nix-shell -p` through the daemon,
+  # ripgrep for analyze-ticket's literal search.
+  path = [
+    pkgs.git
+    pkgs.nix
+    pkgs.ripgrep
+  ];
+  environment = {
+    HOME = home;
+    HTTPS_PROXY = proxy;
+    HTTP_PROXY = proxy;
+    # The crg MCP server is on loopback; the proxy filter would refuse it.
+    NO_PROXY = "127.0.0.1,localhost";
+    RIPGREP_CONFIG_PATH = "/etc/claude-remote/ripgreprc";
+    GIT_CONFIG_GLOBAL = "/etc/claude-remote/gitconfig";
+  };
+  sandbox = hardening // {
+    User = "claude-remote";
+    Group = "claude-remote";
+    WorkingDirectory = "${home}/workspace";
+    # GITLAB_TOKEN=... and LINEAR_API_KEY=..., rendered by sops
+    # (kirocrew-sops.nix). Optional, so the unit still starts on a box
+    # without the secrets.
+    EnvironmentFile = [
+      "-${home}/secrets/gitlab.env"
+      "-${home}/secrets/linear.env"
+    ];
+    IPAddressDeny = "any";
+    IPAddressAllow = "localhost";
+    ReadWritePaths = [ home ];
+    UnsetEnvironment = [
+      "ANTHROPIC_API_KEY"
+      "ANTHROPIC_AUTH_TOKEN"
+    ];
+  };
+
+  # `claude-remote-sandbox -- CMD...` (root only) runs CMD as a transient
+  # unit with exactly the settings above, on the caller's terminal when it
+  # has one. PATH matches what NixOS gives a service with `path`.
+  systemdValue = v: if builtins.isBool v then lib.boolToString v else toString v;
+  sandboxRun = pkgs.writeShellScriptBin "claude-remote-sandbox" ''
+    [ "''${1:-}" = -- ] && shift
+    if [ -t 0 ]; then io=--pty; else io=--pipe; fi
+    exec ${pkgs.systemd}/bin/systemd-run --quiet --wait --collect "$io" \
+      ${
+        lib.escapeShellArgs (
+          lib.concatLists (
+            lib.mapAttrsToList (k: v: map (x: "--property=${k}=${systemdValue x}") (lib.toList v)) sandbox
+          )
+          ++ lib.mapAttrsToList (k: v: "--setenv=${k}=${v}") environment
+          ++ [
+            "--setenv=PATH=${
+              lib.makeBinPath (
+                path
+                ++ [
+                  pkgs.coreutils
+                  pkgs.findutils
+                  pkgs.gnugrep
+                  pkgs.gnused
+                  pkgs.systemd
+                ]
+              )
+            }"
+          ]
+        )
+      } \
+      -- "$@"
+  '';
+
+  # `claude-remote-session TICKET SKILL`: /SKILL TICKET in a sandboxed,
+  # Remote Control-enabled session (launch-ec2 analyze). The prompt goes
+  # before --mcp-config, which takes several values.
+  session = pkgs.writeShellScriptBin "claude-remote-session" ''
+    set -eu
+    ticket=''${1:-} skill=''${2:-}
+    [[ $ticket =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || { echo "usage: claude-remote-session TICKET SKILL" >&2; exit 2; }
+    case $skill in analyze-ticket | implement-ticket) ;; *) echo "unknown skill: $skill" >&2; exit 2 ;; esac
+    exec ${sandboxRun}/bin/claude-remote-sandbox -- ${pkgs.claude-code}/bin/claude \
+      "/$skill $ticket" --remote-control="$ticket $skill" --mcp-config /etc/claude-remote/mcp.json
+  '';
+
   # git credential helper: answers `get` for gitlab.com with the token from the
   # unit's environment, and stores nothing.
   gitlabCredential = pkgs.writeShellScript "claude-remote-gitlab-credential" ''
@@ -166,46 +249,19 @@ in
       "tinyproxy.service"
     ];
     wants = [ "tinyproxy.service" ];
-    # git for clones and pushes, nix for `nix-shell -p` through the daemon,
-    # ripgrep for analyze-ticket's literal search.
-    path = [
-      pkgs.git
-      pkgs.nix
-      pkgs.ripgrep
-    ];
-    environment = {
-      HOME = home;
-      HTTPS_PROXY = proxy;
-      HTTP_PROXY = proxy;
-      # The crg MCP server is on loopback; the proxy filter would refuse it.
-      NO_PROXY = "127.0.0.1,localhost";
-      RIPGREP_CONFIG_PATH = "/etc/claude-remote/ripgreprc";
-      GIT_CONFIG_GLOBAL = "/etc/claude-remote/gitconfig";
-    };
+    inherit path environment;
     unitConfig.ConditionPathExists = "${home}/.claude/.credentials.json";
-    serviceConfig = hardening // {
-      User = "claude-remote";
-      Group = "claude-remote";
-      WorkingDirectory = "${home}/workspace";
+    serviceConfig = sandbox // {
       # same-dir: sessions share the workspace and clone the repos they need
       # into it. worktree mode needs the workspace itself to be one git repo.
       ExecStart = "${pkgs.claude-code}/bin/claude remote-control --name kirocrew --spawn same-dir";
-      # GITLAB_TOKEN=... and LINEAR_API_KEY=..., rendered by sops
-      # (kirocrew-sops.nix). Optional, so the unit still starts on a box
-      # without the secrets.
-      EnvironmentFile = [
-        "-${home}/secrets/gitlab.env"
-        "-${home}/secrets/linear.env"
-      ];
-      IPAddressDeny = "any";
-      IPAddressAllow = "localhost";
-      ReadWritePaths = [ home ];
-      UnsetEnvironment = [
-        "ANTHROPIC_API_KEY"
-        "ANTHROPIC_AUTH_TOKEN"
-      ];
       Restart = "always";
       RestartSec = 30;
     };
   };
+
+  environment.systemPackages = [
+    sandboxRun
+    session
+  ];
 }

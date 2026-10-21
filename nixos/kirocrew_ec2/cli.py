@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import re
 from typing import Sequence
 
-from .models import AUTH_TARGETS, COMMANDS, Arguments, LauncherError
+from .models import AUTH_TARGETS, COMMANDS, TICKET_PATTERN, Arguments, LauncherError
 
 
 def parse_arguments(argv: Sequence[str]) -> Arguments:
@@ -75,6 +76,21 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
                 normalized.pop(index)
                 break
 
+    # `analyze` takes the ticket ID as its first bare positional, so it does
+    # not land in the legacy profile slot. Validated after parsing.
+    ticket: str | None = None
+    if command == "analyze":
+        for index, argument in enumerate(normalized):
+            preceded_by_opt = index > 0 and normalized[index - 1] in {
+                "--instance-type",
+                "--profile",
+                "--region",
+                "--ami",
+            }
+            if not argument.startswith("-") and not preceded_by_opt:
+                ticket = normalized.pop(index)
+                break
+
     parser = argparse.ArgumentParser(
         prog="launch-ec2",
         usage="launch-ec2 [COMMAND] [profile] [region] [instance-type] [ami-id] [OPTIONS]",
@@ -90,6 +106,8 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
             "  token              print a KiroCrew dashboard access URL (with auth token)\n"
             "  codex              forward the remote Codex app-server on localhost:4500\n"
             "  claude             log in and start Claude Remote Control (env: kirocrew)\n"
+            "  analyze TICKET     run /analyze-ticket TICKET in a sandboxed Claude session\n"
+            "                     on this terminal (e.g. analyze RP-123)\n"
             "  stop               stop the saved instance\n"
             "  destroy            permanently terminate the saved instance\n"
             "  rebuild            rebuild the saved instance\n"
@@ -126,6 +144,11 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         parser.error("--yes is only valid with migrate-kirocrew")
     if parsed.force and command != "auth":
         parser.error("--force is only valid with auth")
+    if command == "analyze":
+        if not ticket:
+            parser.error("analyze requires a ticket ID, e.g. 'launch-ec2 analyze RP-123'")
+        if not re.fullmatch(TICKET_PATTERN, ticket):
+            parser.error(f"'{ticket}' is not a ticket ID like RP-123")
     resolved_instance_type = (
         parsed.instance_type_option or resize_type or parsed.legacy_instance_type
     )
@@ -143,4 +166,5 @@ def parse_arguments(argv: Sequence[str]) -> Arguments:
         assume_yes=parsed.yes,
         auth_target=auth_target,
         force=parsed.force,
+        ticket=ticket,
     )

@@ -244,5 +244,14 @@ pkgs.testers.runNixOSTest {
         assert r["gitlab_route_exit"] != "0", r
         assert "https://gitlab.com/readpeak/demo.git" in r["gitlab_route_msg"], r
         assert "CONNECT tunnel failed, response 403" in r["gitlab_route_msg"], r
+
+    with subtest("claude-remote-sandbox runs a command under the unit's sandbox"):
+        # What launch-ec2 analyze/implement use (claude-remote-session), run
+        # here with the probe instead of claude. Same results as the unit.
+        box.succeed("rm -rf ${home}/workspace/probe.out ${home}/workspace/demo")
+        box.succeed("claude-remote-sandbox -- ${probe} < /dev/null")
+        out2 = box.succeed("cat ${home}/workspace/probe.out")
+        r2 = dict(line.split("=", 1) for line in out2.splitlines() if "=" in line)
+        assert r2 == r, {k: (r.get(k), r2.get(k)) for k in set(r) | set(r2) if r.get(k) != r2.get(k)}
   '';
 }

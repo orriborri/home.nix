@@ -154,6 +154,13 @@ can work on the box without being able to publish anything.
      once to accept "Enable Remote Control?" and the trust prompt.
   3. `systemctl start claude-remote`, then open the session from claude.ai/code.
   The CLI warns 3 days before the login expires; repeat step 1 then.
+- **Ticket sessions.** `./nixos/launch-ec2 analyze RP-123` opens Claude on
+  your terminal as the uid, running `/analyze-ticket RP-123` with Remote
+  Control on (named `RP-123 analyze-ticket` in claude.ai/code) and the
+  code-review-graph MCP server loaded. It goes through `claude-remote-session`
+  → `claude-remote-sandbox`, a transient unit with the same settings as
+  `claude-remote.service` (one `sandbox` attrset in the module). Needs the
+  first login above. The session ends when the SSM connection drops.
 - **What the tests cover.** The flake checks `ec2-claude-egress-proxy`,
   `ec2-nix-daemon-egress`, `ec2-claude-remote-uid` and `ec2-claude-remote-unit`
   assert the rendered config. The VM test `claude-remote-sandbox`

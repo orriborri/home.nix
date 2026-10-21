@@ -24,6 +24,7 @@ from .models import (
     AUTH_MIN_REMAINING_SECS,
     CLAUDE_REMOTE_CREDENTIALS,
     CLAUDE_REMOTE_PROXY,
+    CLAUDE_REMOTE_SESSION,
     CLAUDE_REMOTE_SETTLE_SECS,
     CLAUDE_REMOTE_WORKSPACE,
     KEY_NAME,
@@ -147,6 +148,9 @@ class Launcher:
             return
         if self.arguments.command == "claude":
             self._open_claude(state)
+            return
+        if self.arguments.command == "analyze":
+            self._open_ticket_session(state, "analyze-ticket")
             return
         if self.arguments.command == "migrate-kirocrew":
             self._migrate(state)
@@ -534,7 +538,6 @@ class Launcher:
         through the egress proxy, the uid's only route out.
         """
         remote = self._remote(state)
-        probe = f"test -e {shlex.quote(CLAUDE_REMOTE_CREDENTIALS)}"
         as_claude = (
             "sudo -u claude-remote -H env "
             f"HTTPS_PROXY={CLAUDE_REMOTE_PROXY} HTTP_PROXY={CLAUDE_REMOTE_PROXY} "
@@ -542,7 +545,7 @@ class Launcher:
         claude = "/run/current-system/sw/bin/claude"
 
         def logged_in() -> bool:
-            return remote.run("root", probe, capture=True, check=False).returncode == 0
+            return self._claude_remote_logged_in(remote)
 
         if not logged_in():
             print("\n» Logging in Claude for the claude-remote user...")
@@ -595,6 +598,31 @@ class Launcher:
             print(f"  Open: {detail}")
         print("  Or open claude.ai/code or the Claude app and pick 'kirocrew'.")
         print("  Push and merge requests use the GitLab token on the box (GITLAB_TOKEN).")
+
+    def _open_ticket_session(self, state: InstanceState, skill: str) -> None:
+        """Run `/<skill> <ticket>` in a sandboxed Claude session on this terminal.
+
+        claude-remote-session (kirocrew-claude-remote.nix) starts claude as the
+        claude-remote uid under the same sandbox as the claude-remote unit,
+        with Remote Control on, so the session also shows in claude.ai/code.
+        It reuses the uid's login, so `launch-ec2 claude` must have run once.
+        """
+        remote = self._remote(state)
+        if not self._claude_remote_logged_in(remote):
+            raise LauncherError(
+                "claude-remote is not logged in; run 'launch-ec2 claude' first"
+            )
+        ticket = self.arguments.ticket
+        print(f"\n» Opening /{skill} {ticket} on the instance (exit with /exit)...")
+        remote.interactive(
+            "root",
+            f"{CLAUDE_REMOTE_SESSION} {shlex.quote(ticket)} {shlex.quote(skill)}",
+        )
+
+    @staticmethod
+    def _claude_remote_logged_in(remote: RemoteHost) -> bool:
+        probe = f"test -e {shlex.quote(CLAUDE_REMOTE_CREDENTIALS)}"
+        return remote.run("root", probe, capture=True, check=False).returncode == 0
 
     def _restart_claude_remote(self, remote: RemoteHost) -> tuple[str, str]:
         """Restart claude-remote and report whether it stayed up.
