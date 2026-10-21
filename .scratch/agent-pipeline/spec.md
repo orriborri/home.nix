@@ -1,70 +1,101 @@
-# Agent pipeline on EC2: Linear ticket → MR → retro
+# Ticket agent on EC2: analyze → implement → MR → review loop
 
 Status: needs-triage
 
 ## Goal
 
-A headless pipeline on the persistent EC2 box takes a Linear issue from
-research to a reviewed MR, then runs a retro. Two human gates: plan approval
-and merge.
+Two `launch-ec2` commands drive a Linear ticket from analysis to a reviewed
+MR. Each opens an interactive Claude session on the EC2 box as the
+`claude-remote` uid. The session is visible in the terminal and in the
+Claude workspace (claude.ai/code, "kirocrew"). Nothing runs unattended in
+the background.
 
-## Flow
+```
+./nixos/launch-ec2 analyze RP-123     # impact analysis + todo
+./nixos/launch-ec2 implement RP-123   # TDD loop → MR → review comments
+```
 
-1. Label `agent` on a Linear issue → planner: cross-repo research, spec,
-   sub-tickets with blocked-by links. Posts the plan to the issue and Slack,
-   sets `plan-review`.
-2. Human sets `plan-approved` → one fresh `claude -p` per unblocked ticket:
-   `/implement` (TDD + `/code-review`), then opens the MR.
-3. Fresh review run posts findings as MR comments.
-4. New unresolved MR threads → `address-mr-feedback` run. Max 3 rounds, then
-   ping the human.
-5. Human merges → retro run opens an MR with ADR, docs and skill changes.
+## Stage 1: analyze
 
-## Design decisions
+1. Read the Linear ticket.
+2. Find everything the change could affect across **all** repos with
+   code-review-graph (`cross_repo_search`, `get_impact_radius`,
+   `query_graph` callers/imports) over `/var/lib/code/readpeak/*`.
+3. Add `rg` for what the graph misses: queue topics, S3 paths, env
+   vars, GraphQL/REST contracts.
+4. Write `analysis.md`: affected repos, files, callers, dependency graph,
+   risks, open questions.
+5. Stop. The human reads it before running `implement`.
 
-- **Runner:** `claude -p` per stage, started by a systemd timer that polls
-  Linear. No inbound ingress. Each gate ends one process; a label change
-  starts the next.
-- **Model auth:** Bedrock via instance role (`CLAUDE_CODE_USE_BEDROCK=1`),
-  or an API key from Secrets Manager. Undecided.
-- **Linear access:** only the poller (plain code) and the supervised
-  planner session hold the Linear key. The implementer gets no Linear MCP
-  or token. The poller injects ticket text, moves states, and comments the
-  MR link.
-- **GitLab:** bot user with Developer role, `main` protected, no merge
-  rights. The human merge is the final gate.
-- **Permissions:** allowlist in `settings.json`, not
-  `--dangerously-skip-permissions`. Every run capped with `--max-turns`.
-- **Repos:** all GitLab group repos cloned to `/work/repos`; one git
-  worktree per ticket. Cross-repo search is local `rg`.
-- **Skills:** same plugins as the laptop, installed from a versioned repo.
+## Stage 2: implement
 
-## Known weak spot
+Per-ticket internal tracker: `workspace/<TICKET>/todo.md`.
 
-Cross-repo dependency search finds only what is grep-able. Runtime
-dependencies (queue topics, S3 paths) need explicit hints in the planner
-prompt.
+1. **Break down** the ticket into the smallest tasks possible
+   (one commit, one verification each).
+2. **Build a DAG** of the tasks and **group** them into packages.
+3. **Sort** unblocked tasks from simplest to most complex. Pick the
+   simplest.
+4. **TDD loop** for that task:
+   - Red: write a failing test, run it, see it fail.
+   - Green: the smallest code that passes.
+   - **Refactor: required, never skipped.** Record in todo.md what was
+     refactored, or why nothing needed it. Tests stay green.
+5. **Review** the change; append every finding to todo.md as a new task.
+6. Re-sort (step 3) and repeat until todo.md has no open tasks.
+7. Push a branch named after the ticket and open the MR for human review.
+
+## Stage 3: review comments
+
+After the push, the same session polls the MR (`/loop`). On each new
+unresolved discussion from a human or a bot reviewer: fix it via the same
+TDD loop, or answer it, then reply on the thread. It never merges.
+
+## What already exists on the box
+
+- Repos mirrored to `/var/lib/code/readpeak/<repo>`, readable by
+  `claude-remote` through `code-writers` (`nixos/kirocrew-claude-remote.nix`).
+- code-review-graph graphs built for each repo by
+  `kirocrew-code-review-graph-sync` (`nixos/kirocrew-code.nix:297`), owned
+  by the `kirocrew` uid.
+- `claude-remote` can push and create MRs with a token
+  (`claude-remote-gitlab-token`) through the egress proxy.
+
+## Gaps (the issues below)
+
+- `claude-remote` cannot use the graphs or the crg binary.
+- No Linear access: `api.linear.app` is not in the egress allowlist
+  (`nixos/kirocrew-claude-egress.nix:9`) and there is no key.
+- The GitLab token cannot read MR discussions or post notes.
+- `claude-remote` has no skills; only `/etc/claude-remote/CLAUDE.md`.
+- Not verified: how `launch-ec2` starts an interactive session that also
+  shows up in the Claude workspace.
 
 ## Open decisions
 
-- How many implementer runs at once (start at 1).
-- Sonnet or Opus for the review run.
-- Which Slack channel gets the pings.
-- Which repo the poller code lives in.
-- Bedrock or Anthropic API key.
+- Linear: read-only API key for `claude-remote`, or `launch-ec2` fetches
+  the ticket on the laptop and passes the text in. Recommend the key
+  (the session can re-read comments).
+- Poll interval for review comments, and when the loop stops.
+
+## Later
+
+- Retro after merge: learnings to docs, ADR and skills through an MR.
 
 ## Issues
 
-| # | Issue | Blocked by |
-|---|---|---|
-| 01 | EC2 workspace: repos, worktrees, skills | — |
-| 02 | Credentials: GitLab bot + Linear key | — |
-| 03 | Linear project and labels | — |
-| 04 | Manual tracer bullet | 01, 02, 03 |
-| 05 | `/plan-linear-issue` skill | 04 |
-| 06 | Poller | 04 |
-| 07 | Implement prompt | 06 |
-| 08 | Review run | 06 |
-| 09 | `address-mr-feedback` skill | 06 |
-| 10 | Retro run | 09 |
-| 11 | CI failures → pipeline-doctor | 09 |
+| # | Issue | Size | Blocked by |
+|---|---|---|---|
+| 01 | Verify: interactive session over launch-ec2, visible in Claude workspace | S | — |
+| 02 | code-review-graph for `claude-remote` | M | — |
+| 03 | Linear read access for `claude-remote` | S | — |
+| 04 | GitLab token: read MRs, post notes | S | — |
+| 05 | Ship skills to `claude-remote` | M | — |
+| 06 | `analyze-ticket` skill | M | 02, 03, 05 |
+| 07 | `launch-ec2 analyze <TICKET>` | M | 01, 06 |
+| 08 | `implement-ticket` skill (todo, DAG, simplest-first TDD) | L | 05 |
+| 09 | Push and open MR | S | 08 |
+| 10 | `launch-ec2 implement <TICKET>` | S | 07, 08 |
+| 11 | Review-comment loop | M | 04, 09 |
+
+Size: S under 30 min, M a few hours, L a day.
