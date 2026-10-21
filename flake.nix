@@ -1714,6 +1714,7 @@
               gitconfig = cfg.environment.etc."claude-remote/gitconfig".source or "";
               instructions = cfg.environment.etc."claude-remote/CLAUDE.md".source or "";
               mcpConfig = cfg.environment.etc."claude-remote/mcp.json".source or "";
+              skills = cfg.environment.etc."claude-remote/skills".source or "";
               tmpfiles = lib.concatStringsSep "\n" cfg.systemd.tmpfiles.rules;
             in
             pkgs.runCommand "check-ec2-claude-remote-uid"
@@ -1722,6 +1723,7 @@
                   gitconfig
                   instructions
                   mcpConfig
+                  skills
                   tmpfiles
                   ;
                 home = u.home or "";
@@ -1751,6 +1753,13 @@
                 [ -f "$instructions" ] || fail "no CLAUDE.md for the uid"
                 echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md' \
                   || fail "CLAUDE.md is not linked into the uid's ~/.claude"
+                echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/skills - - - - /etc/claude-remote/skills' \
+                  || fail "skills are not linked into the uid's ~/.claude"
+                [ -d "$skills" ] || fail "no /etc/claude-remote/skills"
+                for s in tdd code-review; do
+                  [ "$(readlink "$skills/$s")" = "/var/lib/code/mattpocock-skills/skills/engineering/$s" ] \
+                    || fail "skill $s links to '$(readlink "$skills/$s")'"
+                done
                 [ -f "$mcpConfig" ] || fail "no /etc/claude-remote/mcp.json"
                 [ "$(${pkgs.jq}/bin/jq -r '.mcpServers."code-review-graph".url' "$mcpConfig")" = http://127.0.0.1:5555/mcp ] \
                   || fail "mcp.json does not point code-review-graph at http://127.0.0.1:5555/mcp"

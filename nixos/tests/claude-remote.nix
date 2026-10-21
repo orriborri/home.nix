@@ -70,6 +70,11 @@ let
     say crg_loopback "$(http_proxy="$HTTP_PROXY" ${curl} http://127.0.0.1:5555/ 2>&1)"
     say crg_loopback_no_noproxy "$(NO_PROXY= no_proxy= http_proxy="$HTTP_PROXY" ${curl} --output /dev/null --write-out '%{http_code}' http://127.0.0.1:5555/ 2>&1)"
 
+    # Skills resolve through ~/.claude/skills into the code tree, read-only.
+    say skill_tdd "$(head -n 1 ${home}/.claude/skills/tdd/SKILL.md 2>&1)"
+    echo x >> ${home}/.claude/skills/tdd/SKILL.md 2>/dev/null
+    say skill_write_exit "$?"
+
     # Session instructions are linked into the uid's ~/.claude.
     say instructions "$(head -n 1 ${home}/.claude/CLAUDE.md)"
 
@@ -174,6 +179,10 @@ pkgs.testers.runNixOSTest {
             "${pkgs.git}/bin/git -C /var/lib/code/demo -c user.email=t@t -c user.name=t commit -q --allow-empty -m demo",
             "chgrp -R code-writers /var/lib/code/demo",
             "chmod -R g+rX,o-rwx /var/lib/code/demo",
+            # The pinned skills checkout repo-sync maintains (group-writable,
+            # like the real checkouts).
+            "install -d -m 2775 -g code-writers /var/lib/code/mattpocock-skills/skills/engineering/tdd",
+            "echo '# tdd-fixture' | install -m 0664 -g code-writers /dev/stdin /var/lib/code/mattpocock-skills/skills/engineering/tdd/SKILL.md",
             "install -d -m 0700 -o claude-remote -g claude-remote ${home}/secrets",
             "echo GITLAB_TOKEN=test-token | install -m 0400 -o claude-remote -g claude-remote /dev/stdin ${home}/secrets/gitlab.env",
         )
@@ -213,6 +222,10 @@ pkgs.testers.runNixOSTest {
     with subtest("the loopback crg MCP port is reached directly, not via the proxy"):
         assert r["crg_loopback"] == "crg-ok", r
         assert r["crg_loopback_no_noproxy"] == "403", r
+
+    with subtest("skills are readable, not writable"):
+        assert r["skill_tdd"] == "# tdd-fixture", r
+        assert r["skill_write_exit"] != "0", r
 
     with subtest("session instructions are in place"):
         assert r["instructions"] == "# This machine: kirocrew (Claude Remote Control)", r

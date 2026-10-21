@@ -16,11 +16,33 @@
 # The uid logs in once by hand (`launch-ec2 claude` runs it). Until
 # ~/.claude/.credentials.json exists the unit stays inactive, so there is no
 # crash loop on a fresh deploy.
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 let
   home = "/var/lib/claude-remote";
   proxy = "http://127.0.0.1:8888";
   hardening = import ./kirocrew-hardening.nix;
+
+  # Skills every session loads (agent-pipeline issue 05). Matt Pocock's come
+  # from the checkout repo-sync keeps at the revision pinned in repos.toml;
+  # read-only inside the unit (ProtectSystem=strict).
+  manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
+  mattpocock = lib.findFirst (
+    repo: repo.path == "code/mattpocock-skills"
+  ) (throw "repos.toml has no code/mattpocock-skills entry") manifest.repos;
+  # Same layout as destinationFor in kirocrew-code.nix.
+  mattpocockSkill =
+    name: "/var/lib/code/${lib.removePrefix "code/" mattpocock.path}/skills/engineering/${name}";
+  skills = pkgs.linkFarm "claude-remote-skills" (
+    map
+      (name: {
+        inherit name;
+        path = mattpocockSkill name;
+      })
+      [
+        "tdd"
+        "code-review"
+      ]
+  );
 
   # git credential helper: answers `get` for gitlab.com with the token from the
   # unit's environment, and stores nothing.
@@ -50,6 +72,7 @@ in
     "d ${home}/.claude 0700 claude-remote claude-remote -"
     # User-level instructions every session loads; read-only (store symlink).
     "L+ ${home}/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md"
+    "L+ ${home}/.claude/skills - - - - /etc/claude-remote/skills"
   ];
 
   # /etc entries are symlinks into the store, so the uid cannot edit these.
@@ -106,6 +129,7 @@ in
         gitlab.com, the npm/PyPI/crates registries and the NixOS caches. Other
         hosts are refused by design; do not try to work around it.
     '';
+    "claude-remote/skills".source = skills;
     # Loaded with `claude --mcp-config /etc/claude-remote/mcp.json`. The
     # server is code-review-graph-mcp (kirocrew-code.nix), reached directly
     # over loopback (NO_PROXY below).
