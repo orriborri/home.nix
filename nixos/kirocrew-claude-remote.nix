@@ -35,7 +35,8 @@ let
   # Our own skills ship from ./claude-remote-skills in the store.
   ownSkill = name: ./claude-remote-skills + "/${name}";
   skills = pkgs.linkFarm "claude-remote-skills" (
-    lib.genAttrs [ "tdd" "code-review" ] mattpocockSkill // lib.genAttrs [ "implement-ticket" ] ownSkill
+    lib.genAttrs [ "tdd" "code-review" ] mattpocockSkill
+    // lib.genAttrs [ "analyze-ticket" "implement-ticket" ] ownSkill
   );
 
   # git credential helper: answers `get` for gitlab.com with the token from the
@@ -124,6 +125,13 @@ in
         hosts are refused by design; do not try to work around it.
     '';
     "claude-remote/skills".source = skills;
+    # Search hidden files (.gitlab-ci.yml, .env.example) but not .git. Kept
+    # here because a '!' glob on the command line asks for permission on
+    # every search.
+    "claude-remote/ripgreprc".text = ''
+      --hidden
+      --glob=!.git
+    '';
     # Loaded with `claude --mcp-config /etc/claude-remote/mcp.json`. The
     # server is code-review-graph-mcp (kirocrew-code.nix), reached directly
     # over loopback (NO_PROXY below).
@@ -148,10 +156,12 @@ in
       "tinyproxy.service"
     ];
     wants = [ "tinyproxy.service" ];
-    # git for clones and pushes, nix for `nix-shell -p` through the daemon.
+    # git for clones and pushes, nix for `nix-shell -p` through the daemon,
+    # ripgrep for analyze-ticket's literal search.
     path = [
       pkgs.git
       pkgs.nix
+      pkgs.ripgrep
     ];
     environment = {
       HOME = home;
@@ -159,6 +169,7 @@ in
       HTTP_PROXY = proxy;
       # The crg MCP server is on loopback; the proxy filter would refuse it.
       NO_PROXY = "127.0.0.1,localhost";
+      RIPGREP_CONFIG_PATH = "/etc/claude-remote/ripgreprc";
       GIT_CONFIG_GLOBAL = "/etc/claude-remote/gitconfig";
     };
     unitConfig.ConditionPathExists = "${home}/.claude/.credentials.json";

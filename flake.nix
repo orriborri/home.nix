@@ -1760,7 +1760,19 @@
                   [ "$(readlink "$skills/$s")" = "/var/lib/code/mattpocock-skills/skills/engineering/$s" ] \
                     || fail "skill $s links to '$(readlink "$skills/$s")'"
                 done
-                # Our own skills ship from the store (agent-pipeline issue 08 on).
+                # Our own skills ship from the store (agent-pipeline issue 06 on).
+                at="$skills/analyze-ticket/SKILL.md"
+                [ -f "$at" ] || fail "no analyze-ticket skill"
+                grep -qx 'name: analyze-ticket' "$at" || fail "analyze-ticket: frontmatter name"
+                grep -qx 'disable-model-invocation: true' "$at" || fail "analyze-ticket: should be user-invoked"
+                for w in 'ticket.md' 'cross_repo_search_tool' 'get_impact_radius_tool' '/var/lib/code/readpeak' \
+                  '## Acceptance criteria' '## Affected' '## Evidence' 'gitBranchName'; do
+                  grep -qF "$w" "$at" || fail "analyze-ticket lacks '$w'"
+                done
+                # A '!' glob on the command line triggers a permission prompt
+                # per search; ripgreprc carries --hidden and the .git exclude.
+                grep -qF "rg -n -F '<literal>' /var/lib/code/readpeak" "$at" || fail "analyze-ticket: rg command"
+                ! grep -qF "'!" "$at" || fail "analyze-ticket: rg command has a '!' glob"
                 it="$skills/implement-ticket/SKILL.md"
                 [ -f "$it" ] || fail "no implement-ticket skill"
                 grep -qx 'name: implement-ticket' "$it" || fail "implement-ticket: frontmatter name"
@@ -1802,6 +1814,7 @@
                 httpsProxy = env.HTTPS_PROXY or "";
                 httpProxy = env.HTTP_PROXY or "";
                 noProxy = env.NO_PROXY or "";
+                ripgrepConfig = env.RIPGREP_CONFIG_PATH or "";
                 gitConfig = env.GIT_CONFIG_GLOBAL or "";
                 envFile = toString (sc.EnvironmentFile or "");
                 home = env.HOME or "";
@@ -1825,6 +1838,7 @@
                 [ "$httpsProxy" = http://127.0.0.1:8888 ] || fail "HTTPS_PROXY is '$httpsProxy'"
                 [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "HTTP_PROXY is '$httpProxy'"
                 [ "$noProxy" = 127.0.0.1,localhost ] || fail "NO_PROXY is '$noProxy', want 127.0.0.1,localhost (the crg MCP server)"
+                [ "$ripgrepConfig" = /etc/claude-remote/ripgreprc ] || fail "RIPGREP_CONFIG_PATH is '$ripgrepConfig'"
                 [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
                 [ "$envFile" = -/var/lib/claude-remote/secrets/gitlab.env ] || fail "EnvironmentFile is '$envFile'"
                 [ "$home" = /var/lib/claude-remote ] || fail "HOME is '$home'"
