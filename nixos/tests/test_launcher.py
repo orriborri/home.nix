@@ -370,6 +370,9 @@ class FakeClaudeRemote:
         if command.startswith("test -e "):
             code = 0 if self.logged_in else 1
             return launcher_module.subprocess.CompletedProcess(command, code, "", "")
+        if "systemctl start repo-fetch.service" in command:
+            out = getattr(self, "sync_report", "")
+            return launcher_module.subprocess.CompletedProcess(command, 0, out, "")
         if "systemctl restart claude-remote" in command:
             if not self.trusted:
                 out = "untrusted\n"
@@ -550,3 +553,30 @@ class ImplementCommandTests(unittest.TestCase):
             remote.interactive_calls,
             [("root", "/run/current-system/sw/bin/claude-remote-session RP-123 implement-ticket")],
         )
+
+
+class TicketSessionSyncTests(unittest.TestCase):
+    def _run(self, remote: FakeClaudeRemote) -> mock.Mock:
+        launcher = object.__new__(Launcher)
+        launcher._remote = lambda state: remote  # type: ignore[assignment]
+        launcher.arguments = mock.Mock(command="analyze", ticket="RP-123")
+        with mock.patch("builtins.print") as printed:
+            launcher._open_ticket_session(object(), "analyze-ticket")
+        return printed
+
+    def test_syncs_repos_and_graphs_before_the_session(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        self._run(remote)
+        sync = [c for c in remote.commands if "systemctl start repo-fetch.service" in c]
+        self.assertEqual(len(sync), 1)
+        self.assertIn("repo-sync.service code-review-graph-sync.service", sync[0])
+        self.assertEqual(len(remote.interactive_calls), 1)
+
+    def test_reports_repos_the_sync_left_stale(self):
+        remote = FakeClaudeRemote(logged_in=True)
+        remote.sync_report = "Skipping dirty checkout (preserved, not reset): mononode\n"
+        printed = self._run(remote)
+        output = " ".join(str(c) for c in printed.call_args_list)
+        self.assertIn("mononode", output)
+        self.assertIn("stale", output)
+        self.assertEqual(len(remote.interactive_calls), 1)

@@ -615,6 +615,7 @@ class Launcher:
             raise LauncherError(
                 "claude-remote is not logged in; run 'launch-ec2 claude' first"
             )
+        self._sync_code(remote)
         ticket = self.arguments.ticket
         print(f"\n» Opening /{skill} {ticket} on the instance (exit with /exit)...")
         remote.interactive(
@@ -635,6 +636,29 @@ class Launcher:
                 f"{ticket} has no analysis yet; run 'launch-ec2 analyze {ticket}' first"
             )
         self._open_ticket_session(state, "implement-ticket")
+
+    @staticmethod
+    def _sync_code(remote: RemoteHost) -> None:
+        """Fetch every repo, fast-forward the checkouts and update the graphs.
+
+        The same units the 15-minute timer runs, started now and waited for,
+        so the session sees the latest default branch. A checkout the sync
+        skips (local work) or fails on stays stale; those are listed.
+        """
+        print("\n» Syncing repositories and code graphs on the instance...")
+        script = """since=$(date +%s)
+systemctl start repo-fetch.service repo-sync.service code-review-graph-sync.service
+journalctl -u repo-fetch -u repo-sync --since "@$since" -o cat \\
+  | grep -E 'Skipping|failed|unavailable' || true
+"""
+        report = remote.run("root", script, capture=True, check=False).stdout or ""
+        stale = [line for line in report.splitlines() if line.strip()]
+        if stale:
+            print("  ⚠ These checkouts are stale; the session sees old code for them:")
+            for line in stale:
+                print(f"    {line}")
+        else:
+            print("  ✓ All checkouts are on the latest default branch")
 
     @staticmethod
     def _remote_exists(remote: RemoteHost, path: str) -> bool:

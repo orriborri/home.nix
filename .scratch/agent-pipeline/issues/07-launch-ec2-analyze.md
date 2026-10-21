@@ -50,3 +50,28 @@ Found, not changed (separate):
   HTTPS_PROXY=...`, outside the sandbox; it could use claude-remote-sandbox.
 - `nixos/kirocrew.md` sandbox section is stale: says no push and no token,
   and `--spawn worktree`.
+
+**2026-10-21: first live run (OPS-539) and fixes.**
+
+The run worked end to end: Linear fetch, analysis.md, top risk (Stripe pin),
+open questions. It surfaced three problems, fixed here (not deployed):
+
+1. Stale code: every checkout under /var/lib/code had been skipped as dirty
+   since 2026-09-22. Cause: `code-review-graph install` (graph sync) appends
+   a block to the root `.gitignore` (crg `cli.py:319`) and writes
+   `.kiro/settings/mcp.json` (crg `skills.py:237`); repo-sync skipped any
+   dirty checkout. Fix (human chose option 1, keep install):
+   `nixos/kirocrew-checkout-update.nix` treats crg's own edits as not local
+   work (drops the .gitignore block, keeps mcp.json across the fast-forward,
+   leaves untracked crg files); any other change still blocks. Tested by the
+   `checkout-update` flake check (6 fixture cases; failed before on the crg
+   cases). New `ec2-repo-sync-script` check builds the script (shellcheck
+   caught an unused variable the refactor left).
+2. analyze/implement now run repo-fetch → repo-sync → graph sync first and
+   list any checkout still stale (launcher `_sync_code`; 2 tests).
+3. curl on the sandbox path; MRs target the repo's default branch (mononode
+   `master`) in CLAUDE.md and implement-ticket.
+
+Still open (human): mononode's checkout has staged edits to tracked files
+(`.docker/...`, `.gitlab/components/...`) of unknown origin; repo-sync keeps
+skipping it until they are inspected or discarded.

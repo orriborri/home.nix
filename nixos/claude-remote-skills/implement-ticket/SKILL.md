@@ -141,9 +141,10 @@ passes, and every repo's working tree is clean.
 For each repo with commits on `<branch>`:
 
 1. `git push -u origin <branch>`. The target is always the ticket branch;
-   `main` is protected and the token cannot merge.
-2. Create the MR with the command in `~/.claude/CLAUDE.md` ("Push and merge
-   requests"), with:
+   the default branch is protected and the token cannot merge.
+2. Create the MR against the repo's default branch (`master` in mononode)
+   with the command in `~/.claude/CLAUDE.md` ("Push and merge requests"),
+   with:
    - title: `<type>(<scope>): <summary> (<TICKET>)`
    - description, starting with the magic word line that links the ticket:
 

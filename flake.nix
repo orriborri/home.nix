@@ -1752,6 +1752,9 @@
                 grep -qF 'credential "https://gitlab.com"' "$gitconfig" || fail "gitconfig lacks the gitlab.com credential helper"
                 ! grep -q 'pushInsteadOf\|sshCommand' "$gitconfig" || fail "gitconfig still has a push block or ssh command"
                 [ -f "$instructions" ] || fail "no CLAUDE.md for the uid"
+                # MRs target the repo's default branch (mononode: master).
+                ! grep -qF 'target_branch=main' "$instructions" || fail "CLAUDE.md hard-codes target_branch=main"
+                grep -qF 'target_branch="$default_branch"' "$instructions" || fail "CLAUDE.md lacks the default-branch MR target"
                 echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/CLAUDE.md - - - - /etc/claude-remote/CLAUDE.md' \
                   || fail "CLAUDE.md is not linked into the uid's ~/.claude"
                 echo "$tmpfiles" | grep -qx 'L+ /var/lib/claude-remote/.claude/skills - - - - /etc/claude-remote/skills' \
@@ -1816,6 +1819,7 @@
                 httpProxy = env.HTTP_PROXY or "";
                 noProxy = env.NO_PROXY or "";
                 ripgrepConfig = env.RIPGREP_CONFIG_PATH or "";
+                unitPath = toString (map lib.getName (unit.path or [ ]));
                 gitConfig = env.GIT_CONFIG_GLOBAL or "";
                 envFile = toString (sc.EnvironmentFile or "");
                 home = env.HOME or "";
@@ -1840,6 +1844,7 @@
                 [ "$httpProxy" = http://127.0.0.1:8888 ] || fail "HTTP_PROXY is '$httpProxy'"
                 [ "$noProxy" = 127.0.0.1,localhost ] || fail "NO_PROXY is '$noProxy', want 127.0.0.1,localhost (the crg MCP server)"
                 [ "$ripgrepConfig" = /etc/claude-remote/ripgreprc ] || fail "RIPGREP_CONFIG_PATH is '$ripgrepConfig'"
+                case " $unitPath " in *" curl "*) ;; *) fail "curl not on the unit's path: '$unitPath'" ;; esac
                 [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
                 [ "$envFile" = "-/var/lib/claude-remote/secrets/gitlab.env -/var/lib/claude-remote/secrets/linear.env" ] \
                   || fail "EnvironmentFile is '$envFile'"
@@ -1847,6 +1852,24 @@
                 case " $envNames " in
                   *CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC* | *DISABLE_GROWTHBOOK*) fail "sets a variable that disables Remote Control: $envNames" ;;
                 esac
+                touch $out
+              '';
+
+          # The repo-sync script builds (writeShellApplication runs shellcheck).
+          ec2-repo-sync-script = ec2OnX86.config.systemd.units."repo-sync.service".unit;
+
+          # repo-sync: a checkout whose only changes are code-review-graph's
+          # own edits is still fast-forwarded; real local work is preserved.
+          checkout-update =
+            pkgs.runCommand "check-checkout-update"
+              {
+                nativeBuildInputs = [
+                  pkgs.git
+                  (import ./nixos/kirocrew-checkout-update.nix { inherit pkgs; })
+                ];
+              }
+              ''
+                bash ${./nixos/tests/checkout-update.sh}
                 touch $out
               '';
 

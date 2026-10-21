@@ -42,11 +42,13 @@ let
   # The sandbox every claude-remote process runs in: the unit below, and
   # one-off sessions started by claude-remote-sandbox (launch-ec2 analyze).
   # git for clones and pushes, nix for `nix-shell -p` through the daemon,
-  # ripgrep for analyze-ticket's literal search.
+  # ripgrep for analyze-ticket's literal search, curl for the GitLab and
+  # Linear APIs.
   path = [
     pkgs.git
     pkgs.nix
     pkgs.ripgrep
+    pkgs.curl
   ];
   environment = {
     HOME = home;
@@ -175,22 +177,27 @@ in
         read-only here. Work in a clone in the current directory:
         `git clone /var/lib/code/readpeak/<repo>`, then
         `git remote set-url origin git@gitlab.com:readpeak/<repo>.git`.
-      - The local copies are synced from GitLab by the KiroCrew host. The
-        GitLab token cannot read, so `git fetch`/`git pull` from GitLab may be
-        refused; base work on the local copy.
+      - The local copies are synced from GitLab by the KiroCrew host, and
+        `launch-ec2 analyze`/`implement` sync them before the session starts.
+        The GitLab token cannot read, so `git fetch`/`git pull` from GitLab may
+        be refused; base work on the local copy.
+      - Each local copy is on its repo's default branch (`master` in
+        mononode, `main` in most others). Read it before cloning:
+        `default_branch=$(git -C /var/lib/code/readpeak/<repo> branch --show-current)`.
 
       ## Push and merge requests
       - git reaches GitLab over HTTPS with `$GITLAB_TOKEN`; `git@gitlab.com:`
         URLs are rewritten automatically. Do not ask for SSH keys.
       - The token can only push code and create merge requests. It cannot read
         projects through the API, comment, approve or merge.
-      - Push to a new branch, never to `main`. Then create the merge request:
+      - Push to a new branch, never to the default branch. Then create the
+        merge request against the default branch:
 
         ```
         curl --fail-with-body -sS -X POST \
           -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
           --data-urlencode source_branch=<branch> \
-          --data-urlencode target_branch=main \
+          --data-urlencode target_branch="$default_branch" \
           --data-urlencode title="<title>" \
           --data-urlencode description="<description>" \
           https://gitlab.com/api/v4/projects/readpeak%2F<repo>/merge_requests

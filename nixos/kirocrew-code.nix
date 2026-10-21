@@ -57,6 +57,7 @@ let
   ];
   manifest = builtins.fromTOML (builtins.readFile ../config/repos.toml);
   skillsTools = import ./kirocrew-skills-package.nix { inherit pkgs; };
+  checkoutUpdate = import ./kirocrew-checkout-update.nix { inherit pkgs; };
   skillsRepo = lib.findFirst (repo: repo.path == "code/mattpocock-skills") null manifest.repos;
   headlessRepos = builtins.filter (
     repo:
@@ -258,8 +259,6 @@ let
         local mirror="$1"
         local destination="$2"
         local revision="$3"
-        local name
-        name="$(basename "$destination")"
 
         if [[ -n "$revision" ]]; then
           if ! ${skillsTools.pinnedRepo}/bin/kirocrew-pinned-repo checkout \
@@ -271,51 +270,15 @@ let
           return
         fi
 
-        if [[ ! -d "$mirror/objects" ]]; then
-          echo "Skipping unavailable mirror: $name" >&2
-          failures=$((failures + 1))
-          return
-        fi
-        if [[ -e "$destination" && ! -d "$destination/.git" ]]; then
-          echo "Checkout destination is not a Git repository: $destination" >&2
-          failures=$((failures + 1))
-          return
-        fi
-        if [[ ! -d "$destination/.git" ]]; then
-          mkdir -p "$(dirname "$destination")"
-          if ! git clone --config core.sharedRepository=group "$mirror" "$destination"; then
-            echo "Checkout clone failed: $name" >&2
-            failures=$((failures + 1))
-            return
-          fi
-          enforce_git_perms "$destination"
-          echo "Ready: $name"
-          return
-        fi
-
-        git -C "$destination" remote set-url origin "$mirror"
-        git -C "$destination" config core.sharedRepository group
-        if [[ -n "$(git -C "$destination" status --porcelain)" ]]; then
-          enforce_git_perms "$destination"
-          prune_worktrees "$destination"
-          echo "Skipping dirty checkout (preserved, not reset): $name"
-          warnings=$((warnings + 1))
-          return
-        fi
-        if ! git -C "$destination" fetch --prune origin; then
-          echo "Local fetch failed: $name" >&2
-          failures=$((failures + 1))
-          return
-        fi
-        upstream="$(git -C "$destination" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
-        if [[ -z "$upstream" ]] || ! git -C "$destination" merge --ff-only "$upstream"; then
-          echo "Fast-forward failed or no upstream exists: $name" >&2
-          failures=$((failures + 1))
-          return
-        fi
+        local rc=0
+        ${checkoutUpdate}/bin/kirocrew-checkout-update "$mirror" "$destination" || rc=$?
+        case $rc in
+          0) ;;
+          3) warnings=$((warnings + 1)) ;;
+          *) failures=$((failures + 1)) ;;
+        esac
         enforce_git_perms "$destination"
         prune_worktrees "$destination"
-        echo "Updated: $name"
       }
 
       ${checkoutCommands}
