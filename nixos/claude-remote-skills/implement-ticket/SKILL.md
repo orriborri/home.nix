@@ -39,6 +39,9 @@ first. If `todo.md` already exists, this is a resume: skip to the loop.
 
 ## Out of scope
 <findings that belong to another ticket>
+
+## MRs
+<one line per repo: repo | branch | MR URL>
 ```
 
 Size: S under 30 min, M a few hours, L a day. An L is a sign the task can
@@ -53,7 +56,9 @@ is a task too.
 
 Clone each repo the tasks touch: `git clone /var/lib/code/readpeak/<repo>`,
 then `git remote set-url origin git@gitlab.com:readpeak/<repo>.git`, then
-`git switch -c <TICKET-lowercase>-<slug>`. Read the repo's `AGENTS.md` /
+`git switch -c <branch>`. `<branch>` is the ticket's Linear `gitBranchName`
+from `analysis.md`, used exactly: that name is what links the MR to the
+ticket. If `analysis.md` lacks it, use `<ticket-lowercase>-<slug>`. Read the repo's `AGENTS.md` /
 `CLAUDE.md` and find its test command before writing tasks against it.
 
 Done when the Coverage section maps every acceptance criterion and every
@@ -129,5 +134,33 @@ decision, mark it `[-] blocked: <exact reason>` instead and pick the next.
 ## 5. Finish
 
 Done when every task is `[x]` or `[-]`, every repo's full test command
-passes, and every repo's working tree is clean. Report in under 10 lines:
-tasks done with hashes, tasks blocked with reasons, and Out of scope items.
+passes, and every repo's working tree is clean.
+
+## 6. Push and open the MR
+
+For each repo with commits on `<branch>`:
+
+1. `git push -u origin <branch>`. The target is always the ticket branch;
+   `main` is protected and the token cannot merge.
+2. Create the MR with the command in `~/.claude/CLAUDE.md` ("Push and merge
+   requests"), with:
+   - title: `<type>(<scope>): <summary> (<TICKET>)`
+   - description, starting with the magic word line that links the ticket:
+
+     ```
+     Fixes <TICKET>
+
+     ## Tasks
+     <each [x] task: ID, title, commit hash>
+
+     ## Tests
+     <each command run in this repo and its result>
+
+     ## Blocked / out of scope
+     <each [-] task with its reason; each Out of scope item>
+     ```
+3. Write `repo | branch | MR URL` under MRs in todo.md.
+
+Done when every repo with commits has an MR line in todo.md. Report in
+under 10 lines: the MR URLs, tasks blocked with reasons, and Out of scope
+items.

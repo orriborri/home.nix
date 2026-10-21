@@ -1765,7 +1765,8 @@
                 [ -f "$it" ] || fail "no implement-ticket skill"
                 grep -qx 'name: implement-ticket' "$it" || fail "implement-ticket: frontmatter name"
                 grep -qx 'disable-model-invocation: true' "$it" || fail "implement-ticket: should be user-invoked"
-                for w in '### Red' '### Green' '### Refactor' '### Review' 'simplest'; do
+                for w in '### Red' '### Green' '### Refactor' '### Review' 'simplest' \
+                  '## 6. Push and open the MR' 'gitBranchName' 'Fixes <TICKET>' '## MRs'; do
                   grep -qF "$w" "$it" || fail "implement-ticket lacks '$w'"
                 done
                 [ -f "$mcpConfig" ] || fail "no /etc/claude-remote/mcp.json"

@@ -9,4 +9,5 @@
 - [ ] analysis.md lists affected repos, files and callers with `file:line`
 - [ ] analysis.md has a dependency graph (mermaid) and risks/open questions
 - [ ] Each claim cites the graph query or `rg` command behind it
+- [ ] analysis.md records the ticket's Linear `gitBranchName` (implement-ticket names the branch from it, see 09)
 - [ ] Tried on one real ticket; result recorded in `## Comments`
