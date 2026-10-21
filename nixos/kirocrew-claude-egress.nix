@@ -26,6 +26,9 @@ let
     # GitLab over HTTPS: claude-remote pushes and creates merge requests with
     # a token limited to that (see kirocrew-claude-remote.nix)
     "gitlab.com"
+    # Linear GraphQL API: analyze-ticket reads the ticket with
+    # LINEAR_API_KEY (kirocrew-claude-remote.nix)
+    "api.linear.app"
     # standard NixOS hosts, so nix-shell -p and substitution work
     "cache.nixos.org"
     "channels.nixos.org"

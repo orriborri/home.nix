@@ -200,6 +200,23 @@
       GITLAB_TOKEN=${config.sops.placeholder.claude-remote-gitlab-token}
     '';
   };
+  # The Linear API key pasta also uses (same sops key), so analyze-ticket can
+  # read tickets. Rendered as LINEAR_API_KEY=... for the unit.
+  sops.secrets.claude-remote-linear-api-key = {
+    owner = config.users.users.claude-remote.name;
+    inherit (config.users.users.claude-remote) group;
+    mode = "0400";
+    key = "linear-api-key";
+  };
+  sops.templates."claude-remote-linear.env" = {
+    owner = config.users.users.claude-remote.name;
+    inherit (config.users.users.claude-remote) group;
+    mode = "0400";
+    path = "/var/lib/claude-remote/secrets/linear.env";
+    content = ''
+      LINEAR_API_KEY=${config.sops.placeholder.claude-remote-linear-api-key}
+    '';
+  };
   sops.templates."pasta-fetchers.env" = {
     owner = config.users.users.pasta.name;
     inherit (config.users.users.pasta) group;

@@ -73,9 +73,6 @@ TDD loop, or answer it, then reply on the thread. It never merges.
 
 ## Open decisions
 
-- Linear: read-only API key for `claude-remote`, or `launch-ec2` fetches
-  the ticket on the laptop and passes the text in. Recommend the key
-  (the session can re-read comments).
 - Poll interval for review comments, and when the loop stops.
 
 ## Later

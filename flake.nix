@@ -1669,12 +1669,12 @@
                   registry.npmjs.org pypi.org files.pythonhosted.org crates.io \
                   index.crates.io static.crates.io github.com codeload.github.com \
                   objects.githubusercontent.com cache.nixos.org channels.nixos.org \
-                  releases.nixos.org tarballs.nixos.org gitlab.com; do
+                  releases.nixos.org tarballs.nixos.org gitlab.com api.linear.app; do
                   want="^$(printf '%s' "$h" | sed 's/\./\\./g')\$"
                   grep -qxF "$want" "$filter" || fail "filter lacks $want"
                 done
                 ! grep -q '169' "$filter" || fail "filter admits IMDS"
-                [ "$(grep -c . "$filter")" = 18 ] || fail "filter has entries beyond the 18 allowed hosts"
+                [ "$(grep -c . "$filter")" = 19 ] || fail "filter has entries beyond the 19 allowed hosts"
                 touch $out
               '';
 
@@ -1740,7 +1740,8 @@
                 [ "$group" = claude-remote ] || fail "group is '$group'"
                 [ "$extraGroups" = code-writers ] || fail "extraGroups is '$extraGroups', want code-writers"
                 [ "$trusted" = root ] || fail "nix trusted-users is '$trusted', want root"
-                [ "$owned" = claude-remote-gitlab-token ] || fail "owns sops secrets '$owned', want only claude-remote-gitlab-token"
+                [ "$owned" = "claude-remote-gitlab-token claude-remote-linear-api-key" ] \
+                  || fail "owns sops secrets '$owned', want only the GitLab token and the Linear key"
                 echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote 0700 claude-remote claude-remote -' \
                   || fail "tmpfiles lacks the 0700 home"
                 echo "$tmpfiles" | grep -qx 'd /var/lib/claude-remote/workspace 0700 claude-remote claude-remote -' \
@@ -1765,7 +1766,7 @@
                 [ -f "$at" ] || fail "no analyze-ticket skill"
                 grep -qx 'name: analyze-ticket' "$at" || fail "analyze-ticket: frontmatter name"
                 grep -qx 'disable-model-invocation: true' "$at" || fail "analyze-ticket: should be user-invoked"
-                for w in 'ticket.md' 'cross_repo_search_tool' 'get_impact_radius_tool' '/var/lib/code/readpeak' \
+                for w in 'ticket.md' 'LINEAR_API_KEY' 'branchName' 'cross_repo_search_tool' 'get_impact_radius_tool' '/var/lib/code/readpeak' \
                   '## Acceptance criteria' '## Affected' '## Evidence' 'gitBranchName'; do
                   grep -qF "$w" "$at" || fail "analyze-ticket lacks '$w'"
                 done
@@ -1840,7 +1841,8 @@
                 [ "$noProxy" = 127.0.0.1,localhost ] || fail "NO_PROXY is '$noProxy', want 127.0.0.1,localhost (the crg MCP server)"
                 [ "$ripgrepConfig" = /etc/claude-remote/ripgreprc ] || fail "RIPGREP_CONFIG_PATH is '$ripgrepConfig'"
                 [ "$gitConfig" = /etc/claude-remote/gitconfig ] || fail "GIT_CONFIG_GLOBAL is '$gitConfig'"
-                [ "$envFile" = -/var/lib/claude-remote/secrets/gitlab.env ] || fail "EnvironmentFile is '$envFile'"
+                [ "$envFile" = "-/var/lib/claude-remote/secrets/gitlab.env -/var/lib/claude-remote/secrets/linear.env" ] \
+                  || fail "EnvironmentFile is '$envFile'"
                 [ "$home" = /var/lib/claude-remote ] || fail "HOME is '$home'"
                 case " $envNames " in
                   *CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC* | *DISABLE_GROWTHBOOK*) fail "sets a variable that disables Remote Control: $envNames" ;;

@@ -113,6 +113,16 @@ in
           https://gitlab.com/api/v4/projects/readpeak%2F<repo>/merge_requests
         ```
 
+      ## Linear
+      - Read a ticket with `$LINEAR_API_KEY` through the GraphQL API:
+
+        ```
+        curl --fail-with-body -sS https://api.linear.app/graphql \
+          -H "Authorization: $LINEAR_API_KEY" -H 'Content-Type: application/json' \
+          -d '{"query":"{ issue(id: \"<TICKET>\") { identifier title url branchName description comments { nodes { createdAt user { name } body } } } }"}'
+        ```
+      - Read only. Do not create, edit or comment on Linear issues.
+
       ## Code graph
       - A read-only code-review-graph MCP server for all repos runs at
         `http://127.0.0.1:5555/mcp` (`/etc/claude-remote/mcp.json`). Pass
@@ -180,9 +190,13 @@ in
       # same-dir: sessions share the workspace and clone the repos they need
       # into it. worktree mode needs the workspace itself to be one git repo.
       ExecStart = "${pkgs.claude-code}/bin/claude remote-control --name kirocrew --spawn same-dir";
-      # GITLAB_TOKEN=..., rendered by sops (kirocrew-sops.nix). Optional, so
-      # the unit still starts on a box without the secret.
-      EnvironmentFile = "-${home}/secrets/gitlab.env";
+      # GITLAB_TOKEN=... and LINEAR_API_KEY=..., rendered by sops
+      # (kirocrew-sops.nix). Optional, so the unit still starts on a box
+      # without the secrets.
+      EnvironmentFile = [
+        "-${home}/secrets/gitlab.env"
+        "-${home}/secrets/linear.env"
+      ];
       IPAddressDeny = "any";
       IPAddressAllow = "localhost";
       ReadWritePaths = [ home ];
